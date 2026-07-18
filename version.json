@@ -1,0 +1,5 @@
+{
+  "version": "0.5.1",
+  "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
+  "release_asset_script": "StoriesOfYggdrasilOSCContactSystem.cs"
+}

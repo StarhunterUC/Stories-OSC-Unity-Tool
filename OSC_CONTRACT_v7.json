@@ -1,0 +1,29 @@
+{
+  "contract_version": 7,
+  "unity_tool_version": "0.5.1",
+  "parameters": {
+    "SoY_CombatEnabled": {"type": "Bool", "saved": true, "synced": true},
+    "SoY_IsEnemy": {"type": "Bool", "saved": true, "synced": true},
+    "SoY_SpellType": {"type": "Int", "idle": 0, "registry": "SPELL_ID_REGISTRY_v1.json"},
+    "SoY_HealingSourceEnemy": {"type": "Bool", "default": false},
+    "SoY_HealingRejected": {"type": "Bool", "default": false},
+    "SoY_MistCharge": {"type": "Int", "minimum": 0},
+    "SoY_MistMax": {"type": "Int", "default": 3},
+    "SoY_MistPercent": {"type": "Float", "minimum": 0.0, "maximum": 1.0},
+    "SoY_DiablosApplicable": {"type": "Bool", "default": false},
+    "SoY_DiablosPercent": {"type": "Float", "minimum": 0.0, "maximum": 1.0}
+  },
+  "spell_contact_tags": {
+    "spell": "SoY Spell <id>",
+    "ally_caster": "SoY Caster Ally",
+    "enemy_caster": "SoY Caster Enemy",
+    "healing": "SoY Healing Spell",
+    "offensive": "SoY Offensive Spell"
+  },
+  "enemy_healing_rule": {
+    "reject_when": "target.SoY_IsEnemy == true AND spell.category in [healing, revival] AND source.SoY_HealingSourceEnemy == false",
+    "rejection_parameter": "SoY_HealingRejected"
+  },
+  "curse_warning_thresholds": [0.25, 0.50, 0.90, 0.98],
+  "incoming_hit_iframes_seconds": 1.0
+}
