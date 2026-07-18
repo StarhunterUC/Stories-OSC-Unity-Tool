@@ -25,7 +25,7 @@ namespace StoriesOfYggdrasil.OSC
     /// </summary>
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
-        private const string Version = "0.5.1";
+        private const string Version = "0.5.2";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
 
@@ -68,7 +68,28 @@ namespace StoriesOfYggdrasil.OSC
         private enum SpellSchool
         {
             WhiteMagick,
-            BlackMagick
+            BlackMagick,
+            GreenMagick,
+            TimeMagick,
+            ArcaneMagick,
+            SynergistMagick,
+            IllusionMagick,
+            DreamMagick,
+            NatureMagick,
+            ChaosMagick,
+            AbyssalCurses,
+            YggdrasilLightMagick
+        }
+
+        private enum SpellCategory
+        {
+            Offensive,
+            Healing,
+            Revival,
+            Cleanse,
+            Support,
+            Status,
+            Utility
         }
 
         private enum AttackTier
@@ -143,14 +164,19 @@ namespace StoriesOfYggdrasil.OSC
             public int Id;
             public string Name;
             public SpellSchool School;
-            public bool IsHealing;
+            public SpellCategory Category;
 
-            public SpellDefinition(int id, string name, SpellSchool school, bool isHealing = false)
+            public bool IsHealing
+            {
+                get { return Category == SpellCategory.Healing || Category == SpellCategory.Revival; }
+            }
+
+            public SpellDefinition(int id, string name, SpellSchool school, SpellCategory category)
             {
                 Id = id;
                 Name = name;
                 School = school;
-                IsHealing = isHealing;
+                Category = category;
             }
         }
 
@@ -191,59 +217,180 @@ namespace StoriesOfYggdrasil.OSC
 
         private static readonly SpellDefinition[] SpellDefinitions =
         {
-            new SpellDefinition(1, "Cure", SpellSchool.WhiteMagick, true),
-            new SpellDefinition(2, "Cura", SpellSchool.WhiteMagick, true),
-            new SpellDefinition(3, "Curaga", SpellSchool.WhiteMagick, true),
-            new SpellDefinition(4, "Curaja", SpellSchool.WhiteMagick, true),
-            new SpellDefinition(5, "Raise", SpellSchool.WhiteMagick, true),
-            new SpellDefinition(6, "Arise", SpellSchool.WhiteMagick, true),
-            new SpellDefinition(7, "Renew", SpellSchool.WhiteMagick, true),
-            new SpellDefinition(8, "Regen", SpellSchool.WhiteMagick, true),
-            new SpellDefinition(9, "Poisona", SpellSchool.WhiteMagick),
-            new SpellDefinition(10, "Blindna", SpellSchool.WhiteMagick),
-            new SpellDefinition(11, "Vox", SpellSchool.WhiteMagick),
-            new SpellDefinition(12, "Stona", SpellSchool.WhiteMagick),
-            new SpellDefinition(13, "Esuna", SpellSchool.WhiteMagick),
-            new SpellDefinition(14, "Esunaga", SpellSchool.WhiteMagick),
-            new SpellDefinition(15, "Cleanse", SpellSchool.WhiteMagick),
-            new SpellDefinition(16, "Protect", SpellSchool.WhiteMagick),
-            new SpellDefinition(17, "Protectga", SpellSchool.WhiteMagick),
-            new SpellDefinition(18, "Shell", SpellSchool.WhiteMagick),
-            new SpellDefinition(19, "Shellga", SpellSchool.WhiteMagick),
-            new SpellDefinition(20, "Dispel", SpellSchool.WhiteMagick),
-            new SpellDefinition(21, "Dispelga", SpellSchool.WhiteMagick),
-            new SpellDefinition(22, "Bravery", SpellSchool.WhiteMagick),
-            new SpellDefinition(23, "Faith", SpellSchool.WhiteMagick),
-            new SpellDefinition(24, "Holy", SpellSchool.WhiteMagick),
-            new SpellDefinition(25, "Confuse", SpellSchool.WhiteMagick),
+            // White Magick
+            new SpellDefinition(1, "Cure", SpellSchool.WhiteMagick, SpellCategory.Healing),
+            new SpellDefinition(2, "Cura", SpellSchool.WhiteMagick, SpellCategory.Healing),
+            new SpellDefinition(3, "Curaga", SpellSchool.WhiteMagick, SpellCategory.Healing),
+            new SpellDefinition(4, "Curaja", SpellSchool.WhiteMagick, SpellCategory.Healing),
+            new SpellDefinition(5, "Raise", SpellSchool.WhiteMagick, SpellCategory.Revival),
+            new SpellDefinition(6, "Arise", SpellSchool.WhiteMagick, SpellCategory.Revival),
+            new SpellDefinition(7, "Renew", SpellSchool.WhiteMagick, SpellCategory.Healing),
+            new SpellDefinition(8, "Regen", SpellSchool.WhiteMagick, SpellCategory.Healing),
+            new SpellDefinition(9, "Poisona", SpellSchool.WhiteMagick, SpellCategory.Cleanse),
+            new SpellDefinition(10, "Blindna", SpellSchool.WhiteMagick, SpellCategory.Cleanse),
+            new SpellDefinition(11, "Vox", SpellSchool.WhiteMagick, SpellCategory.Cleanse),
+            new SpellDefinition(12, "Stona", SpellSchool.WhiteMagick, SpellCategory.Cleanse),
+            new SpellDefinition(13, "Esuna", SpellSchool.WhiteMagick, SpellCategory.Cleanse),
+            new SpellDefinition(14, "Esunaga", SpellSchool.WhiteMagick, SpellCategory.Cleanse),
+            new SpellDefinition(15, "Cleanse", SpellSchool.WhiteMagick, SpellCategory.Cleanse),
+            new SpellDefinition(16, "Protect", SpellSchool.WhiteMagick, SpellCategory.Support),
+            new SpellDefinition(17, "Protectga", SpellSchool.WhiteMagick, SpellCategory.Support),
+            new SpellDefinition(18, "Shell", SpellSchool.WhiteMagick, SpellCategory.Support),
+            new SpellDefinition(19, "Shellga", SpellSchool.WhiteMagick, SpellCategory.Support),
+            new SpellDefinition(20, "Dispel", SpellSchool.WhiteMagick, SpellCategory.Cleanse),
+            new SpellDefinition(21, "Dispelga", SpellSchool.WhiteMagick, SpellCategory.Cleanse),
+            new SpellDefinition(22, "Bravery", SpellSchool.WhiteMagick, SpellCategory.Support),
+            new SpellDefinition(23, "Faith", SpellSchool.WhiteMagick, SpellCategory.Support),
+            new SpellDefinition(24, "Holy", SpellSchool.WhiteMagick, SpellCategory.Offensive),
+            new SpellDefinition(25, "Confuse", SpellSchool.WhiteMagick, SpellCategory.Status),
+            new SpellDefinition(100, "I Am... Recovery Atomic", SpellSchool.WhiteMagick, SpellCategory.Healing),
 
-            new SpellDefinition(101, "Fire", SpellSchool.BlackMagick),
-            new SpellDefinition(102, "Fira", SpellSchool.BlackMagick),
-            new SpellDefinition(103, "Firaga", SpellSchool.BlackMagick),
-            new SpellDefinition(104, "Blizzard", SpellSchool.BlackMagick),
-            new SpellDefinition(105, "Blizzara", SpellSchool.BlackMagick),
-            new SpellDefinition(106, "Blizzaga", SpellSchool.BlackMagick),
-            new SpellDefinition(107, "Thunder", SpellSchool.BlackMagick),
-            new SpellDefinition(108, "Thundara", SpellSchool.BlackMagick),
-            new SpellDefinition(109, "Thundaga", SpellSchool.BlackMagick),
-            new SpellDefinition(110, "Water", SpellSchool.BlackMagick),
-            new SpellDefinition(111, "Waterga", SpellSchool.BlackMagick),
-            new SpellDefinition(112, "Aqua", SpellSchool.BlackMagick),
-            new SpellDefinition(113, "Aero", SpellSchool.BlackMagick),
-            new SpellDefinition(114, "Aeroga", SpellSchool.BlackMagick),
-            new SpellDefinition(115, "Bio", SpellSchool.BlackMagick),
-            new SpellDefinition(116, "Poison", SpellSchool.BlackMagick),
-            new SpellDefinition(117, "Toxify", SpellSchool.BlackMagick),
-            new SpellDefinition(118, "Blind", SpellSchool.BlackMagick),
-            new SpellDefinition(119, "Blindga", SpellSchool.BlackMagick),
-            new SpellDefinition(120, "Silence", SpellSchool.BlackMagick),
-            new SpellDefinition(121, "Silencega", SpellSchool.BlackMagick),
-            new SpellDefinition(122, "Sleep", SpellSchool.BlackMagick),
-            new SpellDefinition(123, "Sleepga", SpellSchool.BlackMagick),
-            new SpellDefinition(124, "Shock", SpellSchool.BlackMagick),
-            new SpellDefinition(125, "Scourge", SpellSchool.BlackMagick),
-            new SpellDefinition(126, "Flare", SpellSchool.BlackMagick),
-            new SpellDefinition(127, "Scathe", SpellSchool.BlackMagick)
+            // Green Magick
+            new SpellDefinition(26, "Decoy", SpellSchool.GreenMagick, SpellCategory.Support),
+            new SpellDefinition(27, "Oil", SpellSchool.GreenMagick, SpellCategory.Status),
+            new SpellDefinition(28, "Reverse", SpellSchool.GreenMagick, SpellCategory.Support),
+            new SpellDefinition(29, "Drain", SpellSchool.GreenMagick, SpellCategory.Offensive),
+            new SpellDefinition(30, "Bubble", SpellSchool.GreenMagick, SpellCategory.Support),
+            new SpellDefinition(31, "Syphon", SpellSchool.GreenMagick, SpellCategory.Offensive),
+            new SpellDefinition(32, "Disablega", SpellSchool.GreenMagick, SpellCategory.Status),
+            new SpellDefinition(122, "Sleep", SpellSchool.GreenMagick, SpellCategory.Status),
+
+            // Time Magick
+            new SpellDefinition(33, "Slow", SpellSchool.TimeMagick, SpellCategory.Status),
+            new SpellDefinition(34, "Immobilize", SpellSchool.TimeMagick, SpellCategory.Status),
+            new SpellDefinition(35, "Reflect", SpellSchool.TimeMagick, SpellCategory.Support),
+            new SpellDefinition(36, "Disable", SpellSchool.TimeMagick, SpellCategory.Status),
+            new SpellDefinition(37, "Vanish", SpellSchool.TimeMagick, SpellCategory.Support),
+            new SpellDefinition(38, "Balance", SpellSchool.TimeMagick, SpellCategory.Offensive),
+            new SpellDefinition(39, "Gravity", SpellSchool.TimeMagick, SpellCategory.Offensive),
+            new SpellDefinition(40, "Haste", SpellSchool.TimeMagick, SpellCategory.Support),
+            new SpellDefinition(41, "Stop", SpellSchool.TimeMagick, SpellCategory.Status),
+            new SpellDefinition(42, "Bleed", SpellSchool.TimeMagick, SpellCategory.Status),
+            new SpellDefinition(43, "Break", SpellSchool.TimeMagick, SpellCategory.Status),
+            new SpellDefinition(44, "Countdown", SpellSchool.TimeMagick, SpellCategory.Status),
+            new SpellDefinition(45, "Float", SpellSchool.TimeMagick, SpellCategory.Support),
+            new SpellDefinition(46, "Berserk", SpellSchool.TimeMagick, SpellCategory.Status),
+            new SpellDefinition(47, "Vanishga", SpellSchool.TimeMagick, SpellCategory.Support),
+            new SpellDefinition(48, "Warp", SpellSchool.TimeMagick, SpellCategory.Status),
+            new SpellDefinition(49, "Reflectga", SpellSchool.TimeMagick, SpellCategory.Support),
+            new SpellDefinition(50, "Slowga", SpellSchool.TimeMagick, SpellCategory.Status),
+            new SpellDefinition(51, "Graviga", SpellSchool.TimeMagick, SpellCategory.Offensive),
+            new SpellDefinition(52, "Hastega", SpellSchool.TimeMagick, SpellCategory.Support),
+
+            // Synergist Magick
+            new SpellDefinition(53, "Boon", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(54, "Veil", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(55, "Vigilance", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(40, "Haste", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(56, "Barfire", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(57, "Barfrost", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(58, "Barthunder", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(59, "Barwater", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(22, "Bravery", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(23, "Faith", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(60, "Enfire", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(61, "Enfrost", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(62, "Enthunder", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(63, "Enwater", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(16, "Protect", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(18, "Shell", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(64, "Protectra", SpellSchool.SynergistMagick, SpellCategory.Support),
+            new SpellDefinition(65, "Shellra", SpellSchool.SynergistMagick, SpellCategory.Support),
+
+            // Illusion Magick
+            new SpellDefinition(66, "Mindmaze", SpellSchool.IllusionMagick, SpellCategory.Status),
+            new SpellDefinition(67, "Veil of the Unseen", SpellSchool.IllusionMagick, SpellCategory.Support),
+            new SpellDefinition(68, "Mirror Walk", SpellSchool.IllusionMagick, SpellCategory.Support),
+            new SpellDefinition(69, "Flicker", SpellSchool.IllusionMagick, SpellCategory.Support),
+            new SpellDefinition(70, "Doppelgeist", SpellSchool.IllusionMagick, SpellCategory.Offensive),
+            new SpellDefinition(71, "Glamour Veil", SpellSchool.IllusionMagick, SpellCategory.Status),
+            new SpellDefinition(72, "False Terrain", SpellSchool.IllusionMagick, SpellCategory.Status),
+            new SpellDefinition(73, "Unmake", SpellSchool.IllusionMagick, SpellCategory.Offensive),
+            new SpellDefinition(74, "Phantom Army", SpellSchool.IllusionMagick, SpellCategory.Offensive),
+            new SpellDefinition(75, "Phantom Atomic", SpellSchool.IllusionMagick, SpellCategory.Offensive),
+
+            // Arcane Magick
+            new SpellDefinition(76, "Dark", SpellSchool.ArcaneMagick, SpellCategory.Offensive),
+            new SpellDefinition(77, "Darka", SpellSchool.ArcaneMagick, SpellCategory.Offensive),
+            new SpellDefinition(78, "Darkra", SpellSchool.ArcaneMagick, SpellCategory.Offensive),
+            new SpellDefinition(79, "Darkga", SpellSchool.ArcaneMagick, SpellCategory.Offensive),
+            new SpellDefinition(80, "Death", SpellSchool.ArcaneMagick, SpellCategory.Status),
+            new SpellDefinition(81, "Ardor", SpellSchool.ArcaneMagick, SpellCategory.Offensive),
+            new SpellDefinition(82, "Soul Rend", SpellSchool.ArcaneMagick, SpellCategory.Offensive),
+            new SpellDefinition(83, "Ex Nihilo", SpellSchool.ArcaneMagick, SpellCategory.Offensive),
+            new SpellDefinition(84, "Atomic", SpellSchool.ArcaneMagick, SpellCategory.Offensive),
+
+            // Chaos Magick
+            new SpellDefinition(85, "Chaos Lance", SpellSchool.ChaosMagick, SpellCategory.Offensive),
+            new SpellDefinition(86, "Fracture", SpellSchool.ChaosMagick, SpellCategory.Offensive),
+            new SpellDefinition(87, "Chaos Imbuement", SpellSchool.ChaosMagick, SpellCategory.Support),
+            new SpellDefinition(88, "Cataclysm", SpellSchool.ChaosMagick, SpellCategory.Offensive),
+            new SpellDefinition(89, "Balefire", SpellSchool.ChaosMagick, SpellCategory.Offensive),
+            new SpellDefinition(90, "Event Horizon", SpellSchool.ChaosMagick, SpellCategory.Offensive),
+            new SpellDefinition(91, "Chaos Atomic", SpellSchool.ChaosMagick, SpellCategory.Offensive),
+
+            // Abyssal Curses
+            new SpellDefinition(92, "Madness", SpellSchool.AbyssalCurses, SpellCategory.Status),
+            new SpellDefinition(93, "Wither", SpellSchool.AbyssalCurses, SpellCategory.Status),
+            new SpellDefinition(94, "Silence of Thought", SpellSchool.AbyssalCurses, SpellCategory.Status),
+            new SpellDefinition(95, "Null Pulse", SpellSchool.AbyssalCurses, SpellCategory.Offensive),
+            new SpellDefinition(96, "Worldrend", SpellSchool.AbyssalCurses, SpellCategory.Offensive),
+            new SpellDefinition(97, "Memory Bleed", SpellSchool.AbyssalCurses, SpellCategory.Status),
+
+            // Yggdrasil Light Magick
+            new SpellDefinition(98, "Chakra Heal", SpellSchool.YggdrasilLightMagick, SpellCategory.Healing),
+            new SpellDefinition(99, "Aura Shielding", SpellSchool.YggdrasilLightMagick, SpellCategory.Support),
+
+            // Black Magick
+            new SpellDefinition(101, "Fire", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(102, "Fira", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(103, "Firaga", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(104, "Blizzard", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(105, "Blizzara", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(106, "Blizzaga", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(107, "Thunder", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(108, "Thundara", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(109, "Thundaga", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(110, "Water", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(111, "Waterga", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(112, "Aqua", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(113, "Aero", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(114, "Aeroga", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(115, "Bio", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(116, "Poison", SpellSchool.BlackMagick, SpellCategory.Status),
+            new SpellDefinition(117, "Toxify", SpellSchool.BlackMagick, SpellCategory.Status),
+            new SpellDefinition(118, "Blind", SpellSchool.BlackMagick, SpellCategory.Status),
+            new SpellDefinition(119, "Blindga", SpellSchool.BlackMagick, SpellCategory.Status),
+            new SpellDefinition(120, "Silence", SpellSchool.BlackMagick, SpellCategory.Status),
+            new SpellDefinition(121, "Silencega", SpellSchool.BlackMagick, SpellCategory.Status),
+            new SpellDefinition(122, "Sleep", SpellSchool.BlackMagick, SpellCategory.Status),
+            new SpellDefinition(123, "Sleepga", SpellSchool.BlackMagick, SpellCategory.Status),
+            new SpellDefinition(124, "Shock", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(125, "Scourge", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(126, "Flare", SpellSchool.BlackMagick, SpellCategory.Offensive),
+            new SpellDefinition(127, "Scathe", SpellSchool.BlackMagick, SpellCategory.Offensive),
+
+            // Dream Magick
+            new SpellDefinition(128, "Spirit Vision", SpellSchool.DreamMagick, SpellCategory.Support),
+            new SpellDefinition(122, "Sleep", SpellSchool.DreamMagick, SpellCategory.Status),
+            new SpellDefinition(129, "Whisper", SpellSchool.DreamMagick, SpellCategory.Status),
+            new SpellDefinition(130, "Foresight", SpellSchool.DreamMagick, SpellCategory.Support),
+            new SpellDefinition(131, "Spirit Chains", SpellSchool.DreamMagick, SpellCategory.Status),
+            new SpellDefinition(132, "Soul Step", SpellSchool.DreamMagick, SpellCategory.Support),
+            new SpellDefinition(133, "Bind & Banish", SpellSchool.DreamMagick, SpellCategory.Offensive),
+            new SpellDefinition(134, "Memoryweaving", SpellSchool.DreamMagick, SpellCategory.Status),
+
+            // Nature Magick
+            new SpellDefinition(135, "Thornbind", SpellSchool.NatureMagick, SpellCategory.Status),
+            new SpellDefinition(136, "Verdant Ward", SpellSchool.NatureMagick, SpellCategory.Support),
+            new SpellDefinition(137, "Purifying Spores", SpellSchool.NatureMagick, SpellCategory.Cleanse),
+            new SpellDefinition(138, "Briar Cage", SpellSchool.NatureMagick, SpellCategory.Status),
+            new SpellDefinition(139, "Sylvan Blessing", SpellSchool.NatureMagick, SpellCategory.Healing),
+            new SpellDefinition(140, "Stormwhisper", SpellSchool.NatureMagick, SpellCategory.Offensive),
+            new SpellDefinition(141, "Wild Growth", SpellSchool.NatureMagick, SpellCategory.Status),
+            new SpellDefinition(142, "Living Bulwark", SpellSchool.NatureMagick, SpellCategory.Support),
+            new SpellDefinition(143, "Grovecall", SpellSchool.NatureMagick, SpellCategory.Offensive),
+            new SpellDefinition(144, "Rebirth Bloom", SpellSchool.NatureMagick, SpellCategory.Revival),
         };
 
         // These are bridge hooks only. Existing Health/HP parameters and health layers are deliberately absent.
@@ -411,6 +558,16 @@ namespace StoriesOfYggdrasil.OSC
         private bool incomingDebuffs = true;
         private bool incomingWhiteSpells = true;
         private bool incomingBlackSpells = true;
+        private bool incomingGreenSpells;
+        private bool incomingTimeSpells;
+        private bool incomingArcaneSpells;
+        private bool incomingSynergistSpells;
+        private bool incomingIllusionSpells;
+        private bool incomingDreamSpells;
+        private bool incomingNatureSpells;
+        private bool incomingChaosSpells;
+        private bool incomingAbyssalSpells;
+        private bool incomingYggdrasilLightSpells;
         private bool forceIncomingOnExistingHealth;
         private bool bridgeBlockToOsc = true;
 
@@ -706,7 +863,11 @@ namespace StoriesOfYggdrasil.OSC
 
             BeginCard("Current Runtime Features");
             DrawTagRow("Combat Menu", "Stories RP submenu", "Combat and Enemy toggles, spell pages, Mist and Curse gauges");
-            DrawTagRow("Spells", SpellDefinitions.Length + " registered", "White and Black Magick share SoY_SpellType Int");
+            DrawTagRow(
+                "Spells",
+                SpellDefinitions.Select(spell => spell.Id).Distinct().Count() + " IDs / " +
+                Enum.GetValues(typeof(SpellSchool)).Length + " schools",
+                "All schools share the SoY_SpellType Int without changing v0.5.1 IDs");
             DrawTagRow("I-Frames", "1.0 second", "Generated incoming damage receiver cooldown");
             DrawTagRow("Updater", updateStatus, "GitHub Releases: " + GitHubRepository);
             EndCard();
@@ -822,9 +983,10 @@ namespace StoriesOfYggdrasil.OSC
             var selected = spells[spellSelectionIndex];
             EditorGUILayout.HelpBox(
                 "Spell ID " + selected.Id + " uses the shared Int parameter SoY_SpellType. " +
+                "School: " + GetSpellSchoolDisplayName(selected.School) + ". Category: " + selected.Category + ". " +
                 (selected.IsHealing
-                    ? "This is a healing/revival spell and includes caster-alignment tags for the Enemy healing rule."
-                    : "This spell is identified by its contact tag and Int value."),
+                    ? "Healing and revival spells include caster-alignment tags for the Enemy healing rule."
+                    : "The generated sender also includes a category tag for future Sam.py routing."),
                 selected.IsHealing ? MessageType.Info : MessageType.None);
 
             DrawShapeEditor(ref spellShape, ref spellRadius, ref spellHeight, ref spellBoxSize, ref spellPosition, ref spellRotation);
@@ -933,8 +1095,45 @@ namespace StoriesOfYggdrasil.OSC
 
             incomingHits = EditorGUILayout.ToggleLeft("Create hit receivers: Weak, Average, Strong, Critical", incomingHits);
             incomingDebuffs = EditorGUILayout.ToggleLeft("Create debuff receivers: Burn, Silence, Freeze, Bind, Bleed", incomingDebuffs);
-            incomingWhiteSpells = EditorGUILayout.ToggleLeft("Create White Magick spell receivers", incomingWhiteSpells);
-            incomingBlackSpells = EditorGUILayout.ToggleLeft("Create Black Magick spell receivers", incomingBlackSpells);
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.LabelField("Incoming Spell Schools", cardTitleStyle);
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Select All", GUILayout.Width(90f)))
+                SetAllIncomingSpellSchools(true);
+            if (GUILayout.Button("Clear All", GUILayout.Width(90f)))
+                SetAllIncomingSpellSchools(false);
+            EditorGUILayout.LabelField(
+                GetIncomingSpellReceiverCount() + " unique spell receiver(s) selected",
+                wrappedLabel);
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            incomingWhiteSpells = GUILayout.Toggle(incomingWhiteSpells, "White", "Button");
+            incomingBlackSpells = GUILayout.Toggle(incomingBlackSpells, "Black", "Button");
+            incomingGreenSpells = GUILayout.Toggle(incomingGreenSpells, "Green", "Button");
+            incomingTimeSpells = GUILayout.Toggle(incomingTimeSpells, "Time", "Button");
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            incomingArcaneSpells = GUILayout.Toggle(incomingArcaneSpells, "Arcane", "Button");
+            incomingSynergistSpells = GUILayout.Toggle(incomingSynergistSpells, "Synergist", "Button");
+            incomingIllusionSpells = GUILayout.Toggle(incomingIllusionSpells, "Illusion", "Button");
+            incomingDreamSpells = GUILayout.Toggle(incomingDreamSpells, "Dream", "Button");
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            incomingNatureSpells = GUILayout.Toggle(incomingNatureSpells, "Nature", "Button");
+            incomingChaosSpells = GUILayout.Toggle(incomingChaosSpells, "Chaos", "Button");
+            incomingAbyssalSpells = GUILayout.Toggle(incomingAbyssalSpells, "Abyssal", "Button");
+            incomingYggdrasilLightSpells = GUILayout.Toggle(incomingYggdrasilLightSpells, "Yggdrasil Light", "Button");
+            EditorGUILayout.EndHorizontal();
+
+            if (GetIncomingSpellReceiverCount() > 80)
+            {
+                EditorGUILayout.HelpBox(
+                    "A large receiver set is selected. Install only the schools this avatar needs to reduce Contact components and upload complexity.",
+                    MessageType.Warning);
+            }
             DrawShapeEditor(ref incomingShape, ref incomingRadius, ref incomingHeight, ref incomingBoxSize, ref incomingPosition, ref incomingRotation);
             incomingCreateChild = true;
             EditorGUILayout.HelpBox(
@@ -945,7 +1144,7 @@ namespace StoriesOfYggdrasil.OSC
             var locked = compatible && !forceIncomingOnExistingHealth;
             DrawDraftControls(
                 ContactDraftKind.Incoming,
-                HasUsableTargets() && ContactTypesAvailable() && !locked && (incomingHits || incomingDebuffs || incomingWhiteSpells || incomingBlackSpells),
+                HasUsableTargets() && ContactTypesAvailable() && !locked && (incomingHits || incomingDebuffs || AnyIncomingSpellSchoolEnabled()),
                 "Preview Incoming Receiver Volume");
             EndCard();
 
@@ -956,7 +1155,7 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow(TagCritical, "SoY_HitCritical", "Exact collision tag; Critical remains unblockable");
             DrawTagRow("Burn / Silence", "SoY_DebuffBurn / Silence", "Exact debuff tags; Constant mode held for OSC rising-edge detection");
             DrawTagRow("Freeze / Bind / Bleed", "SoY_DebuffFreeze / Bind / Bleed", "Exact debuff tags; Constant mode held for OSC rising-edge detection");
-            DrawTagRow("White / Black Magick", "SoY_SpellType (Int)", "Each spell contact writes its registered ID into one shared Int parameter");
+            DrawTagRow("All Magick Schools", "SoY_SpellType (Int)", "Selected schools write stable IDs from SPELL_ID_REGISTRY_v2.json");
             DrawTagRow("Caster alignment", "SoY_HealingSourceEnemy", "Enemy-tagged spell source for healing validation");
             DrawTagRow("I-Frames", "1.0 second", "Incoming damage receiver child is disabled after each accepted hit");
             EndCard();
@@ -1158,7 +1357,7 @@ namespace StoriesOfYggdrasil.OSC
 
             BeginCard("Contact Types");
             DrawTagRow("Attack", "Weak / Average / Strong / Critical", "Weapon or projectile hit volumes");
-            DrawTagRow("Spell", "SoY_SpellType Int IDs", "White and Black Magick contact volumes with caster alignment");
+            DrawTagRow("Spell", "SoY_SpellType Int IDs", "Twelve Magick schools with caster alignment and category tags");
             DrawTagRow("Blocking", TagBlockable + " → " + TagHitBlocked, "Shield face or guarded weapon volume");
             DrawTagRow("Debuff", string.Join(", ", DebuffTags), "Spell, projectile, aura, or effect volume");
             DrawTagRow("Incoming", "SoY_Hit* / SoY_Debuff*", "Avatar body receiver volume for Sam.py synchronization");
@@ -2136,10 +2335,28 @@ namespace StoriesOfYggdrasil.OSC
         private void ConfigureSpellSender(GameObject host, SpellDefinition spell, string spellTag, string alignmentTag)
         {
             var tags = new List<string> { spellTag, alignmentTag };
-            if (spell.IsHealing)
-                tags.Add("SoY Healing Spell");
-            else
-                tags.Add("SoY Offensive Spell");
+            switch (spell.Category)
+            {
+                case SpellCategory.Healing:
+                case SpellCategory.Revival:
+                    tags.Add("SoY Healing Spell");
+                    break;
+                case SpellCategory.Cleanse:
+                    tags.Add("SoY Cleanse Spell");
+                    break;
+                case SpellCategory.Support:
+                    tags.Add("SoY Support Spell");
+                    break;
+                case SpellCategory.Status:
+                    tags.Add("SoY Status Spell");
+                    break;
+                case SpellCategory.Utility:
+                    tags.Add("SoY Utility Spell");
+                    break;
+                default:
+                    tags.Add("SoY Offensive Spell");
+                    break;
+            }
 
             var component = EnsureContact(host, FindType(SenderTypeName), tags, null);
             if (component == null)
@@ -2189,14 +2406,15 @@ namespace StoriesOfYggdrasil.OSC
                 damageMappings.Add(new ReceiverMapping("Bleed", "SoY_DebuffBleed"));
             }
 
-            foreach (var spell in SpellDefinitions)
+            foreach (var spell in SpellDefinitions
+                .Where(definition => IsIncomingSchoolEnabled(definition.School))
+                .GroupBy(definition => definition.Id)
+                .Select(group => group.First())
+                .OrderBy(definition => definition.Id))
             {
-                if ((spell.School == SpellSchool.WhiteMagick && !incomingWhiteSpells) ||
-                    (spell.School == SpellSchool.BlackMagick && !incomingBlackSpells))
-                    continue;
                 spellMappings.Add(new ReceiverMapping(GetSpellTag(spell.Id), "SoY_SpellType", spell.Id));
             }
-            if (incomingWhiteSpells || incomingBlackSpells)
+            if (AnyIncomingSpellSchoolEnabled())
                 spellMappings.Add(new ReceiverMapping(CasterEnemyTag, "SoY_HealingSourceEnemy", 1f));
 
             foreach (var target in GetTargets())
@@ -2351,7 +2569,87 @@ namespace StoriesOfYggdrasil.OSC
 
         private static SpellDefinition[] GetSpellsForSchool(SpellSchool school)
         {
-            return SpellDefinitions.Where(spell => spell.School == school).ToArray();
+            return SpellDefinitions
+                .Where(spell => spell.School == school)
+                .OrderBy(spell => spell.Id)
+                .ToArray();
+        }
+
+        private static string GetSpellSchoolDisplayName(SpellSchool school)
+        {
+            switch (school)
+            {
+                case SpellSchool.WhiteMagick: return "White Magick";
+                case SpellSchool.BlackMagick: return "Black Magick";
+                case SpellSchool.GreenMagick: return "Green Magick";
+                case SpellSchool.TimeMagick: return "Time Magick";
+                case SpellSchool.ArcaneMagick: return "Arcane Magick";
+                case SpellSchool.SynergistMagick: return "Synergist Magick";
+                case SpellSchool.IllusionMagick: return "Illusion Magick";
+                case SpellSchool.DreamMagick: return "Dream Magick";
+                case SpellSchool.NatureMagick: return "Nature Magick";
+                case SpellSchool.ChaosMagick: return "Chaos Magick";
+                case SpellSchool.AbyssalCurses: return "Abyssal Curses";
+                case SpellSchool.YggdrasilLightMagick: return "Yggdrasil Light";
+                default: return school.ToString();
+            }
+        }
+
+        private static string GetSpellSchoolAssetLabel(SpellSchool school)
+        {
+            return GetSpellSchoolDisplayName(school).Replace(" ", "_");
+        }
+
+        private bool IsIncomingSchoolEnabled(SpellSchool school)
+        {
+            switch (school)
+            {
+                case SpellSchool.WhiteMagick: return incomingWhiteSpells;
+                case SpellSchool.BlackMagick: return incomingBlackSpells;
+                case SpellSchool.GreenMagick: return incomingGreenSpells;
+                case SpellSchool.TimeMagick: return incomingTimeSpells;
+                case SpellSchool.ArcaneMagick: return incomingArcaneSpells;
+                case SpellSchool.SynergistMagick: return incomingSynergistSpells;
+                case SpellSchool.IllusionMagick: return incomingIllusionSpells;
+                case SpellSchool.DreamMagick: return incomingDreamSpells;
+                case SpellSchool.NatureMagick: return incomingNatureSpells;
+                case SpellSchool.ChaosMagick: return incomingChaosSpells;
+                case SpellSchool.AbyssalCurses: return incomingAbyssalSpells;
+                case SpellSchool.YggdrasilLightMagick: return incomingYggdrasilLightSpells;
+                default: return false;
+            }
+        }
+
+        private bool AnyIncomingSpellSchoolEnabled()
+        {
+            return Enum.GetValues(typeof(SpellSchool))
+                .Cast<SpellSchool>()
+                .Any(IsIncomingSchoolEnabled);
+        }
+
+        private int GetIncomingSpellReceiverCount()
+        {
+            return SpellDefinitions
+                .Where(spell => IsIncomingSchoolEnabled(spell.School))
+                .Select(spell => spell.Id)
+                .Distinct()
+                .Count();
+        }
+
+        private void SetAllIncomingSpellSchools(bool value)
+        {
+            incomingWhiteSpells = value;
+            incomingBlackSpells = value;
+            incomingGreenSpells = value;
+            incomingTimeSpells = value;
+            incomingArcaneSpells = value;
+            incomingSynergistSpells = value;
+            incomingIllusionSpells = value;
+            incomingDreamSpells = value;
+            incomingNatureSpells = value;
+            incomingChaosSpells = value;
+            incomingAbyssalSpells = value;
+            incomingYggdrasilLightSpells = value;
         }
 
         private static string GetSpellTag(int spellId)
@@ -2798,12 +3096,20 @@ namespace StoriesOfYggdrasil.OSC
             var mainPath = MenuRoot + "/" + avatarName + "_Stories_RP_Menu.asset";
             var statusPath = MenuRoot + "/" + avatarName + "_Stories_Status_Menu.asset";
             var spellsPath = MenuRoot + "/" + avatarName + "_Stories_Spells_Menu.asset";
+            var coreSchoolsPath = MenuRoot + "/" + avatarName + "_Stories_Core_Schools.asset";
+            var specializedSchoolsPath = MenuRoot + "/" + avatarName + "_Stories_Specialized_Schools.asset";
+            var forbiddenSchoolsPath = MenuRoot + "/" + avatarName + "_Stories_Forbidden_Schools.asset";
 
             var storiesMenu = LoadOrCreateMenu(mainPath);
             var statusMenu = LoadOrCreateMenu(statusPath);
             var spellsMenu = LoadOrCreateMenu(spellsPath);
-            var whiteFirst = BuildSpellMenuPages(avatarName, SpellSchool.WhiteMagick);
-            var blackFirst = BuildSpellMenuPages(avatarName, SpellSchool.BlackMagick);
+            var coreSchoolsMenu = LoadOrCreateMenu(coreSchoolsPath);
+            var specializedSchoolsMenu = LoadOrCreateMenu(specializedSchoolsPath);
+            var forbiddenSchoolsMenu = LoadOrCreateMenu(forbiddenSchoolsPath);
+
+            var schoolPages = Enum.GetValues(typeof(SpellSchool))
+                .Cast<SpellSchool>()
+                .ToDictionary(school => school, school => BuildSpellMenuPages(avatarName, school));
 
             Undo.RecordObject(storiesMenu, "Build Stories RP Menu");
             storiesMenu.controls = new List<VRCExpressionsMenu.Control>
@@ -2823,12 +3129,49 @@ namespace StoriesOfYggdrasil.OSC
             };
             EditorUtility.SetDirty(statusMenu);
 
+            BuildSchoolGroupMenu(
+                coreSchoolsMenu,
+                "Build Stories Core Spell Schools",
+                schoolPages,
+                new[]
+                {
+                    SpellSchool.WhiteMagick,
+                    SpellSchool.BlackMagick,
+                    SpellSchool.GreenMagick,
+                    SpellSchool.TimeMagick,
+                    SpellSchool.ArcaneMagick
+                });
+
+            BuildSchoolGroupMenu(
+                specializedSchoolsMenu,
+                "Build Stories Specialized Spell Schools",
+                schoolPages,
+                new[]
+                {
+                    SpellSchool.SynergistMagick,
+                    SpellSchool.IllusionMagick,
+                    SpellSchool.DreamMagick,
+                    SpellSchool.NatureMagick
+                });
+
+            BuildSchoolGroupMenu(
+                forbiddenSchoolsMenu,
+                "Build Stories Forbidden Spell Schools",
+                schoolPages,
+                new[]
+                {
+                    SpellSchool.ChaosMagick,
+                    SpellSchool.AbyssalCurses,
+                    SpellSchool.YggdrasilLightMagick
+                });
+
             Undo.RecordObject(spellsMenu, "Build Stories Spell Menu");
-            spellsMenu.controls = new List<VRCExpressionsMenu.Control>();
-            if (whiteFirst != null)
-                spellsMenu.controls.Add(CreateSubMenuControl("White Magick", whiteFirst));
-            if (blackFirst != null)
-                spellsMenu.controls.Add(CreateSubMenuControl("Black Magick", blackFirst));
+            spellsMenu.controls = new List<VRCExpressionsMenu.Control>
+            {
+                CreateSubMenuControl("Core Magick", coreSchoolsMenu),
+                CreateSubMenuControl("Specialized Magick", specializedSchoolsMenu),
+                CreateSubMenuControl("Forbidden & Custom", forbiddenSchoolsMenu)
+            };
             EditorUtility.SetDirty(spellsMenu);
 
             Undo.RecordObject(menu, "Add Stories RP Sub-Menu");
@@ -2865,6 +3208,26 @@ namespace StoriesOfYggdrasil.OSC
             return 1;
         }
 
+        private static void BuildSchoolGroupMenu(
+            VRCExpressionsMenu menu,
+            string undoLabel,
+            IDictionary<SpellSchool, VRCExpressionsMenu> schoolPages,
+            IEnumerable<SpellSchool> schools)
+        {
+            if (menu == null)
+                return;
+
+            Undo.RecordObject(menu, undoLabel);
+            menu.controls = new List<VRCExpressionsMenu.Control>();
+            foreach (var school in schools)
+            {
+                VRCExpressionsMenu firstPage;
+                if (schoolPages.TryGetValue(school, out firstPage) && firstPage != null)
+                    menu.controls.Add(CreateSubMenuControl(GetSpellSchoolDisplayName(school), firstPage));
+            }
+            EditorUtility.SetDirty(menu);
+        }
+
         private VRCExpressionsMenu BuildSpellMenuPages(string avatarName, SpellSchool school)
         {
             var spells = GetSpellsForSchool(school);
@@ -2873,7 +3236,7 @@ namespace StoriesOfYggdrasil.OSC
 
             var pageCount = Mathf.CeilToInt(spells.Length / 7f);
             var pages = new List<VRCExpressionsMenu>();
-            var schoolLabel = school == SpellSchool.WhiteMagick ? "White_Magick" : "Black_Magick";
+            var schoolLabel = GetSpellSchoolAssetLabel(school);
             for (var page = 0; page < pageCount; page++)
             {
                 var path = MenuRoot + "/" + avatarName + "_" + schoolLabel + "_Page_" + (page + 1) + ".asset";

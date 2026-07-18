@@ -1,4 +1,4 @@
-# Stories Of Yggdrasil OSC Contact System — Unity Tool v0.5.1
+# Stories Of Yggdrasil OSC Contact System — Unity Tool v0.5.2
 
 ## Install
 
@@ -24,34 +24,66 @@ Assets/Stories Of Yggdrasil/FX/
 
 The original FX controller is not edited.
 
-## v0.5.1 additions
+## v0.5.2 additions
 
-- Replaces the direct combat toggle with a generated **Stories RP** submenu.
-- Adds **RP Combat** and **Enemy Mode** toggles.
-- Adds Status Gauges for Mist Charge and Curse Of Diablos.
-- Adds Curse warning Animator states at 25%, 50%, 90%, and 98%.
-- Adds one-second incoming-hit invincibility frames by disabling only the generated damage-receiver child.
-- Adds White Magick and Black Magick spell registries through one `SoY_SpellType` Int.
-- Generates Ally and Enemy spell-sender variants selected by `SoY_IsEnemy`.
-- Adds incoming spell receivers that write exact spell IDs into `SoY_SpellType`.
-- Adds a permission-based GitHub Release updater.
+- Expands the stable registry from White/Black Magick to **144 spell IDs across 12 schools**.
+- Preserves every v0.5.1 spell ID.
+- Adds Green, Time, Arcane, Synergist, Illusion, Dream, Nature, Chaos, Abyssal, and Yggdrasil Light spell menus.
+- Groups the generated spell menu into **Core Magick**, **Specialized Magick**, and **Forbidden & Custom** so each VRChat menu stays within its control limit.
+- Adds spell categories: Offensive, Healing, Revival, Cleanse, Support, Status, and Utility.
+- Adds category Contact tags for future Sam.py routing.
+- Lets creators select exactly which incoming spell schools are installed.
+- Deduplicates shared spell IDs when several selected schools contain the same spell.
+- Warns when an unusually large incoming receiver set is selected.
 
 ## Spell setup
 
-Open **Outgoing Contacts → Spells**, choose a school and spell, preview the volume, position it, then finalize it. The tool creates both alignment variants and rebuilds the generated Spell Alignment layer.
+Open **Outgoing Contacts → Spells**, choose a school and spell, preview the volume, position it, then finalize it. The tool creates Ally and Enemy alignment variants and rebuilds the generated Spell Alignment layer.
 
-Incoming spell receivers can be created under **Incoming Contacts**. White and Black Magick receivers are optional independently.
+Incoming spell receivers are selected by school under **Incoming Contacts**. White and Black remain enabled by default for compatibility; additional schools can be enabled individually.
+
+Registry and contract:
+
+```text
+SPELL_ID_REGISTRY_v2.json
+OSC_CONTRACT_v8.json
+```
+
+## Generated submenu layout
+
+```text
+Stories RP
+├─ RP Combat
+├─ Enemy Mode
+├─ Spells
+│  ├─ Core Magick
+│  │  ├─ White
+│  │  ├─ Black
+│  │  ├─ Green
+│  │  ├─ Time
+│  │  └─ Arcane
+│  ├─ Specialized Magick
+│  │  ├─ Synergist
+│  │  ├─ Illusion
+│  │  ├─ Dream
+│  │  └─ Nature
+│  └─ Forbidden & Custom
+│     ├─ Chaos
+│     ├─ Abyssal Curses
+│     └─ Yggdrasil Light
+└─ Status Gauges
+```
 
 ## Enemy healing rule
 
 The Unity side provides:
 
 - `SoY_IsEnemy` on the target.
-- `SoY_HealingSourceEnemy` from the caster-alignment contact tag.
+- `SoY_HealingSourceEnemy` from the caster-alignment Contact tag.
 - `SoY_SpellType` to identify the spell.
 - `SoY_HealingRejected` for bridge feedback.
 
-The desktop/Sam.py bridge must apply the final rule from `OSC_CONTRACT_v7.json`. Unity Contacts cannot directly edit Sam.py HP.
+The desktop/Sam.py bridge must apply the final rule from `OSC_CONTRACT_v8.json`. Unity Contacts cannot directly edit Sam.py HP.
 
 ## Updater
 
@@ -61,12 +93,10 @@ The updater checks the latest published release from:
 StarhunterUC/Stories-OSC-Unity-Tool
 ```
 
-It never updates silently. It asks first, downloads either the canonical `.cs` release asset or the Unity-tool ZIP, creates a backup under:
+It never updates silently. It asks first, downloads the canonical `.cs` release asset or Unity-tool ZIP, creates a backup under:
 
 ```text
 Assets/Stories Of Yggdrasil/Backups/Unity Tool/
 ```
 
 and then refreshes Unity.
-
-The repository must have a published GitHub Release. A normal commit without a Release will return “No published GitHub Release exists yet.”

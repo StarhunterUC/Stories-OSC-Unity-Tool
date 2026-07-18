@@ -1,5 +1,7 @@
 {
-  "version": "0.5.1",
+  "version": "0.5.2",
   "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
-  "release_asset_script": "StoriesOfYggdrasilOSCContactSystem.cs"
+  "release_asset_script": "StoriesOfYggdrasilOSCContactSystem.cs",
+  "spell_registry": "SPELL_ID_REGISTRY_v2.json",
+  "osc_contract": "OSC_CONTRACT_v8.json"
 }

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.2
+
+- Added 144 stable spell IDs across 12 Magick schools.
+- Preserved all White and Black Magick IDs from v0.5.1.
+- Added Green, Time, Arcane, Synergist, Illusion, Dream, Nature, Chaos, Abyssal, and Yggdrasil Light registries.
+- Added Core, Specialized, and Forbidden/Custom spell-menu groups.
+- Added Offensive, Healing, Revival, Cleanse, Support, Status, and Utility spell categories.
+- Added category-specific Contact tags.
+- Added incoming school selection with shared-ID deduplication and large-set warnings.
+- Added `SPELL_ID_REGISTRY_v2.json`, `OSC_CONTRACT_v8.json`, and the unresolved-name audit.
+
 ## v0.5.1
 
 - Added generated Stories RP submenu.
