@@ -1,0 +1,43 @@
+name: Publish Unity Tool Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build release archive
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          STAGE="Stories_Of_Yggdrasil_OSC_Contact_System_v${VERSION}"
+          mkdir -p "$STAGE"
+          cp StoriesOfYggdrasilOSCContactSystem.cs "$STAGE/"
+          cp README.md CHANGELOG.md version.json OSC_CONTRACT_v7.json SPELL_ID_REGISTRY_v1.json GITHUB_RELEASE_SETUP.md "$STAGE/"
+          zip -r "${STAGE}.zip" "$STAGE"
+          sha256sum "${STAGE}.zip" > "${STAGE}.zip.sha256"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            StoriesOfYggdrasilOSCContactSystem.cs
+            Stories_Of_Yggdrasil_OSC_Contact_System_v${{ steps.version.outputs.version }}.zip
+            Stories_Of_Yggdrasil_OSC_Contact_System_v${{ steps.version.outputs.version }}.zip.sha256
