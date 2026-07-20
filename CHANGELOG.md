@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.4
+
+- Added outgoing Technick and Item Contact authoring with temporary move/resize previews.
+- Added `TECHNICK_ID_REGISTRY_v1.json` with 99 IDs from the current Sam.py license catalog.
+- Added `ITEM_ID_REGISTRY_v1.json` with 61 current combat-usable item IDs.
+- Added compact incoming Technick and Item receiver buses using one Active Bool plus eight ID bits each.
+- Added Stories RP menu pages for Technick and Item ID selection.
+- Added `OSC_CONTRACT_v10.json` and requires Desktop v0.8.4+.
+- All action bus parameters are unsynced, so the three Spell/Technick/Item buses consume no synchronized parameter budget.
+- Sam.py remains authoritative for Technick licenses, active encounters, target selection, item ownership, item usability, and consumption.
+
 ## v0.5.3
 
 - Replaced broken per-spell Constant Int receivers with a compact eight-bit Contact bus.

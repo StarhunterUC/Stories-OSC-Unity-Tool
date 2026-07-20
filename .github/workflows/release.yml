@@ -28,11 +28,13 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           STAGE="Stories_Of_Yggdrasil_OSC_Contact_System_v${VERSION}"
           CURRENT_CONTRACT="$(ls OSC_CONTRACT_v*.json | sort -V | tail -n 1)"
-          CURRENT_REGISTRY="$(ls SPELL_ID_REGISTRY_v*.json | sort -V | tail -n 1)"
+          CURRENT_SPELL_REGISTRY="$(ls SPELL_ID_REGISTRY_v*.json | sort -V | tail -n 1)"
+          CURRENT_TECHNICK_REGISTRY="$(ls TECHNICK_ID_REGISTRY_v*.json | sort -V | tail -n 1)"
+          CURRENT_ITEM_REGISTRY="$(ls ITEM_ID_REGISTRY_v*.json | sort -V | tail -n 1)"
           mkdir -p "$STAGE"
           cp StoriesOfYggdrasilOSCContactSystem.cs "$STAGE/"
           cp README.md CHANGELOG.md version.json GITHUB_RELEASE_SETUP.md "$STAGE/"
-          cp "$CURRENT_CONTRACT" "$CURRENT_REGISTRY" "$STAGE/"
+          cp "$CURRENT_CONTRACT" "$CURRENT_SPELL_REGISTRY" "$CURRENT_TECHNICK_REGISTRY" "$CURRENT_ITEM_REGISTRY" "$STAGE/"
           if compgen -G "SPELL_AUDIT_v*.md" > /dev/null; then
             cp SPELL_AUDIT_v*.md "$STAGE/"
           fi

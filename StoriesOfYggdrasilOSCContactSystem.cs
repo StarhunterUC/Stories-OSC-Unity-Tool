@@ -25,7 +25,7 @@ namespace StoriesOfYggdrasil.OSC
     /// </summary>
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
-        private const string Version = "0.5.3";
+        private const string Version = "0.5.4";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
 
@@ -51,6 +51,8 @@ namespace StoriesOfYggdrasil.OSC
         {
             Attack,
             Spell,
+            Technick,
+            Item,
             Blocking,
             Debuff
         }
@@ -60,6 +62,8 @@ namespace StoriesOfYggdrasil.OSC
             None,
             Attack,
             Spell,
+            Technick,
+            Item,
             Blocking,
             Debuff,
             Incoming
@@ -136,6 +140,15 @@ namespace StoriesOfYggdrasil.OSC
         private const int SpellBitCount = 8;
         private const string CasterAllyTag = "SoY Caster Ally";
         private const string CasterEnemyTag = "SoY Caster Enemy";
+        private const string TechnickActiveTag = "SoY Technick Active";
+        private const string TechnickBitTagPrefix = "SoY Technick Bit ";
+        private const string TechnickActiveParameter = "SoY_TechnickActive";
+        private const string TechnickBitParameterPrefix = "SoY_TechnickBit";
+        private const string ItemActiveTag = "SoY Item Active";
+        private const string ItemBitTagPrefix = "SoY Item Bit ";
+        private const string ItemActiveParameter = "SoY_ItemActive";
+        private const string ItemBitParameterPrefix = "SoY_ItemBit";
+        private const int ActionBitCount = 8;
         private const string GitHubRepository = "StarhunterUC/Stories-OSC-Unity-Tool";
         private const string GitHubLatestReleaseApi = "https://api.github.com/repos/StarhunterUC/Stories-OSC-Unity-Tool/releases/latest";
         private const string GitHubRepositoryUrl = "https://github.com/StarhunterUC/Stories-OSC-Unity-Tool";
@@ -185,6 +198,20 @@ namespace StoriesOfYggdrasil.OSC
                 Name = name;
                 School = school;
                 Category = category;
+            }
+        }
+
+        private struct ActionDefinition
+        {
+            public int Id;
+            public string Name;
+            public string Description;
+
+            public ActionDefinition(int id, string name, string description)
+            {
+                Id = id;
+                Name = name;
+                Description = description;
             }
         }
 
@@ -401,6 +428,174 @@ namespace StoriesOfYggdrasil.OSC
             new SpellDefinition(144, "Rebirth Bloom", SpellSchool.NatureMagick, SpellCategory.Revival),
         };
 
+        private static readonly ActionDefinition[] TechnickDefinitions =
+        {
+            new ActionDefinition(1, "1000 Needles", "Deal 1,000 damage to one foe."),
+            new ActionDefinition(2, "Achilles", "Render one foe vulnerable to an additional element."),
+            new ActionDefinition(3, "Addle", "Lowers magick power."),
+            new ActionDefinition(4, "Aegis Step", "Defensive repositioning move inspired by shield-and-bow combat. Grants brief evasion and block focus."),
+            new ActionDefinition(5, "Arcane Guard", "Reduces magickal damage taken for 2 turns."),
+            new ActionDefinition(6, "Arsenal Quip", "Temporarily copy or manifest the weapon of an owned summon for 7 minutes. Cooldown: 30 seconds."),
+            new ActionDefinition(7, "Aurora", "Apply a regeneration effect to self or one ally."),
+            new ActionDefinition(8, "Baleful Echo", "Recasts the last spell with halved MP cost, but with a chance to misfire or backfire."),
+            new ActionDefinition(9, "Black Box Revival", "If the user would be knocked unconscious or killed, one active summon may sacrifice itself to prevent the final blow. Cooldown: 1 week."),
+            new ActionDefinition(10, "Blasting Zone", "Fire a concentrated aether blast from the gunblade for heavy damage."),
+            new ActionDefinition(11, "Blink Step", "Evade next attack and reposition instantly."),
+            new ActionDefinition(12, "Blitz", "Deal physical damage to targets in range."),
+            new ActionDefinition(13, "Bloodfest", "Instantly load Powder Cartridges for burst damage windows."),
+            new ActionDefinition(14, "Bonecrusher", "Consume HP to reduce the HP of one foe to 0."),
+            new ActionDefinition(15, "Bow Shock", "Release an explosive shockwave that damages enemies over time."),
+            new ActionDefinition(16, "Brutal Shell", "Follow Keen Edge with a guarded blast, dealing damage and granting a small barrier."),
+            new ActionDefinition(17, "Burst Strike", "Spend one Powder Cartridge to deliver a heavy gunblade explosion."),
+            new ActionDefinition(18, "Camouflage", "Increase evasion and reduce incoming physical damage for several turns."),
+            new ActionDefinition(19, "Challenge", "Force a single enemy to attack you for a short time."),
+            new ActionDefinition(20, "Charge", "Restores MP but may fail."),
+            new ActionDefinition(21, "Charm", "Cause one foe to Confuse friend with foe."),
+            new ActionDefinition(22, "Continuation", "Follow certain cartridge attacks with an extra precision blast."),
+            new ActionDefinition(23, "Corpse Relay", "Use an active summon as a battlefield relay point for targeting, pressure, and tactical awareness."),
+            new ActionDefinition(24, "Counterblow", "Take an enemy attack and return it upon the attacker as physical damage."),
+            new ActionDefinition(25, "Counterspell", "Take an enemy attack and return it upon the attacker as magick damage."),
+            new ActionDefinition(26, "Cover", "Intercept damage meant for one ally."),
+            new ActionDefinition(27, "Cover Breach", "Overload deployed cover to create pushback, smoke, stagger, or heated shrapnel."),
+            new ActionDefinition(28, "Covering Fire", "Allies gain Dodge advantage; interrupts enemy charges."),
+            new ActionDefinition(29, "Dead Man's Trigger", "When a Loyal Summon is destroyed, it may perform one final action before vanishing."),
+            new ActionDefinition(30, "Deathblow", "Attempt to instantly slay a target at low HP."),
+            new ActionDefinition(31, "Demon Slaughter", "Finish the area combo and load one Powder Cartridge."),
+            new ActionDefinition(32, "Demon Slice", "Perform a sweeping gunblade strike against multiple enemies."),
+            new ActionDefinition(33, "Despair Gaze", "Inflicts Fear and causes target to randomly skip turns."),
+            new ActionDefinition(34, "Double Down", "Spend two Powder Cartridges to unleash a devastating point-blank detonation."),
+            new ActionDefinition(35, "Echo Mark", "Mark one enemy, improving summon tracking and granting a small bonus to Extraction if the marked target dies."),
+            new ActionDefinition(36, "Elude", "Defend with a high probability of evading enemy attacks."),
+            new ActionDefinition(37, "Entrench", "Defend and prepare a counterattack, dealing more damage the longer you defend."),
+            new ActionDefinition(38, "Erasure", "Nullifies all active buffs on one enemy, including barrier, regen, and reflect effects."),
+            new ActionDefinition(39, "Evade", "Attempt to evade enemy attacks. Certain attacks cannot be evaded."),
+            new ActionDefinition(40, "Expose", "Lower one foe's defense."),
+            new ActionDefinition(41, "Extraction", "When an enemy or NPC is dead, the user gains three D100 attempts to bind the corpse as a Loyal Summon. Cooldown is 1-2 weeks depending on summon size and DM approval."),
+            new ActionDefinition(42, "First Aid", "Restore HP to one HP Critical ally."),
+            new ActionDefinition(43, "Foresight", "Reveal the target’s intended action next turn, increasing evasion."),
+            new ActionDefinition(44, "Gil Toss", "Throw gil to damage all foes in range."),
+            new ActionDefinition(45, "Gnashing Fang", "Spend one Powder Cartridge to begin a brutal three-part gunblade chain."),
+            new ActionDefinition(46, "Gravebound Reload", "Reload or recharge one firearm by drawing residual energy from a corpse, destroyed summon, or battlefield remnant."),
+            new ActionDefinition(47, "Guard", "Reduces physical and magick damage taken from enemy attacks while guarding."),
+            new ActionDefinition(48, "Guard Counter", "Enter a guarding stance, then retaliate after blocking a hit."),
+            new ActionDefinition(49, "Heart of Corundum", "Upgrade Heart of Stone with stronger mitigation and emergency healing."),
+            new ActionDefinition(50, "Heart of Light", "Reduce magical damage taken by the party for several turns."),
+            new ActionDefinition(51, "Heart of Stone", "Grant a defensive barrier to self or one ally."),
+            new ActionDefinition(52, "Heavy Guard", "Greatly reduces physical and magick damage taken while guarding, but at a higher ATB cost."),
+            new ActionDefinition(53, "Heroic Guard", "Massively reduces physical and magick damage taken while guarding, but at a very high ATB cost."),
+            new ActionDefinition(54, "Highwind", "Release a catastrophic jump strike, clearing chain gauges. Damage varies by situation."),
+            new ActionDefinition(55, "Hollowpoint Round", "Fires armor-piercing shot. Ignores partial Defense."),
+            new ActionDefinition(56, "Horology", "Deals time-based damage."),
+            new ActionDefinition(57, "Infuse", "Fully consume user's MP, changing one ally's HP to 10 times that amount."),
+            new ActionDefinition(58, "Keen Edge", "Strike with the opening cut of the gunblade combo."),
+            new ActionDefinition(59, "Launch", "Attack and launch a staggered target into the air."),
+            new ActionDefinition(60, "Libra", "Reveal detailed information about targets."),
+            new ActionDefinition(61, "Libra II", "Reveal detailed information about Chaos Inflicted targets."),
+            new ActionDefinition(62, "Light Guard", "Slightly reduces physical and magick damage taken while guarding. Low ATB cost."),
+            new ActionDefinition(63, "Magick Counter", "Chance to counter with a random spell when hit by magick."),
+            new ActionDefinition(64, "Mediguard", "Defend while gradually recovering HP."),
+            new ActionDefinition(65, "Nebula", "Greatly reduce incoming damage for a short time."),
+            new ActionDefinition(66, "NulAll Guard", "Reduces damage taken while guarding and greatly reduces elemental-attribute damage."),
+            new ActionDefinition(67, "Numerology", "Damage increases with hits."),
+            new ActionDefinition(68, "Poach", "Capture weakened foes for loot."),
+            new ActionDefinition(69, "Power Focus", "Increases next magick's power by 50%."),
+            new ActionDefinition(70, "Provoke", "Entices enemies to attack you instead of allies."),
+            new ActionDefinition(71, "Revive", "Fully consume user's HP, reviving and fully restoring HP of one KO'd ally."),
+            new ActionDefinition(72, "Royal Guard", "Assume a tank stance, increasing threat generated and improving defensive posture."),
+            new ActionDefinition(73, "Ruin", "Deal non-elemental magick damage to one target."),
+            new ActionDefinition(74, "Ruinga", "Deal non-elemental magick damage to targets within a wide radius."),
+            new ActionDefinition(75, "Savage Claw", "Second strike of the Gnashing Fang chain."),
+            new ActionDefinition(76, "Shades of Black", "Cast a random black magick on one foe."),
+            new ActionDefinition(77, "Shadow Dance", "Swap places with an owned active summon. Cooldown: 50 seconds."),
+            new ActionDefinition(78, "Shear", "Lowers magick resistance."),
+            new ActionDefinition(79, "Sight Unseeing", "Unleash an attack only available when blind."),
+            new ActionDefinition(80, "Smite", "Deal heavy damage to a launched target about to recover from stagger."),
+            new ActionDefinition(81, "Solid Barrel", "Complete the core combo and load one Powder Cartridge."),
+            new ActionDefinition(82, "Souleater", "Consume HP to deal damage to one foe."),
+            new ActionDefinition(83, "Soulshred", "Deals high non-elemental damage and reduces MP of target based on caster's missing HP."),
+            new ActionDefinition(84, "Sovereign Fist", "Crush foes with a ruinous blow, clearing chain gauges. Damage varies by situation."),
+            new ActionDefinition(85, "Spellblade", "Imbue weapon with a selected element for 3 turns."),
+            new ActionDefinition(86, "Stamp", "Transfers status effects."),
+            new ActionDefinition(87, "Steal", "Steal from one foe."),
+            new ActionDefinition(88, "Steelguard", "Reduces damage taken while guarding. Guard becomes more effective each time damage is taken."),
+            new ActionDefinition(89, "Summon Fusion", "Temporarily resonate with an owned Loyal Summon to use part of that summon’s abilities. Cooldown: at least 4 days."),
+            new ActionDefinition(90, "Superbolide", "Drop to critical HP to become nearly immune to damage for a short duration."),
+            new ActionDefinition(91, "Suppressive Burst", "Reduces enemy movement and disables reactions for 1 turn."),
+            new ActionDefinition(92, "Telekinesis", "Allow melee weapons to hit distant targets."),
+            new ActionDefinition(93, "Traveler", "deals fixed damage to an enemy and enemies in range in its vicinity based on the number of steps currently taken. After being used, or after 1000 steps, the counter resets.."),
+            new ActionDefinition(94, "Trick Reload", "Reloads and dodges simultaneously. Grants temporary Evasion."),
+            new ActionDefinition(95, "Vein Tap", "Restores MP equal to the number of active illusions when cast."),
+            new ActionDefinition(96, "Vendetta", "Counterattack after defending, dealing more damage the more you are attacked."),
+            new ActionDefinition(97, "Vital Shot", "Target weak point to deal bonus damage and apply Bleed."),
+            new ActionDefinition(98, "Wicked Talon", "Final strike of the Gnashing Fang chain."),
+            new ActionDefinition(99, "Wither", "Lower one foe's strength."),
+        };
+
+        private static readonly ActionDefinition[] ItemDefinitions =
+        {
+            new ActionDefinition(1, "Potion", "Restores 120 HP and removes 1 wound; amount increases with Potion Lore."),
+            new ActionDefinition(2, "Hi-Potion", "Restores 450 HP; amount increases with Potion Lore."),
+            new ActionDefinition(3, "X-Potion", "Restores 1,500 HP and clears all wounds; amount increases with Potion Lore."),
+            new ActionDefinition(4, "Ether", "Restores 50 MP; amount increases with Ether Lore."),
+            new ActionDefinition(5, "Hi-Ether", "Restores 200 MP; amount increases with Ether Lore."),
+            new ActionDefinition(6, "Elixir", "Completely restores HP and MP."),
+            new ActionDefinition(7, "Megalixir", "Completely restores HP and MP of the party within a given radius."),
+            new ActionDefinition(8, "Phoenix Down", "Revives a character; HP restored increases with Phoenix Lore."),
+            new ActionDefinition(9, "Black Phoenix Feather", "Revives a character at Full HP and regrows missing limbs, Inflicts Berserk & Bubble Will ALWAYS trigger a boss fight; A Black Phoenix feather with a transparent black mist emitting from it"),
+            new ActionDefinition(10, "Rainbow Phoenix Feather", "Revives a character, 4m Timer is ignored."),
+            new ActionDefinition(11, "Antidote", "Removes Poison."),
+            new ActionDefinition(12, "Eye Drops", "Removes Blind."),
+            new ActionDefinition(13, "Echo Herbs", "Removes Silence."),
+            new ActionDefinition(14, "Gold Needle", "Removes Petrify and Stone."),
+            new ActionDefinition(15, "Prince's Kiss", "Removes Sleep."),
+            new ActionDefinition(16, "Chronos Tear", "Removes Stop and Slow."),
+            new ActionDefinition(17, "Handkerchief", "Removes Oil."),
+            new ActionDefinition(18, "Remedy", "Removes Poison, Slow, Blind, and Silence; more with Remedy Lore."),
+            new ActionDefinition(19, "Vaccine", "Removes Disease."),
+            new ActionDefinition(20, "Serum", "Removes Disease."),
+            new ActionDefinition(21, "Diablos Stabilizer", "A rare stabilizing agent that suppresses the Curse of Diablos but does not fully remove it."),
+            new ActionDefinition(22, "Librascope", "Automatically performs a full Libra II scan, revealing advanced statistics, affinities, abilities, traits, and Chaos-obscured data. Consumed on use."),
+            new ActionDefinition(23, "Aero Mote", "Deals wind-aspected mote damage to one target."),
+            new ActionDefinition(24, "Aeroga Mote", "A mote containing the power of Aeroga. Deals wind damage to all foes in range and ignores Reflect."),
+            new ActionDefinition(25, "Aquara Mote", "A mote containing the power of Water. Deals water damage to all foes in range and ignores Reflect."),
+            new ActionDefinition(26, "Bacchus's Wine", "Inflicts Berserk on one target."),
+            new ActionDefinition(27, "Balance Mote", "A mote containing the power of Balance. Casts Balance on all foes in range and ignores Reflect."),
+            new ActionDefinition(28, "Baltoro Seed", "Grants Protect, Shell, Haste, Bravery, Faith, Invisible, Regen, Float, Bubble, and Libra to one target."),
+            new ActionDefinition(29, "Bio Mote", "A mote containing the power of Sap. Inflicts Sap and deals non-elemental damage to all foes in range, ignoring Reflect."),
+            new ActionDefinition(30, "Blue Herb", "Haults Poison."),
+            new ActionDefinition(31, "Bubble Mote", "A mote containing the power of Bubble. Grants Bubble to a single target and ignores Reflect."),
+            new ActionDefinition(32, "Cura Mote", "A mote containing the power of Cura. Restores HP to all allies in range and ignores Reflect."),
+            new ActionDefinition(33, "Dark Energy", "Deals massive non-elemental damage to all enemies in range."),
+            new ActionDefinition(34, "Dark Matter", "Deals damage to all foes in range. Its damage scales with the number of Knots of Rust used."),
+            new ActionDefinition(35, "Dark Mote", "Deals dark-aspected mote damage to one target."),
+            new ActionDefinition(36, "Dispel Mote", "Casts Dispel when used."),
+            new ActionDefinition(37, "Domaine Calvados", "Grants Bravery to one target."),
+            new ActionDefinition(38, "Float Mote", "A mote containing the power of Float. Grants Float to all targets in range and ignores Reflect."),
+            new ActionDefinition(39, "Gravity Mote", "Deals damage to all foes in range. Deals non-elemental damage equal to a portion of each target’s maximum HP and ignores Reflect."),
+            new ActionDefinition(40, "Green Herb", "heals a small amount of health"),
+            new ActionDefinition(41, "Hastega Mote", "A mote containing the power of Hastega. Grants Haste to all allies in range and ignores Reflect."),
+            new ActionDefinition(42, "Holy Mote", "A mote containing the power of Holy. Deals holy damage to one foe and ignores Reflect."),
+            new ActionDefinition(43, "Hypo Spray", "Restores 800 HP and removes 1 wound; Hypo sprays deliver stimulants, analgesics and active neuro-biological reinforcing elements through a sub-dermal injector. The solution takes time to act on the body: further trauma while it is active reduce the hypo's maximum healing potential. Even a few hits will cancel the effect altogether. "),
+            new ActionDefinition(44, "Knot of Rust", "Deals random non-elemental damage to one foe."),
+            new ActionDefinition(45, "Lightning Fang", "Deals Lightning-element damage to one foe."),
+            new ActionDefinition(46, "Meteorite (A)", "My hopes rose, but 'twas naught but an ordinary stone. Inflicts Sap on one enemy."),
+            new ActionDefinition(47, "Meteorite (B)", "A chondrite, a species of meteorite found in plenty. Inflicts Disease on one enemy."),
+            new ActionDefinition(48, "Meteorite (C)", "A malleable specimen, teeming with fine veins of iron withal. Deals random physical damage to one target based on the user’s maximum HP."),
+            new ActionDefinition(49, "Meteorite (D)", "At last, the elusive achondrite is mine! The Widmanstatten pattern is simply stunning! Deals powerful random physical damage to one target."),
+            new ActionDefinition(50, "Nu Khai Sand", "Removes Confuse."),
+            new ActionDefinition(51, "Overture MK II", "A master-crafted evolution of Overture, imbued with Ice Magicite. Its blade leaves spectral afterimages that repeat successful strikes moments later."),
+            new ActionDefinition(52, "Reflectga Mote", "Casts Reflectga when used."),
+            new ActionDefinition(53, "Reverse Mote", "A mote containing the power of Reverse. Grants Reverse to a single target and ignores Reflect."),
+            new ActionDefinition(54, "Rime Fang", "Deals Ice-element damage to one foe."),
+            new ActionDefinition(55, "Scathe Mote", "A mote containing the power of Scathe. Casts Scathe on all foes in range and ignores Reflect."),
+            new ActionDefinition(56, "Shock Mote", "A mote containing the power of Shock. Deals heavy non-elemental damage to all foes in range and ignores Reflect."),
+            new ActionDefinition(57, "Soleil Fang", "Deals Fire-element damage to one foe."),
+            new ActionDefinition(58, "Vanishga Mote", "A mote containing the power of Vanishga. Grants Invisible to all allies in range and ignores Reflect."),
+            new ActionDefinition(59, "Vyrrah’s Lament", "The Spear of the Breaking Dawn — a soul-locked divine spear born when Lumina Farron refused erasure during Father Farron’s Final Ascension Ritual. It is the shape of her refusal, her will made manifest."),
+            new ActionDefinition(60, "Warp Mote", "Attempts to displace a target with unstable space magick."),
+            new ActionDefinition(61, "Water Mote", "Deals water-aspected mote damage to one target."),
+        };
+
         // These are bridge hooks only. Existing Health/HP parameters and health layers are deliberately absent.
         private static readonly ParameterSpec[] BridgeParameters =
         {
@@ -416,6 +611,26 @@ namespace StoriesOfYggdrasil.OSC
             new ParameterSpec(SpellBitParameterPrefix + "5", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(SpellBitParameterPrefix + "6", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(SpellBitParameterPrefix + "7", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec("SoY_TechnickType", AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
+            new ParameterSpec(TechnickActiveParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(TechnickBitParameterPrefix + "0", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(TechnickBitParameterPrefix + "1", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(TechnickBitParameterPrefix + "2", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(TechnickBitParameterPrefix + "3", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(TechnickBitParameterPrefix + "4", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(TechnickBitParameterPrefix + "5", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(TechnickBitParameterPrefix + "6", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(TechnickBitParameterPrefix + "7", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec("SoY_ItemType", AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
+            new ParameterSpec(ItemActiveParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(ItemBitParameterPrefix + "0", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(ItemBitParameterPrefix + "1", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(ItemBitParameterPrefix + "2", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(ItemBitParameterPrefix + "3", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(ItemBitParameterPrefix + "4", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(ItemBitParameterPrefix + "5", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(ItemBitParameterPrefix + "6", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(ItemBitParameterPrefix + "7", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HealingSourceEnemy", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HealingRejected", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_MistCharge", AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
@@ -541,6 +756,24 @@ namespace StoriesOfYggdrasil.OSC
         private Vector3 spellRotation;
         private bool spellStartsEnabled;
 
+        private int technickSelectionIndex;
+        private ContactShape technickShape = ContactShape.Sphere;
+        private float technickRadius = 0.14f;
+        private float technickHeight = 0.40f;
+        private Vector3 technickBoxSize = new Vector3(0.25f, 0.25f, 0.50f);
+        private Vector3 technickPosition;
+        private Vector3 technickRotation;
+        private bool technickStartsEnabled;
+
+        private int itemSelectionIndex;
+        private ContactShape itemShape = ContactShape.Sphere;
+        private float itemRadius = 0.14f;
+        private float itemHeight = 0.40f;
+        private Vector3 itemBoxSize = new Vector3(0.25f, 0.25f, 0.50f);
+        private Vector3 itemPosition;
+        private Vector3 itemRotation;
+        private bool itemStartsEnabled;
+
         private ContactShape blockShape = ContactShape.Box;
         private float blockRadius = 0.18f;
         private float blockHeight = 0.65f;
@@ -574,6 +807,8 @@ namespace StoriesOfYggdrasil.OSC
         private bool incomingHits = true;
         private bool incomingDebuffs = true;
         private bool incomingSpells = true;
+        private bool incomingTechnicks = true;
+        private bool incomingItems = true;
         private bool incomingWhiteSpells = true;
         private bool incomingBlackSpells = true;
         private bool incomingGreenSpells;
@@ -880,12 +1115,14 @@ namespace StoriesOfYggdrasil.OSC
             EndCard();
 
             BeginCard("Current Runtime Features");
-            DrawTagRow("Combat Menu", "Stories RP submenu", "Combat and Enemy toggles, spell pages, Mist and Curse gauges");
+            DrawTagRow("Combat Menu", "Stories RP submenu", "Combat and Enemy toggles, Spell/Technick/Item pages, Mist and Curse gauges");
             DrawTagRow(
                 "Spells",
                 SpellDefinitions.Select(spell => spell.Id).Distinct().Count() + " IDs / " +
                 Enum.GetValues(typeof(SpellSchool)).Length + " schools",
                 "All schools use the compact v0.5.3 eight-bit spell contact bus without changing registry IDs");
+            DrawTagRow("Technicks", TechnickDefinitions.Length + " IDs", "Compact binary Contact bus; Sam.py validates licenses, encounter, and target");
+            DrawTagRow("Items", ItemDefinitions.Length + " IDs", "Compact binary Contact bus; Sam.py validates inventory, usability, target, and consumption");
             DrawTagRow("I-Frames", "1.0 second", "Generated incoming damage receiver cooldown");
             DrawTagRow("Updater", updateStatus, "GitHub Releases: " + GitHubRepository);
             EndCard();
@@ -895,7 +1132,7 @@ namespace StoriesOfYggdrasil.OSC
             EditorGUILayout.LabelField("2. Open Outgoing Contacts and create a temporary preview on a weapon, shield, or effect.", wrappedLabel);
             EditorGUILayout.LabelField("3. Move, rotate, and resize the preview in the Scene view before finalizing it.", wrappedLabel);
             EditorGUILayout.LabelField("4. Add Incoming Contacts to the avatar body only when the avatar does not already provide the needed receivers.", wrappedLabel);
-            EditorGUILayout.LabelField("5. Use the generated Stories RP submenu for Combat, Enemy Mode, gauges, and spell selection.", wrappedLabel);
+            EditorGUILayout.LabelField("5. Use the generated Stories RP submenu for Combat, Enemy Mode, gauges, and Spell/Technick/Item selection.", wrappedLabel);
             EditorGUILayout.LabelField("6. Build & Test, enable OSC in VRChat, and connect the desktop program to Sam.py.", wrappedLabel);
             EndCard();
         }
@@ -904,7 +1141,7 @@ namespace StoriesOfYggdrasil.OSC
         {
             outgoingKind = (OutgoingContactKind)GUILayout.Toolbar((int)outgoingKind, new[]
             {
-                "Attack", "Spells", "Blocking", "Debuff"
+                "Attack", "Spells", "Technicks", "Items", "Blocking", "Debuff"
             }, GUILayout.Height(28f));
             EditorGUILayout.Space(4f);
 
@@ -915,6 +1152,12 @@ namespace StoriesOfYggdrasil.OSC
                     break;
                 case OutgoingContactKind.Spell:
                     DrawSpellSenders();
+                    break;
+                case OutgoingContactKind.Technick:
+                    DrawTechnickSenders();
+                    break;
+                case OutgoingContactKind.Item:
+                    DrawItemSenders();
                     break;
                 case OutgoingContactKind.Blocking:
                     DrawBlocking();
@@ -1028,6 +1271,86 @@ namespace StoriesOfYggdrasil.OSC
             EndCard();
         }
 
+
+        private void DrawTechnickSenders()
+        {
+            DrawHealthSafetyMini();
+            BeginCard("Technick Contact Sender");
+            if (TechnickDefinitions.Length == 0)
+            {
+                EditorGUILayout.HelpBox("No Technicks are registered.", MessageType.Warning);
+                EndCard();
+                return;
+            }
+
+            technickSelectionIndex = Mathf.Clamp(technickSelectionIndex, 0, TechnickDefinitions.Length - 1);
+            technickSelectionIndex = EditorGUILayout.Popup(
+                "Technick",
+                technickSelectionIndex,
+                TechnickDefinitions.Select(entry => entry.Id + " — " + entry.Name).ToArray());
+            var selected = TechnickDefinitions[technickSelectionIndex];
+            EditorGUILayout.HelpBox(
+                "Technick ID " + selected.Id + " is encoded as " + GetActionBinary(selected.Id) + ". " +
+                "Sam.py remains authoritative for license, scroll, cooldown, encounter, and target checks.",
+                MessageType.Info);
+            if (!string.IsNullOrEmpty(selected.Description))
+                EditorGUILayout.LabelField(selected.Description, wrappedLabel);
+
+            DrawShapeEditor(ref technickShape, ref technickRadius, ref technickHeight, ref technickBoxSize, ref technickPosition, ref technickRotation);
+            technickStartsEnabled = EditorGUILayout.ToggleLeft("Start Technick contact enabled", technickStartsEnabled);
+            if (technickStartsEnabled)
+                EditorGUILayout.HelpBox("Technick contacts should normally be animation-gated to the action impact frame.", MessageType.Warning);
+
+            DrawDraftControls(
+                ContactDraftKind.Technick,
+                HasUsableTargets() && ContactTypesAvailable(),
+                "Preview Technick Contact");
+            EndCard();
+        }
+
+        private void DrawItemSenders()
+        {
+            DrawHealthSafetyMini();
+            BeginCard("Item-Use Contact Sender");
+            if (ItemDefinitions.Length == 0)
+            {
+                EditorGUILayout.HelpBox("No combat items are registered.", MessageType.Warning);
+                EndCard();
+                return;
+            }
+
+            itemSelectionIndex = Mathf.Clamp(itemSelectionIndex, 0, ItemDefinitions.Length - 1);
+            itemSelectionIndex = EditorGUILayout.Popup(
+                "Item",
+                itemSelectionIndex,
+                ItemDefinitions.Select(entry => entry.Id + " — " + entry.Name).ToArray());
+            var selected = ItemDefinitions[itemSelectionIndex];
+            EditorGUILayout.HelpBox(
+                "Item ID " + selected.Id + " is encoded as " + GetActionBinary(selected.Id) + ". " +
+                "Sam.py checks the linked character inventory before applying and consuming the item.",
+                MessageType.Info);
+            if (!string.IsNullOrEmpty(selected.Description))
+                EditorGUILayout.LabelField(selected.Description, wrappedLabel);
+
+            DrawShapeEditor(ref itemShape, ref itemRadius, ref itemHeight, ref itemBoxSize, ref itemPosition, ref itemRotation);
+            itemStartsEnabled = EditorGUILayout.ToggleLeft("Start item contact enabled", itemStartsEnabled);
+            if (itemStartsEnabled)
+                EditorGUILayout.HelpBox("Item contacts should normally be enabled only during the intended use animation.", MessageType.Warning);
+
+            DrawDraftControls(
+                ContactDraftKind.Item,
+                HasUsableTargets() && ContactTypesAvailable(),
+                "Preview Item Contact");
+            EndCard();
+
+            BeginCard("Inventory Authority");
+            EditorGUILayout.LabelField(
+                "The Contact only identifies the requested item. The VPS checks the linked Sam.py character's live inventory. " +
+                "No item is applied or consumed when the quantity is zero.",
+                wrappedLabel);
+            EndCard();
+        }
+
         private void DrawBlocking()
         {
             DrawHealthSafetyMini();
@@ -1122,7 +1445,15 @@ namespace StoriesOfYggdrasil.OSC
                 "All Magick schools are supported automatically with only nine unsynced Bool parameters.",
                 MessageType.Info);
             EditorGUILayout.LabelField("Receiver components", incomingSpells ? "9 spell bus + 1 caster alignment" : "Disabled");
-            EditorGUILayout.LabelField("Required Desktop", "Stories Of Yggdrasil OSC v0.8.1 or newer");
+            EditorGUILayout.Space(3f);
+            EditorGUILayout.LabelField("Incoming Technick / Item Identification", cardTitleStyle);
+            incomingTechnicks = EditorGUILayout.ToggleLeft("Create compact binary Technick receiver bus", incomingTechnicks);
+            incomingItems = EditorGUILayout.ToggleLeft("Create compact binary Item receiver bus", incomingItems);
+            EditorGUILayout.HelpBox(
+                "Technicks and Items each use the same compact 1 Active + 8 bit pattern. " +
+                "All bus parameters are unsynced and do not consume the 256-bit synchronized parameter allowance.",
+                MessageType.Info);
+            EditorGUILayout.LabelField("Required Desktop", "Stories Of Yggdrasil OSC v0.8.4 or newer");
             using (new EditorGUI.DisabledScope(avatarRoot == null || !ContactTypesAvailable()))
             {
                 if (GUILayout.Button("REPAIR v0.5.1 / v0.5.2 SPELL CONTACTS", GUILayout.Height(34f)))
@@ -1131,14 +1462,14 @@ namespace StoriesOfYggdrasil.OSC
             DrawShapeEditor(ref incomingShape, ref incomingRadius, ref incomingHeight, ref incomingBoxSize, ref incomingPosition, ref incomingRotation);
             incomingCreateChild = true;
             EditorGUILayout.HelpBox(
-                "Incoming damage and spell receivers are created on separate child objects. The damage child is temporarily disabled for one second after a hit, while healing and spell receivers remain available.",
+                "Incoming damage and action receivers are created on separate child objects. The damage child is temporarily disabled for one second after a hit, while spell, Technick, and Item buses remain available.",
                 MessageType.Info);
 
             EditorGUILayout.Space(6f);
             var locked = compatible && !forceIncomingOnExistingHealth;
             DrawDraftControls(
                 ContactDraftKind.Incoming,
-                HasUsableTargets() && ContactTypesAvailable() && !locked && (incomingHits || incomingDebuffs || incomingSpells),
+                HasUsableTargets() && ContactTypesAvailable() && !locked && (incomingHits || incomingDebuffs || incomingSpells || incomingTechnicks || incomingItems),
                 "Preview Incoming Receiver Volume");
             EndCard();
 
@@ -1153,6 +1484,8 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow("Spell ID Bits", SpellBitParameterPrefix + "0-7", "Eight Bool values reconstruct the stable 1-255 spell ID in Desktop v0.8.1+");
             DrawTagRow("Resolved Spell", "SoY_SpellType (Int)", "Desktop reconstructs the bit bus and sends the normal registry ID to Sam.py");
             DrawTagRow("Caster alignment", "SoY_HealingSourceEnemy", "Enemy-tagged spell source for healing validation");
+            DrawTagRow("Technick Bus", "SoY_TechnickActive + Bit0-7", "Desktop reconstructs TECHNICK_ID_REGISTRY_v1");
+            DrawTagRow("Item Bus", "SoY_ItemActive + Bit0-7", "Desktop reconstructs ITEM_ID_REGISTRY_v1; Sam.py verifies inventory");
             DrawTagRow("I-Frames", "1.0 second", "Incoming damage receiver child is disabled after each accepted hit");
             EndCard();
         }
@@ -1657,7 +1990,15 @@ namespace StoriesOfYggdrasil.OSC
                     .Count(component => ReadStringMember(component, "parameter", "Parameter") == SpellActiveParameter ||
                         ReadStringMember(component, "parameter", "Parameter").StartsWith(SpellBitParameterPrefix, StringComparison.Ordinal));
                 EditorGUILayout.LabelField("Legacy broken spell receivers", legacySpellReceivers.ToString());
+                var technickBusReceivers = avatarRoot.GetComponentsInChildren(receiverType, true).Cast<Component>()
+                    .Count(component => ReadStringMember(component, "parameter", "Parameter") == TechnickActiveParameter ||
+                        ReadStringMember(component, "parameter", "Parameter").StartsWith(TechnickBitParameterPrefix, StringComparison.Ordinal));
+                var itemBusReceivers = avatarRoot.GetComponentsInChildren(receiverType, true).Cast<Component>()
+                    .Count(component => ReadStringMember(component, "parameter", "Parameter") == ItemActiveParameter ||
+                        ReadStringMember(component, "parameter", "Parameter").StartsWith(ItemBitParameterPrefix, StringComparison.Ordinal));
                 EditorGUILayout.LabelField("v0.5.3 spell bus receivers", spellBusReceivers + " / 9");
+                EditorGUILayout.LabelField("v0.5.4 Technick bus receivers", technickBusReceivers + " / 9");
+                EditorGUILayout.LabelField("v0.5.4 Item bus receivers", itemBusReceivers + " / 9");
             }
             EditorGUILayout.HelpBox(
                 "VRChat custom collision tags are case-sensitive. This tool uses the exact spacing/capitalization requested and keeps every generated contact below the 16-tag limit.",
@@ -1905,6 +2246,12 @@ namespace StoriesOfYggdrasil.OSC
                     case ContactDraftKind.Spell:
                         CreateSpellSenders();
                         break;
+                    case ContactDraftKind.Technick:
+                        CreateTechnickSenders();
+                        break;
+                    case ContactDraftKind.Item:
+                        CreateItemSenders();
+                        break;
                     case ContactDraftKind.Blocking:
                         CreateBlockSurfaces();
                         break;
@@ -2002,6 +2349,12 @@ namespace StoriesOfYggdrasil.OSC
                 case ContactDraftKind.Spell:
                     shape = spellShape; radius = spellRadius; height = spellHeight; boxSize = spellBoxSize;
                     position = spellPosition; rotation = spellRotation; return;
+                case ContactDraftKind.Technick:
+                    shape = technickShape; radius = technickRadius; height = technickHeight; boxSize = technickBoxSize;
+                    position = technickPosition; rotation = technickRotation; return;
+                case ContactDraftKind.Item:
+                    shape = itemShape; radius = itemRadius; height = itemHeight; boxSize = itemBoxSize;
+                    position = itemPosition; rotation = itemRotation; return;
                 case ContactDraftKind.Blocking:
                     shape = blockShape; radius = blockRadius; height = blockHeight; boxSize = blockBoxSize;
                     position = blockPosition; rotation = blockRotation; return;
@@ -2034,6 +2387,12 @@ namespace StoriesOfYggdrasil.OSC
                 case ContactDraftKind.Spell:
                     spellShape = shape; spellRadius = radius; spellHeight = height; spellBoxSize = boxSize;
                     spellPosition = position; spellRotation = rotation; break;
+                case ContactDraftKind.Technick:
+                    technickShape = shape; technickRadius = radius; technickHeight = height; technickBoxSize = boxSize;
+                    technickPosition = position; technickRotation = rotation; break;
+                case ContactDraftKind.Item:
+                    itemShape = shape; itemRadius = radius; itemHeight = height; itemBoxSize = boxSize;
+                    itemPosition = position; itemRotation = rotation; break;
                 case ContactDraftKind.Blocking:
                     blockShape = shape; blockRadius = radius; blockHeight = height; blockBoxSize = boxSize;
                     blockPosition = position; blockRotation = rotation; break;
@@ -2354,6 +2713,55 @@ namespace StoriesOfYggdrasil.OSC
             FinishContact(component);
         }
 
+
+        private void CreateTechnickSenders()
+        {
+            if (TechnickDefinitions.Length == 0)
+                return;
+            technickSelectionIndex = Mathf.Clamp(technickSelectionIndex, 0, TechnickDefinitions.Length - 1);
+            var technick = TechnickDefinitions[technickSelectionIndex];
+
+            foreach (var target in GetTargets())
+            {
+                var host = CreateContactChild(target, "Stories Technick - " + technick.Id + " " + technick.Name, technickStartsEnabled);
+                var tags = GetActionBusTags(technick.Id, TechnickActiveTag, TechnickBitTagPrefix).ToList();
+                tags.Add("SoY Technick");
+                var component = EnsureContact(host, FindType(SenderTypeName), tags, null);
+                if (component == null)
+                    continue;
+
+                ConfigureContact(component, technickShape, technickRadius, technickHeight, technickBoxSize, technickPosition, technickRotation, tags);
+                SetBoolMember(component, false, "localOnly", "LocalOnly");
+                FinishContact(component);
+                Selection.activeGameObject = host;
+                Log("Technick sender ready on '" + host.name + "': " + technick.Name + " (ID " + technick.Id + ", bits " + GetActionBinary(technick.Id) + ").");
+            }
+        }
+
+        private void CreateItemSenders()
+        {
+            if (ItemDefinitions.Length == 0)
+                return;
+            itemSelectionIndex = Mathf.Clamp(itemSelectionIndex, 0, ItemDefinitions.Length - 1);
+            var item = ItemDefinitions[itemSelectionIndex];
+
+            foreach (var target in GetTargets())
+            {
+                var host = CreateContactChild(target, "Stories Item - " + item.Id + " " + item.Name, itemStartsEnabled);
+                var tags = GetActionBusTags(item.Id, ItemActiveTag, ItemBitTagPrefix).ToList();
+                tags.Add("SoY Item");
+                var component = EnsureContact(host, FindType(SenderTypeName), tags, null);
+                if (component == null)
+                    continue;
+
+                ConfigureContact(component, itemShape, itemRadius, itemHeight, itemBoxSize, itemPosition, itemRotation, tags);
+                SetBoolMember(component, false, "localOnly", "LocalOnly");
+                FinishContact(component);
+                Selection.activeGameObject = host;
+                Log("Item sender ready on '" + host.name + "': " + item.Name + " (ID " + item.Id + ", bits " + GetActionBinary(item.Id) + ").");
+            }
+        }
+
         private void CreateDebuffSenders()
         {
             var tags = GetSelectedDebuffs().Distinct().Take(16).ToList();
@@ -2378,6 +2786,8 @@ namespace StoriesOfYggdrasil.OSC
         {
             var damageMappings = new List<ReceiverMapping>();
             var spellMappings = new List<ReceiverMapping>();
+            var technickMappings = new List<ReceiverMapping>();
+            var itemMappings = new List<ReceiverMapping>();
             if (incomingHits)
             {
                 damageMappings.Add(new ReceiverMapping(TagWeak, "SoY_HitWeak"));
@@ -2401,6 +2811,18 @@ namespace StoriesOfYggdrasil.OSC
                     spellMappings.Add(new ReceiverMapping(GetSpellBitTag(bit), GetSpellBitParameter(bit)));
                 spellMappings.Add(new ReceiverMapping(CasterEnemyTag, "SoY_HealingSourceEnemy"));
             }
+            if (incomingTechnicks)
+            {
+                technickMappings.Add(new ReceiverMapping(TechnickActiveTag, TechnickActiveParameter));
+                for (var bit = 0; bit < ActionBitCount; bit++)
+                    technickMappings.Add(new ReceiverMapping(TechnickBitTagPrefix + bit, TechnickBitParameterPrefix + bit));
+            }
+            if (incomingItems)
+            {
+                itemMappings.Add(new ReceiverMapping(ItemActiveTag, ItemActiveParameter));
+                for (var bit = 0; bit < ActionBitCount; bit++)
+                    itemMappings.Add(new ReceiverMapping(ItemBitTagPrefix + bit, ItemBitParameterPrefix + bit));
+            }
 
             foreach (var target in GetTargets())
             {
@@ -2419,6 +2841,22 @@ namespace StoriesOfYggdrasil.OSC
                     foreach (var mapping in spellMappings)
                         ConfigureIncomingReceiver(spellHost, mapping);
                     lastHost = spellHost;
+                }
+
+                if (technickMappings.Count > 0)
+                {
+                    var technickHost = CreateContactChild(target, "Stories Incoming Technick Bus Contacts", true);
+                    foreach (var mapping in technickMappings)
+                        ConfigureIncomingReceiver(technickHost, mapping);
+                    lastHost = technickHost;
+                }
+
+                if (itemMappings.Count > 0)
+                {
+                    var itemHost = CreateContactChild(target, "Stories Incoming Item Bus Contacts", true);
+                    foreach (var mapping in itemMappings)
+                        ConfigureIncomingReceiver(itemHost, mapping);
+                    lastHost = itemHost;
                 }
 
                 if (lastHost != null)
@@ -2635,6 +3073,23 @@ namespace StoriesOfYggdrasil.OSC
             incomingChaosSpells = value;
             incomingAbyssalSpells = value;
             incomingYggdrasilLightSpells = value;
+        }
+
+
+        private static IEnumerable<string> GetActionBusTags(int actionId, string activeTag, string bitTagPrefix)
+        {
+            var safeId = Mathf.Clamp(actionId, 1, 255);
+            yield return activeTag;
+            for (var bit = 0; bit < ActionBitCount; bit++)
+            {
+                if ((safeId & (1 << bit)) != 0)
+                    yield return bitTagPrefix + bit;
+            }
+        }
+
+        private static string GetActionBinary(int actionId)
+        {
+            return Convert.ToString(Mathf.Clamp(actionId, 0, 255), 2).PadLeft(ActionBitCount, '0');
         }
 
         private static string GetSpellBitTag(int bit)
@@ -3255,6 +3710,8 @@ namespace StoriesOfYggdrasil.OSC
             var storiesMenu = LoadOrCreateMenu(mainPath);
             var statusMenu = LoadOrCreateMenu(statusPath);
             var spellsMenu = LoadOrCreateMenu(spellsPath);
+            var technicksMenu = BuildActionMenuPages(avatarName, "Technicks", "SoY_TechnickType", TechnickDefinitions);
+            var itemsMenu = BuildActionMenuPages(avatarName, "Items", "SoY_ItemType", ItemDefinitions);
             var coreSchoolsMenu = LoadOrCreateMenu(coreSchoolsPath);
             var specializedSchoolsMenu = LoadOrCreateMenu(specializedSchoolsPath);
             var forbiddenSchoolsMenu = LoadOrCreateMenu(forbiddenSchoolsPath);
@@ -3269,6 +3726,8 @@ namespace StoriesOfYggdrasil.OSC
                 CreateToggleControl("RP Combat", "SoY_CombatEnabled"),
                 CreateToggleControl("Enemy Mode", "SoY_IsEnemy"),
                 CreateSubMenuControl("Spells", spellsMenu),
+                CreateSubMenuControl("Technicks", technicksMenu),
+                CreateSubMenuControl("Items", itemsMenu),
                 CreateSubMenuControl("Status Gauges", statusMenu)
             };
             EditorUtility.SetDirty(storiesMenu);
@@ -3415,6 +3874,46 @@ namespace StoriesOfYggdrasil.OSC
                 EditorUtility.SetDirty(targetMenu);
             }
 
+            return pages[0];
+        }
+
+        private VRCExpressionsMenu BuildActionMenuPages(
+            string avatarName,
+            string actionLabel,
+            string parameterName,
+            ActionDefinition[] definitions)
+        {
+            if (definitions == null || definitions.Length == 0)
+                return null;
+
+            var safeLabel = MakeSafeAssetName(actionLabel);
+            var pageCount = Mathf.CeilToInt(definitions.Length / 7f);
+            var pages = new List<VRCExpressionsMenu>();
+            for (var page = 0; page < pageCount; page++)
+            {
+                var path = MenuRoot + "/" + avatarName + "_Stories_" + safeLabel + "_Page_" + (page + 1) + ".asset";
+                pages.Add(LoadOrCreateMenu(path));
+            }
+
+            for (var page = 0; page < pages.Count; page++)
+            {
+                var targetMenu = pages[page];
+                Undo.RecordObject(targetMenu, "Build Stories " + actionLabel + " Page");
+                targetMenu.controls = new List<VRCExpressionsMenu.Control>();
+                foreach (var definition in definitions.Skip(page * 7).Take(7))
+                {
+                    targetMenu.controls.Add(new VRCExpressionsMenu.Control
+                    {
+                        name = definition.Name,
+                        type = VRCExpressionsMenu.Control.ControlType.Button,
+                        parameter = new VRCExpressionsMenu.Control.Parameter { name = parameterName },
+                        value = definition.Id
+                    });
+                }
+                if (page + 1 < pages.Count)
+                    targetMenu.controls.Add(CreateSubMenuControl("Next Page", pages[page + 1]));
+                EditorUtility.SetDirty(targetMenu);
+            }
             return pages[0];
         }
 

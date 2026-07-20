@@ -1,8 +1,10 @@
 {
-  "version": "0.5.3",
+  "version": "0.5.4",
   "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
   "release_asset_script": "StoriesOfYggdrasilOSCContactSystem.cs",
   "spell_registry": "SPELL_ID_REGISTRY_v2.json",
-  "osc_contract": "OSC_CONTRACT_v9.json",
-  "desktop_minimum": "0.8.1"
+  "osc_contract": "OSC_CONTRACT_v10.json",
+  "desktop_minimum": "0.8.4",
+  "technick_registry": "TECHNICK_ID_REGISTRY_v1.json",
+  "item_registry": "ITEM_ID_REGISTRY_v1.json"
 }
