@@ -25,7 +25,7 @@ namespace StoriesOfYggdrasil.OSC
     /// </summary>
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
-        private const string Version = "0.5.2";
+        private const string Version = "0.5.3";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
 
@@ -125,7 +125,15 @@ namespace StoriesOfYggdrasil.OSC
         private const string AnimationRoot = "Assets/Stories Of Yggdrasil/Animations";
         private const string BackupRoot = "Assets/Stories Of Yggdrasil/Backups/Unity Tool";
         private const string PreviewPrefix = "[TEMP] Stories Contact Preview";
-        private const string SpellTagPrefix = "SoY Spell ";
+        // v0.5.3 spell contact transport.
+        // Older VRChat SDKs force Constant receivers to write only 1, so spell IDs
+        // are transmitted as an eight-bit contact bus and reconstructed by the Desktop app.
+        private const string LegacySpellTagPrefix = "SoY Spell ";
+        private const string SpellActiveTag = "SoY Spell Active";
+        private const string SpellBitTagPrefix = "SoY Spell Bit ";
+        private const string SpellActiveParameter = "SoY_SpellActive";
+        private const string SpellBitParameterPrefix = "SoY_SpellBit";
+        private const int SpellBitCount = 8;
         private const string CasterAllyTag = "SoY Caster Ally";
         private const string CasterEnemyTag = "SoY Caster Enemy";
         private const string GitHubRepository = "StarhunterUC/Stories-OSC-Unity-Tool";
@@ -399,6 +407,15 @@ namespace StoriesOfYggdrasil.OSC
             new ParameterSpec("SoY_CombatEnabled", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, true, true),
             new ParameterSpec("SoY_IsEnemy", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, true, true),
             new ParameterSpec("SoY_SpellType", AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
+            new ParameterSpec(SpellActiveParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(SpellBitParameterPrefix + "0", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(SpellBitParameterPrefix + "1", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(SpellBitParameterPrefix + "2", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(SpellBitParameterPrefix + "3", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(SpellBitParameterPrefix + "4", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(SpellBitParameterPrefix + "5", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(SpellBitParameterPrefix + "6", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(SpellBitParameterPrefix + "7", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HealingSourceEnemy", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HealingRejected", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_MistCharge", AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
@@ -556,6 +573,7 @@ namespace StoriesOfYggdrasil.OSC
         private bool incomingCreateChild = true;
         private bool incomingHits = true;
         private bool incomingDebuffs = true;
+        private bool incomingSpells = true;
         private bool incomingWhiteSpells = true;
         private bool incomingBlackSpells = true;
         private bool incomingGreenSpells;
@@ -867,7 +885,7 @@ namespace StoriesOfYggdrasil.OSC
                 "Spells",
                 SpellDefinitions.Select(spell => spell.Id).Distinct().Count() + " IDs / " +
                 Enum.GetValues(typeof(SpellSchool)).Length + " schools",
-                "All schools share the SoY_SpellType Int without changing v0.5.1 IDs");
+                "All schools use the compact v0.5.3 eight-bit spell contact bus without changing registry IDs");
             DrawTagRow("I-Frames", "1.0 second", "Generated incoming damage receiver cooldown");
             DrawTagRow("Updater", updateStatus, "GitHub Releases: " + GitHubRepository);
             EndCard();
@@ -982,7 +1000,7 @@ namespace StoriesOfYggdrasil.OSC
                 spells.Select(spell => spell.Id + " — " + spell.Name).ToArray());
             var selected = spells[spellSelectionIndex];
             EditorGUILayout.HelpBox(
-                "Spell ID " + selected.Id + " uses the shared Int parameter SoY_SpellType. " +
+                "Spell ID " + selected.Id + " is encoded as " + GetSpellBinary(selected.Id) + " on the v0.5.3 contact bus. " +
                 "School: " + GetSpellSchoolDisplayName(selected.School) + ". Category: " + selected.Category + ". " +
                 (selected.IsHealing
                     ? "Healing and revival spells include caster-alignment tags for the Enemy healing rule."
@@ -1096,43 +1114,19 @@ namespace StoriesOfYggdrasil.OSC
             incomingHits = EditorGUILayout.ToggleLeft("Create hit receivers: Weak, Average, Strong, Critical", incomingHits);
             incomingDebuffs = EditorGUILayout.ToggleLeft("Create debuff receivers: Burn, Silence, Freeze, Bind, Bleed", incomingDebuffs);
             EditorGUILayout.Space(4f);
-            EditorGUILayout.LabelField("Incoming Spell Schools", cardTitleStyle);
-            EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("Select All", GUILayout.Width(90f)))
-                SetAllIncomingSpellSchools(true);
-            if (GUILayout.Button("Clear All", GUILayout.Width(90f)))
-                SetAllIncomingSpellSchools(false);
-            EditorGUILayout.LabelField(
-                GetIncomingSpellReceiverCount() + " unique spell receiver(s) selected",
-                wrappedLabel);
-            EditorGUILayout.EndHorizontal();
-
-            EditorGUILayout.BeginHorizontal();
-            incomingWhiteSpells = GUILayout.Toggle(incomingWhiteSpells, "White", "Button");
-            incomingBlackSpells = GUILayout.Toggle(incomingBlackSpells, "Black", "Button");
-            incomingGreenSpells = GUILayout.Toggle(incomingGreenSpells, "Green", "Button");
-            incomingTimeSpells = GUILayout.Toggle(incomingTimeSpells, "Time", "Button");
-            EditorGUILayout.EndHorizontal();
-
-            EditorGUILayout.BeginHorizontal();
-            incomingArcaneSpells = GUILayout.Toggle(incomingArcaneSpells, "Arcane", "Button");
-            incomingSynergistSpells = GUILayout.Toggle(incomingSynergistSpells, "Synergist", "Button");
-            incomingIllusionSpells = GUILayout.Toggle(incomingIllusionSpells, "Illusion", "Button");
-            incomingDreamSpells = GUILayout.Toggle(incomingDreamSpells, "Dream", "Button");
-            EditorGUILayout.EndHorizontal();
-
-            EditorGUILayout.BeginHorizontal();
-            incomingNatureSpells = GUILayout.Toggle(incomingNatureSpells, "Nature", "Button");
-            incomingChaosSpells = GUILayout.Toggle(incomingChaosSpells, "Chaos", "Button");
-            incomingAbyssalSpells = GUILayout.Toggle(incomingAbyssalSpells, "Abyssal", "Button");
-            incomingYggdrasilLightSpells = GUILayout.Toggle(incomingYggdrasilLightSpells, "Yggdrasil Light", "Button");
-            EditorGUILayout.EndHorizontal();
-
-            if (GetIncomingSpellReceiverCount() > 80)
+            EditorGUILayout.LabelField("Incoming Spell Identification", cardTitleStyle);
+            incomingSpells = EditorGUILayout.ToggleLeft("Create compact binary spell receiver bus", incomingSpells);
+            EditorGUILayout.HelpBox(
+                "v0.5.3 uses one Active receiver plus eight bit receivers for every spell ID from 1-255. " +
+                "This replaces the broken SDK behavior where every Constant Int receiver reported 1. " +
+                "All Magick schools are supported automatically with only nine unsynced Bool parameters.",
+                MessageType.Info);
+            EditorGUILayout.LabelField("Receiver components", incomingSpells ? "9 spell bus + 1 caster alignment" : "Disabled");
+            EditorGUILayout.LabelField("Required Desktop", "Stories Of Yggdrasil OSC v0.8.1 or newer");
+            using (new EditorGUI.DisabledScope(avatarRoot == null || !ContactTypesAvailable()))
             {
-                EditorGUILayout.HelpBox(
-                    "A large receiver set is selected. Install only the schools this avatar needs to reduce Contact components and upload complexity.",
-                    MessageType.Warning);
+                if (GUILayout.Button("REPAIR v0.5.1 / v0.5.2 SPELL CONTACTS", GUILayout.Height(34f)))
+                    RepairSpellContactBus();
             }
             DrawShapeEditor(ref incomingShape, ref incomingRadius, ref incomingHeight, ref incomingBoxSize, ref incomingPosition, ref incomingRotation);
             incomingCreateChild = true;
@@ -1144,7 +1138,7 @@ namespace StoriesOfYggdrasil.OSC
             var locked = compatible && !forceIncomingOnExistingHealth;
             DrawDraftControls(
                 ContactDraftKind.Incoming,
-                HasUsableTargets() && ContactTypesAvailable() && !locked && (incomingHits || incomingDebuffs || AnyIncomingSpellSchoolEnabled()),
+                HasUsableTargets() && ContactTypesAvailable() && !locked && (incomingHits || incomingDebuffs || incomingSpells),
                 "Preview Incoming Receiver Volume");
             EndCard();
 
@@ -1155,7 +1149,9 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow(TagCritical, "SoY_HitCritical", "Exact collision tag; Critical remains unblockable");
             DrawTagRow("Burn / Silence", "SoY_DebuffBurn / Silence", "Exact debuff tags; Constant mode held for OSC rising-edge detection");
             DrawTagRow("Freeze / Bind / Bleed", "SoY_DebuffFreeze / Bind / Bleed", "Exact debuff tags; Constant mode held for OSC rising-edge detection");
-            DrawTagRow("All Magick Schools", "SoY_SpellType (Int)", "Selected schools write stable IDs from SPELL_ID_REGISTRY_v2.json");
+            DrawTagRow("Spell Active", SpellActiveParameter, "True while any encoded spell sender is inside the receiver");
+            DrawTagRow("Spell ID Bits", SpellBitParameterPrefix + "0-7", "Eight Bool values reconstruct the stable 1-255 spell ID in Desktop v0.8.1+");
+            DrawTagRow("Resolved Spell", "SoY_SpellType (Int)", "Desktop reconstructs the bit bus and sends the normal registry ID to Sam.py");
             DrawTagRow("Caster alignment", "SoY_HealingSourceEnemy", "Enemy-tagged spell source for healing validation");
             DrawTagRow("I-Frames", "1.0 second", "Incoming damage receiver child is disabled after each accepted hit");
             EndCard();
@@ -1357,7 +1353,7 @@ namespace StoriesOfYggdrasil.OSC
 
             BeginCard("Contact Types");
             DrawTagRow("Attack", "Weak / Average / Strong / Critical", "Weapon or projectile hit volumes");
-            DrawTagRow("Spell", "SoY_SpellType Int IDs", "Twelve Magick schools with caster alignment and category tags");
+            DrawTagRow("Spell", "8-bit Contact Bus → SoY_SpellType", "Twelve Magick schools with stable IDs, caster alignment, and category tags");
             DrawTagRow("Blocking", TagBlockable + " → " + TagHitBlocked, "Shield face or guarded weapon volume");
             DrawTagRow("Debuff", string.Join(", ", DebuffTags), "Spell, projectile, aura, or effect volume");
             DrawTagRow("Incoming", "SoY_Hit* / SoY_Debuff*", "Avatar body receiver volume for Sam.py synchronization");
@@ -1654,6 +1650,14 @@ namespace StoriesOfYggdrasil.OSC
                 EditorGUILayout.LabelField("Contact Senders under avatar", senderCount.ToString());
                 EditorGUILayout.LabelField("Contact Receivers under avatar", receiverCount.ToString());
                 EditorGUILayout.LabelField("Total Contacts", (senderCount + receiverCount).ToString());
+                var legacySpellReceivers = avatarRoot.GetComponentsInChildren(receiverType, true).Cast<Component>()
+                    .Count(component => ReadStringMember(component, "parameter", "Parameter") == "SoY_SpellType" &&
+                        ReadCollisionTags(component).Any(tag => tag.StartsWith(LegacySpellTagPrefix, StringComparison.Ordinal)));
+                var spellBusReceivers = avatarRoot.GetComponentsInChildren(receiverType, true).Cast<Component>()
+                    .Count(component => ReadStringMember(component, "parameter", "Parameter") == SpellActiveParameter ||
+                        ReadStringMember(component, "parameter", "Parameter").StartsWith(SpellBitParameterPrefix, StringComparison.Ordinal));
+                EditorGUILayout.LabelField("Legacy broken spell receivers", legacySpellReceivers.ToString());
+                EditorGUILayout.LabelField("v0.5.3 spell bus receivers", spellBusReceivers + " / 9");
             }
             EditorGUILayout.HelpBox(
                 "VRChat custom collision tags are case-sensitive. This tool uses the exact spacing/capitalization requested and keeps every generated contact below the 16-tag limit.",
@@ -2314,7 +2318,6 @@ namespace StoriesOfYggdrasil.OSC
                 return;
             spellSelectionIndex = Mathf.Clamp(spellSelectionIndex, 0, spells.Length - 1);
             var spell = spells[spellSelectionIndex];
-            var spellTag = GetSpellTag(spell.Id);
 
             foreach (var target in GetTargets())
             {
@@ -2322,43 +2325,28 @@ namespace StoriesOfYggdrasil.OSC
                 var allyHost = CreateContactChild(host, "[SoY Spell Ally] " + spell.Id + " " + spell.Name, true);
                 var enemyHost = CreateContactChild(host, "[SoY Spell Enemy] " + spell.Id + " " + spell.Name, false);
 
-                ConfigureSpellSender(allyHost, spell, spellTag, CasterAllyTag);
-                ConfigureSpellSender(enemyHost, spell, spellTag, CasterEnemyTag);
+                ConfigureSpellSender(allyHost, spell, CasterAllyTag);
+                ConfigureSpellSender(enemyHost, spell, CasterEnemyTag);
 
                 Selection.activeGameObject = host;
-                Log("Spell sender ready on '" + host.name + "': " + spell.Name + " (ID " + spell.Id + ").");
+                Log("Spell sender ready on '" + host.name + "': " + spell.Name + " (ID " + spell.Id + ", bits " + GetSpellBinary(spell.Id) + ").");
             }
 
             RebuildSpellAlignmentLayer();
         }
 
-        private void ConfigureSpellSender(GameObject host, SpellDefinition spell, string spellTag, string alignmentTag)
+        private void ConfigureSpellSender(GameObject host, SpellDefinition spell, string alignmentTag)
         {
-            var tags = new List<string> { spellTag, alignmentTag };
-            switch (spell.Category)
-            {
-                case SpellCategory.Healing:
-                case SpellCategory.Revival:
-                    tags.Add("SoY Healing Spell");
-                    break;
-                case SpellCategory.Cleanse:
-                    tags.Add("SoY Cleanse Spell");
-                    break;
-                case SpellCategory.Support:
-                    tags.Add("SoY Support Spell");
-                    break;
-                case SpellCategory.Status:
-                    tags.Add("SoY Status Spell");
-                    break;
-                case SpellCategory.Utility:
-                    tags.Add("SoY Utility Spell");
-                    break;
-                default:
-                    tags.Add("SoY Offensive Spell");
-                    break;
-            }
+            var tags = GetSpellBusTags(spell.Id).ToList();
+            tags.Add(alignmentTag);
+            tags.Add(GetSpellCategoryTag(spell.Category));
 
-            var component = EnsureContact(host, FindType(SenderTypeName), tags, null);
+            var senderType = FindType(SenderTypeName);
+            var component = host.GetComponents(senderType).Cast<Component>()
+                .FirstOrDefault(existing => ReadCollisionTags(existing).Any(tag =>
+                    tag == SpellActiveTag || tag.StartsWith(LegacySpellTagPrefix, StringComparison.Ordinal)));
+            if (component == null)
+                component = EnsureContact(host, senderType, tags, null);
             if (component == null)
                 return;
             ConfigureContact(component, spellShape, spellRadius, spellHeight, spellBoxSize, spellPosition, spellRotation, tags);
@@ -2406,16 +2394,13 @@ namespace StoriesOfYggdrasil.OSC
                 damageMappings.Add(new ReceiverMapping("Bleed", "SoY_DebuffBleed"));
             }
 
-            foreach (var spell in SpellDefinitions
-                .Where(definition => IsIncomingSchoolEnabled(definition.School))
-                .GroupBy(definition => definition.Id)
-                .Select(group => group.First())
-                .OrderBy(definition => definition.Id))
+            if (incomingSpells)
             {
-                spellMappings.Add(new ReceiverMapping(GetSpellTag(spell.Id), "SoY_SpellType", spell.Id));
+                spellMappings.Add(new ReceiverMapping(SpellActiveTag, SpellActiveParameter));
+                for (var bit = 0; bit < SpellBitCount; bit++)
+                    spellMappings.Add(new ReceiverMapping(GetSpellBitTag(bit), GetSpellBitParameter(bit)));
+                spellMappings.Add(new ReceiverMapping(CasterEnemyTag, "SoY_HealingSourceEnemy"));
             }
-            if (AnyIncomingSpellSchoolEnabled())
-                spellMappings.Add(new ReceiverMapping(CasterEnemyTag, "SoY_HealingSourceEnemy", 1f));
 
             foreach (var target in GetTargets())
             {
@@ -2430,7 +2415,7 @@ namespace StoriesOfYggdrasil.OSC
 
                 if (spellMappings.Count > 0)
                 {
-                    var spellHost = CreateContactChild(target, "Stories Incoming Spell Contacts", true);
+                    var spellHost = CreateContactChild(target, "Stories Incoming Spell Bus Contacts", true);
                     foreach (var mapping in spellMappings)
                         ConfigureIncomingReceiver(spellHost, mapping);
                     lastHost = spellHost;
@@ -2652,9 +2637,176 @@ namespace StoriesOfYggdrasil.OSC
             incomingYggdrasilLightSpells = value;
         }
 
-        private static string GetSpellTag(int spellId)
+        private static string GetSpellBitTag(int bit)
         {
-            return SpellTagPrefix + spellId;
+            return SpellBitTagPrefix + bit;
+        }
+
+        private static string GetSpellBitParameter(int bit)
+        {
+            return SpellBitParameterPrefix + bit;
+        }
+
+        private static IEnumerable<string> GetSpellBusTags(int spellId)
+        {
+            var safeId = Mathf.Clamp(spellId, 1, 255);
+            yield return SpellActiveTag;
+            for (var bit = 0; bit < SpellBitCount; bit++)
+            {
+                if ((safeId & (1 << bit)) != 0)
+                    yield return GetSpellBitTag(bit);
+            }
+        }
+
+        private static string GetSpellBinary(int spellId)
+        {
+            return Convert.ToString(Mathf.Clamp(spellId, 0, 255), 2).PadLeft(SpellBitCount, '0');
+        }
+
+        private static string GetSpellCategoryTag(SpellCategory category)
+        {
+            switch (category)
+            {
+                case SpellCategory.Healing:
+                case SpellCategory.Revival:
+                    return "SoY Healing Spell";
+                case SpellCategory.Cleanse:
+                    return "SoY Cleanse Spell";
+                case SpellCategory.Support:
+                    return "SoY Support Spell";
+                case SpellCategory.Status:
+                    return "SoY Status Spell";
+                case SpellCategory.Utility:
+                    return "SoY Utility Spell";
+                default:
+                    return "SoY Offensive Spell";
+            }
+        }
+
+        private static bool TryReadLegacySpellId(IEnumerable<string> tags, GameObject host, out int spellId)
+        {
+            foreach (var tag in tags ?? Enumerable.Empty<string>())
+            {
+                if (!tag.StartsWith(LegacySpellTagPrefix, StringComparison.Ordinal))
+                    continue;
+                if (int.TryParse(tag.Substring(LegacySpellTagPrefix.Length).Trim(), out spellId))
+                    return spellId >= 1 && spellId <= 255;
+            }
+
+            var current = host != null ? host.transform : null;
+            while (current != null)
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(current.name, @"(?:Stories Spell -|\[SoY Spell (?:Ally|Enemy)\])\s*(\d+)");
+                if (match.Success && int.TryParse(match.Groups[1].Value, out spellId))
+                    return spellId >= 1 && spellId <= 255;
+                current = current.parent;
+            }
+            spellId = 0;
+            return false;
+        }
+
+        private static SpellDefinition? FindSpellById(int spellId)
+        {
+            foreach (var spell in SpellDefinitions)
+            {
+                if (spell.Id == spellId)
+                    return spell;
+            }
+            return null;
+        }
+
+        private void RepairSpellContactBus()
+        {
+            if (avatarRoot == null || !ContactTypesAvailable())
+            {
+                EditorUtility.DisplayDialog("Stories Of Yggdrasil OSC", "Assign the Avatar Root and make sure the VRChat Contacts SDK is available.", "OK");
+                return;
+            }
+            if (fxController != null && !EnsureSafeFxCopy(true))
+                return;
+
+            if (fxController != null)
+                AddMissingAnimatorParameters(fxController);
+            if (expressionParameters != null)
+            {
+                Undo.RecordObject(expressionParameters, "Add v0.5.3 Spell Bus Parameters");
+                AddMissingExpressionParameters(expressionParameters);
+                EditorUtility.SetDirty(expressionParameters);
+            }
+
+            var senderType = FindType(SenderTypeName);
+            var receiverType = FindType(ReceiverTypeName);
+            var repairedSenders = 0;
+            var removedReceivers = 0;
+            var busHosts = 0;
+
+            foreach (var sender in avatarRoot.GetComponentsInChildren(senderType, true).Cast<Component>())
+            {
+                var oldTags = ReadCollisionTags(sender).ToList();
+                if (!TryReadLegacySpellId(oldTags, sender.gameObject, out var spellId))
+                    continue;
+
+                var tags = GetSpellBusTags(spellId).ToList();
+                var alignment = oldTags.FirstOrDefault(tag => tag == CasterAllyTag || tag == CasterEnemyTag);
+                tags.Add(string.IsNullOrEmpty(alignment) ? CasterAllyTag : alignment);
+                var category = oldTags.FirstOrDefault(tag => tag.StartsWith("SoY ", StringComparison.Ordinal) && tag.EndsWith(" Spell", StringComparison.Ordinal) && tag != SpellActiveTag);
+                var definition = FindSpellById(spellId);
+                tags.Add(!string.IsNullOrEmpty(category)
+                    ? category
+                    : definition.HasValue ? GetSpellCategoryTag(definition.Value.Category) : "SoY Offensive Spell");
+
+                Undo.RecordObject(sender, "Repair Stories Spell Sender");
+                SetCollisionTags(sender, tags.Distinct().Take(16).ToArray());
+                FinishContact(sender);
+                repairedSenders++;
+            }
+
+            var oldHosts = avatarRoot.GetComponentsInChildren<Transform>(true)
+                .Where(transform => transform.name == "Stories Incoming Spell Contacts")
+                .ToList();
+            foreach (var oldHost in oldHosts)
+            {
+                foreach (var receiver in oldHost.GetComponents(receiverType).Cast<Component>().ToArray())
+                {
+                    var tags = ReadCollisionTags(receiver).ToList();
+                    var parameter = ReadStringMember(receiver, "parameter", "Parameter");
+                    if (parameter == "SoY_SpellType" ||
+                        parameter == "SoY_HealingSourceEnemy" ||
+                        tags.Any(tag => tag.StartsWith(LegacySpellTagPrefix, StringComparison.Ordinal)))
+                    {
+                        Undo.DestroyObjectImmediate(receiver);
+                        removedReceivers++;
+                    }
+                }
+
+                var parent = oldHost.parent != null ? oldHost.parent.gameObject : avatarRoot;
+                var busHost = CreateContactChild(parent, "Stories Incoming Spell Bus Contacts", true);
+                ConfigureIncomingReceiver(busHost, new ReceiverMapping(SpellActiveTag, SpellActiveParameter));
+                for (var bit = 0; bit < SpellBitCount; bit++)
+                    ConfigureIncomingReceiver(busHost, new ReceiverMapping(GetSpellBitTag(bit), GetSpellBitParameter(bit)));
+                ConfigureIncomingReceiver(busHost, new ReceiverMapping(CasterEnemyTag, "SoY_HealingSourceEnemy"));
+                busHosts++;
+            }
+
+            if (oldHosts.Count == 0)
+            {
+                var busHost = CreateContactChild(avatarRoot, "Stories Incoming Spell Bus Contacts", true);
+                ConfigureIncomingReceiver(busHost, new ReceiverMapping(SpellActiveTag, SpellActiveParameter));
+                for (var bit = 0; bit < SpellBitCount; bit++)
+                    ConfigureIncomingReceiver(busHost, new ReceiverMapping(GetSpellBitTag(bit), GetSpellBitParameter(bit)));
+                ConfigureIncomingReceiver(busHost, new ReceiverMapping(CasterEnemyTag, "SoY_HealingSourceEnemy"));
+                busHosts = 1;
+            }
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            var message = "Repaired " + repairedSenders + " spell sender(s), removed " + removedReceivers +
+                          " legacy Int receiver(s), and prepared " + busHosts + " compact spell bus receiver host(s).";
+            Log(message);
+            EditorUtility.DisplayDialog(
+                "Stories OSC Spell Bus Repair Complete",
+                message + "\n\nDesktop v0.8.1 or newer is required to reconstruct the eight-bit spell ID.",
+                "OK");
         }
 
         private IEnumerable<string> GetSelectedDebuffs()
