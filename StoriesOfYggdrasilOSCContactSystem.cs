@@ -25,7 +25,7 @@ namespace StoriesOfYggdrasil.OSC
     /// </summary>
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
-        private const string Version = "0.5.4";
+        private const string Version = "0.5.5";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
 
@@ -1291,7 +1291,7 @@ namespace StoriesOfYggdrasil.OSC
             var selected = TechnickDefinitions[technickSelectionIndex];
             EditorGUILayout.HelpBox(
                 "Technick ID " + selected.Id + " is encoded as " + GetActionBinary(selected.Id) + ". " +
-                "Sam.py remains authoritative for license, scroll, cooldown, encounter, and target checks.",
+                "Sam.py remains authoritative for license, teaching item, cooldown, and effect checks. Encounters are optional for OSC use.",
                 MessageType.Info);
             if (!string.IsNullOrEmpty(selected.Description))
                 EditorGUILayout.LabelField(selected.Description, wrappedLabel);
@@ -1305,6 +1305,8 @@ namespace StoriesOfYggdrasil.OSC
                 ContactDraftKind.Technick,
                 HasUsableTargets() && ContactTypesAvailable(),
                 "Preview Technick Contact");
+            if (GUILayout.Button("REPAIR EXISTING TECHNICK / ITEM ALIGNMENT"))
+                RepairExistingActionAlignment();
             EndCard();
         }
 
@@ -1341,6 +1343,8 @@ namespace StoriesOfYggdrasil.OSC
                 ContactDraftKind.Item,
                 HasUsableTargets() && ContactTypesAvailable(),
                 "Preview Item Contact");
+            if (GUILayout.Button("REPAIR EXISTING TECHNICK / ITEM ALIGNMENT"))
+                RepairExistingActionAlignment();
             EndCard();
 
             BeginCard("Inventory Authority");
@@ -1680,7 +1684,7 @@ namespace StoriesOfYggdrasil.OSC
                 "The root Expressions Menu receives one Stories RP submenu instead of a direct combat toggle. The generated submenu contains RP Combat, Enemy Mode, spell pages, Mist Charge, and Curse Of Diablos gauges.",
                 wrappedLabel);
             EditorGUILayout.LabelField(
-                "Enemy Mode is exposed through SoY_IsEnemy. Healing validation uses the target's Enemy state plus the caster-alignment tag generated on spell senders.",
+                "Enemy Mode is exposed through SoY_IsEnemy. Spell, Technick, and Item senders now use Ally/Enemy pairs so target-side alignment checks receive the caster state.",
                 wrappedLabel);
             EndCard();
 
@@ -1997,8 +2001,8 @@ namespace StoriesOfYggdrasil.OSC
                     .Count(component => ReadStringMember(component, "parameter", "Parameter") == ItemActiveParameter ||
                         ReadStringMember(component, "parameter", "Parameter").StartsWith(ItemBitParameterPrefix, StringComparison.Ordinal));
                 EditorGUILayout.LabelField("v0.5.3 spell bus receivers", spellBusReceivers + " / 9");
-                EditorGUILayout.LabelField("v0.5.4 Technick bus receivers", technickBusReceivers + " / 9");
-                EditorGUILayout.LabelField("v0.5.4 Item bus receivers", itemBusReceivers + " / 9");
+                EditorGUILayout.LabelField("v0.5.5 Technick bus receivers", technickBusReceivers + " / 10");
+                EditorGUILayout.LabelField("v0.5.5 Item bus receivers", itemBusReceivers + " / 10");
             }
             EditorGUILayout.HelpBox(
                 "VRChat custom collision tags are case-sensitive. This tool uses the exact spacing/capitalization requested and keeps every generated contact below the 16-tag limit.",
@@ -2724,18 +2728,16 @@ namespace StoriesOfYggdrasil.OSC
             foreach (var target in GetTargets())
             {
                 var host = CreateContactChild(target, "Stories Technick - " + technick.Id + " " + technick.Name, technickStartsEnabled);
-                var tags = GetActionBusTags(technick.Id, TechnickActiveTag, TechnickBitTagPrefix).ToList();
-                tags.Add("SoY Technick");
-                var component = EnsureContact(host, FindType(SenderTypeName), tags, null);
-                if (component == null)
-                    continue;
-
-                ConfigureContact(component, technickShape, technickRadius, technickHeight, technickBoxSize, technickPosition, technickRotation, tags);
-                SetBoolMember(component, false, "localOnly", "LocalOnly");
-                FinishContact(component);
+                var allyHost = CreateContactChild(host, "[SoY Technick Ally] " + technick.Id + " " + technick.Name, true);
+                var enemyHost = CreateContactChild(host, "[SoY Technick Enemy] " + technick.Id + " " + technick.Name, false);
+                ConfigureActionSender(allyHost, technick.Id, TechnickActiveTag, TechnickBitTagPrefix, "SoY Technick", CasterAllyTag,
+                    technickShape, technickRadius, technickHeight, technickBoxSize, technickPosition, technickRotation);
+                ConfigureActionSender(enemyHost, technick.Id, TechnickActiveTag, TechnickBitTagPrefix, "SoY Technick", CasterEnemyTag,
+                    technickShape, technickRadius, technickHeight, technickBoxSize, technickPosition, technickRotation);
                 Selection.activeGameObject = host;
                 Log("Technick sender ready on '" + host.name + "': " + technick.Name + " (ID " + technick.Id + ", bits " + GetActionBinary(technick.Id) + ").");
             }
+            RebuildSpellAlignmentLayer();
         }
 
         private void CreateItemSenders()
@@ -2748,18 +2750,31 @@ namespace StoriesOfYggdrasil.OSC
             foreach (var target in GetTargets())
             {
                 var host = CreateContactChild(target, "Stories Item - " + item.Id + " " + item.Name, itemStartsEnabled);
-                var tags = GetActionBusTags(item.Id, ItemActiveTag, ItemBitTagPrefix).ToList();
-                tags.Add("SoY Item");
-                var component = EnsureContact(host, FindType(SenderTypeName), tags, null);
-                if (component == null)
-                    continue;
-
-                ConfigureContact(component, itemShape, itemRadius, itemHeight, itemBoxSize, itemPosition, itemRotation, tags);
-                SetBoolMember(component, false, "localOnly", "LocalOnly");
-                FinishContact(component);
+                var allyHost = CreateContactChild(host, "[SoY Item Ally] " + item.Id + " " + item.Name, true);
+                var enemyHost = CreateContactChild(host, "[SoY Item Enemy] " + item.Id + " " + item.Name, false);
+                ConfigureActionSender(allyHost, item.Id, ItemActiveTag, ItemBitTagPrefix, "SoY Item", CasterAllyTag,
+                    itemShape, itemRadius, itemHeight, itemBoxSize, itemPosition, itemRotation);
+                ConfigureActionSender(enemyHost, item.Id, ItemActiveTag, ItemBitTagPrefix, "SoY Item", CasterEnemyTag,
+                    itemShape, itemRadius, itemHeight, itemBoxSize, itemPosition, itemRotation);
                 Selection.activeGameObject = host;
                 Log("Item sender ready on '" + host.name + "': " + item.Name + " (ID " + item.Id + ", bits " + GetActionBinary(item.Id) + ").");
             }
+            RebuildSpellAlignmentLayer();
+        }
+
+        private void ConfigureActionSender(
+            GameObject host, int actionId, string activeTag, string bitPrefix, string kindTag, string alignmentTag,
+            ContactShape shape, float radius, float height, Vector3 boxSize, Vector3 position, Vector3 rotation)
+        {
+            var tags = GetActionBusTags(actionId, activeTag, bitPrefix).ToList();
+            tags.Add(kindTag);
+            tags.Add(alignmentTag);
+            var component = EnsureContact(host, FindType(SenderTypeName), tags, null);
+            if (component == null)
+                return;
+            ConfigureContact(component, shape, radius, height, boxSize, position, rotation, tags);
+            SetBoolMember(component, false, "localOnly", "LocalOnly");
+            FinishContact(component);
         }
 
         private void CreateDebuffSenders()
@@ -2816,12 +2831,14 @@ namespace StoriesOfYggdrasil.OSC
                 technickMappings.Add(new ReceiverMapping(TechnickActiveTag, TechnickActiveParameter));
                 for (var bit = 0; bit < ActionBitCount; bit++)
                     technickMappings.Add(new ReceiverMapping(TechnickBitTagPrefix + bit, TechnickBitParameterPrefix + bit));
+                technickMappings.Add(new ReceiverMapping(CasterEnemyTag, "SoY_HealingSourceEnemy"));
             }
             if (incomingItems)
             {
                 itemMappings.Add(new ReceiverMapping(ItemActiveTag, ItemActiveParameter));
                 for (var bit = 0; bit < ActionBitCount; bit++)
                     itemMappings.Add(new ReceiverMapping(ItemBitTagPrefix + bit, ItemBitParameterPrefix + bit));
+                itemMappings.Add(new ReceiverMapping(CasterEnemyTag, "SoY_HealingSourceEnemy"));
             }
 
             foreach (var target in GetTargets())
@@ -3336,21 +3353,88 @@ namespace StoriesOfYggdrasil.OSC
             Log("Rebuilt 1-second incoming hit I-Frame layer for " + hosts.Count + " receiver object(s).");
         }
 
+        private void RepairExistingActionAlignment()
+        {
+            if (avatarRoot == null)
+            {
+                EditorUtility.DisplayDialog("Stories Of Yggdrasil OSC", "Select an avatar root first.", "OK");
+                return;
+            }
+            var senderType = FindType(SenderTypeName);
+            if (senderType == null)
+                return;
+            var repaired = 0;
+            foreach (var transform in avatarRoot.GetComponentsInChildren<Transform>(true).ToArray())
+            {
+                var isTechnick = transform.name.StartsWith("Stories Technick - ", StringComparison.Ordinal);
+                var isItem = transform.name.StartsWith("Stories Item - ", StringComparison.Ordinal);
+                if (!isTechnick && !isItem)
+                    continue;
+                var directSenders = transform.GetComponents(senderType).Cast<Component>().ToArray();
+                foreach (var sender in directSenders)
+                {
+                    var oldTags = ReadCollisionTags(sender).ToList();
+                    if (oldTags.Contains(CasterAllyTag) || oldTags.Contains(CasterEnemyTag))
+                        continue;
+                    var label = transform.name.Substring(transform.name.IndexOf(" - ", StringComparison.Ordinal) + 3);
+                    var kind = isTechnick ? "Technick" : "Item";
+                    var allyHost = CreateContactChild(transform.gameObject, "[SoY " + kind + " Ally] " + label, true);
+                    var enemyHost = CreateContactChild(transform.gameObject, "[SoY " + kind + " Enemy] " + label, false);
+                    UnityEditorInternal.ComponentUtility.CopyComponent(sender);
+                    UnityEditorInternal.ComponentUtility.PasteComponentAsNew(allyHost);
+                    var allySender = allyHost.GetComponents(senderType).Cast<Component>().LastOrDefault();
+                    UnityEditorInternal.ComponentUtility.CopyComponent(sender);
+                    UnityEditorInternal.ComponentUtility.PasteComponentAsNew(enemyHost);
+                    var enemySender = enemyHost.GetComponents(senderType).Cast<Component>().LastOrDefault();
+                    if (allySender != null)
+                    {
+                        SetCollisionTags(allySender, oldTags.Concat(new[] { CasterAllyTag }).Distinct().Take(16).ToArray());
+                        FinishContact(allySender);
+                    }
+                    if (enemySender != null)
+                    {
+                        SetCollisionTags(enemySender, oldTags.Concat(new[] { CasterEnemyTag }).Distinct().Take(16).ToArray());
+                        FinishContact(enemySender);
+                    }
+                    Undo.DestroyObjectImmediate(sender);
+                    repaired++;
+                }
+            }
+            foreach (var host in avatarRoot.GetComponentsInChildren<Transform>(true)
+                .Where(t => t.name == "Stories Incoming Technick Bus Contacts" || t.name == "Stories Incoming Item Bus Contacts"))
+            {
+                ConfigureIncomingReceiver(host.gameObject, new ReceiverMapping(CasterEnemyTag, "SoY_HealingSourceEnemy"));
+            }
+            RebuildSpellAlignmentLayer();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            EditorUtility.DisplayDialog(
+                "Stories OSC Action Alignment Repair",
+                "Repaired " + repaired + " legacy Technick/Item sender(s). Ally and Enemy variants now follow SoY_IsEnemy.",
+                "OK");
+        }
+
         private void RebuildSpellAlignmentLayer()
         {
             if (avatarRoot == null || fxController == null || !EnsureSafeFxCopy(true))
             {
-                Log("Spell alignment layer was not rebuilt because the avatar root or safe FX copy is missing.");
+                Log("Action alignment layer was not rebuilt because the avatar root or safe FX copy is missing.");
                 return;
             }
 
             var allyHosts = avatarRoot.GetComponentsInChildren<Transform>(true)
-                .Where(transform => transform.name.StartsWith("[SoY Spell Ally]", StringComparison.Ordinal))
+                .Where(transform =>
+                    transform.name.StartsWith("[SoY Spell Ally]", StringComparison.Ordinal) ||
+                    transform.name.StartsWith("[SoY Technick Ally]", StringComparison.Ordinal) ||
+                    transform.name.StartsWith("[SoY Item Ally]", StringComparison.Ordinal))
                 .Select(transform => transform.gameObject)
                 .Distinct()
                 .ToList();
             var enemyHosts = avatarRoot.GetComponentsInChildren<Transform>(true)
-                .Where(transform => transform.name.StartsWith("[SoY Spell Enemy]", StringComparison.Ordinal))
+                .Where(transform =>
+                    transform.name.StartsWith("[SoY Spell Enemy]", StringComparison.Ordinal) ||
+                    transform.name.StartsWith("[SoY Technick Enemy]", StringComparison.Ordinal) ||
+                    transform.name.StartsWith("[SoY Item Enemy]", StringComparison.Ordinal))
                 .Select(transform => transform.gameObject)
                 .Distinct()
                 .ToList();
@@ -3360,9 +3444,9 @@ namespace StoriesOfYggdrasil.OSC
             EnsureAssetFolder(AnimationRoot);
             var avatarName = MakeSafeAssetName(avatarRoot.name);
             var allyClip = CreateOrReplaceAlignmentClip(
-                AnimationRoot + "/" + avatarName + "_SoY_Spell_Ally.anim", allyHosts, enemyHosts, false);
+                AnimationRoot + "/" + avatarName + "_SoY_Action_Ally.anim", allyHosts, enemyHosts, false);
             var enemyClip = CreateOrReplaceAlignmentClip(
-                AnimationRoot + "/" + avatarName + "_SoY_Spell_Enemy.anim", allyHosts, enemyHosts, true);
+                AnimationRoot + "/" + avatarName + "_SoY_Action_Enemy.anim", allyHosts, enemyHosts, true);
 
             RemoveLayerByName(fxController, SpellAlignmentLayer);
             var layer = CreateHookLayer(fxController, SpellAlignmentLayer);
@@ -3376,7 +3460,7 @@ namespace StoriesOfYggdrasil.OSC
             fxController.AddLayer(layer);
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
-            Log("Rebuilt spell alignment layer for " + allyHosts.Count + " spell sender pair(s).");
+            Log("Rebuilt action alignment layer for " + allyHosts.Count + " Ally/Enemy sender pair(s).");
         }
 
         private AnimationClip CreateOrReplaceActiveClip(string path, IEnumerable<GameObject> objects, bool active, float length)

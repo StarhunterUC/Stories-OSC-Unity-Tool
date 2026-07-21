@@ -1,4 +1,4 @@
-# Stories Of Yggdrasil OSC Contact System — Unity Tool v0.5.4
+# Stories Of Yggdrasil OSC Contact System — Unity Tool v0.5.5
 
 ## Install
 
@@ -22,7 +22,7 @@ Assets/Stories Of Yggdrasil/FX/
 
 The original FX controller is not edited.
 
-## v0.5.4 Technick and Item Contacts
+## v0.5.5 Technick and Item Contacts
 
 The Outgoing Contacts page now includes **Technicks** and **Items**. Each action uses a stable registry ID and the same compact binary Contact pattern as spells:
 
@@ -31,7 +31,7 @@ SoY Technick Active + SoY Technick Bit 0-7
 SoY Item Active      + SoY Item Bit 0-7
 ```
 
-Incoming setup creates separate receiver objects for Spell, Technick, and Item buses. All bus parameters are unsynced. Desktop v0.8.4 reconstructs the IDs and sends a one-shot VRChat action to Sam.py. OSC API v0.8.3 blocks it unless RP Combat and Dungeon Master Mode are active. Item ownership is never decided in Unity: Sam.py checks the linked character's current inventory and canonical `fight_system.py` rules before applying or consuming anything.
+Incoming setup creates separate receiver objects for Spell, Technick, and Item buses. All bus parameters are unsynced. Desktop v0.8.7 reconstructs the IDs and sends a one-shot VRChat action to Sam.py. OSC API v0.8.7 blocks it unless RP Combat and Dungeon Master Mode are active. Item ownership is never decided in Unity: Sam.py checks the linked character's current inventory and canonical `fight_system.py` rules before applying or consuming anything.
 
 The generated Stories RP submenu also contains paginated Technick and Item ID pages for animator integration. Selecting an ID does not bypass Sam.py validation.
 
@@ -92,7 +92,7 @@ Registry and contract:
 
 ```text
 SPELL_ID_REGISTRY_v2.json
-OSC_CONTRACT_v10.json
+OSC_CONTRACT_v13.json
 ```
 
 ## Other v0.5.x systems retained
@@ -121,3 +121,8 @@ Assets/Stories Of Yggdrasil/Backups/Unity Tool/
 ```
 
 and then refreshes Unity.
+
+
+## v0.5.5 Action alignment
+
+Technick and Item senders are now generated as paired Ally and Enemy objects. The copied FX controller switches them using `SoY_IsEnemy`, matching spell sender behavior. Existing v0.5.4 Technick/Item senders can be repaired from either sender page with **REPAIR EXISTING TECHNICK / ITEM ALIGNMENT**.

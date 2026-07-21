@@ -1,0 +1,23 @@
+{
+  "contract_version": 13,
+  "desktop_version": "0.8.7",
+  "api_version": "0.8.7",
+  "unity_tool_version": "0.5.5",
+  "features": {
+    "standalone_vrc_actions": true,
+    "automatic_desktop_update_checks": true,
+    "visible_desktop_update_progress": true,
+    "technick_item_source_alignment": true
+  },
+  "alignment": {
+    "parameter": "SoY_HealingSourceEnemy",
+    "applies_to": [
+      "spell",
+      "technick",
+      "item"
+    ],
+    "friendly_harmful_to_friendly": "reject",
+    "friendly_harmful_to_enemy": "allow",
+    "enemy_harmful_to_friendly": "allow"
+  }
+}

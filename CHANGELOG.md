@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.5.5
+
+- Adds Ally/Enemy sender pairs for Technick and Item Contacts.
+- Incoming Technick and Item buses now receive caster alignment through the existing `SoY_HealingSourceEnemy` Bool.
+- The `SoY_IsEnemy` toggle now switches Spell, Technick, and Item sender pairs together.
+- Adds **REPAIR EXISTING TECHNICK / ITEM ALIGNMENT** for v0.5.4 senders.
+- Updates incoming-bus diagnostics from 9 to 10 receivers because alignment is now included.
+- Notes that OSC actions can operate independently from Sam.py encounter state.
+
 ## v0.5.4
 
 - Added outgoing Technick and Item Contact authoring with temporary move/resize previews.
