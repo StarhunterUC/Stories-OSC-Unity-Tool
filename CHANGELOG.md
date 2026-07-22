@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.6
+
+- Adds Ally/Enemy variants to melee Attack and standalone Debuff senders.
+- Adds `SoY_DamageSourceEnemy` to incoming damage receivers.
+- Repairs legacy Attack, Debuff, Technick, and Item alignment in one action.
+- Starts I-Frames from accepted `SoY_Damaged` feedback, not raw rejected Contacts.
+- Extends the action alignment FX layer to Spells, Technicks, Items, Attacks, and Debuffs.
+
 ## v0.5.5
 
 - Adds Ally/Enemy sender pairs for Technick and Item Contacts.

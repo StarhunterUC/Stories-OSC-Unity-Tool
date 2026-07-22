@@ -25,7 +25,7 @@ namespace StoriesOfYggdrasil.OSC
     /// </summary>
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
-        private const string Version = "0.5.5";
+        private const string Version = "0.5.6";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
 
@@ -140,6 +140,7 @@ namespace StoriesOfYggdrasil.OSC
         private const int SpellBitCount = 8;
         private const string CasterAllyTag = "SoY Caster Ally";
         private const string CasterEnemyTag = "SoY Caster Enemy";
+        private const string DamageSourceEnemyParameter = "SoY_DamageSourceEnemy";
         private const string TechnickActiveTag = "SoY Technick Active";
         private const string TechnickBitTagPrefix = "SoY Technick Bit ";
         private const string TechnickActiveParameter = "SoY_TechnickActive";
@@ -632,6 +633,7 @@ namespace StoriesOfYggdrasil.OSC
             new ParameterSpec(ItemBitParameterPrefix + "6", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(ItemBitParameterPrefix + "7", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HealingSourceEnemy", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(DamageSourceEnemyParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HealingRejected", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_MistCharge", AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
             new ParameterSpec("SoY_MistMax", AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 3f, false, false),
@@ -1202,6 +1204,8 @@ namespace StoriesOfYggdrasil.OSC
                 ContactDraftKind.Attack,
                 HasUsableTargets() && ContactTypesAvailable(),
                 "Preview Attack Contact");
+            if (GUILayout.Button("REPAIR EXISTING ATTACK / DEBUFF / ACTION ALIGNMENT"))
+                RepairExistingActionAlignment();
             EndCard();
 
             BeginCard("Bullet / Projectile Guidance");
@@ -1305,7 +1309,7 @@ namespace StoriesOfYggdrasil.OSC
                 ContactDraftKind.Technick,
                 HasUsableTargets() && ContactTypesAvailable(),
                 "Preview Technick Contact");
-            if (GUILayout.Button("REPAIR EXISTING TECHNICK / ITEM ALIGNMENT"))
+            if (GUILayout.Button("REPAIR EXISTING ATTACK / DEBUFF / ACTION ALIGNMENT"))
                 RepairExistingActionAlignment();
             EndCard();
         }
@@ -1343,7 +1347,7 @@ namespace StoriesOfYggdrasil.OSC
                 ContactDraftKind.Item,
                 HasUsableTargets() && ContactTypesAvailable(),
                 "Preview Item Contact");
-            if (GUILayout.Button("REPAIR EXISTING TECHNICK / ITEM ALIGNMENT"))
+            if (GUILayout.Button("REPAIR EXISTING ATTACK / DEBUFF / ACTION ALIGNMENT"))
                 RepairExistingActionAlignment();
             EndCard();
 
@@ -1406,6 +1410,8 @@ namespace StoriesOfYggdrasil.OSC
                 ContactDraftKind.Debuff,
                 HasUsableTargets() && ContactTypesAvailable() && GetSelectedDebuffs().Any(),
                 "Preview Debuff Contact");
+            if (GUILayout.Button("REPAIR EXISTING ATTACK / DEBUFF / ACTION ALIGNMENT"))
+                RepairExistingActionAlignment();
             EndCard();
 
             BeginCard("Expected Health-System Mappings");
@@ -1487,7 +1493,7 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow("Spell Active", SpellActiveParameter, "True while any encoded spell sender is inside the receiver");
             DrawTagRow("Spell ID Bits", SpellBitParameterPrefix + "0-7", "Eight Bool values reconstruct the stable 1-255 spell ID in Desktop v0.8.1+");
             DrawTagRow("Resolved Spell", "SoY_SpellType (Int)", "Desktop reconstructs the bit bus and sends the normal registry ID to Sam.py");
-            DrawTagRow("Caster alignment", "SoY_HealingSourceEnemy", "Enemy-tagged spell source for healing validation");
+            DrawTagRow("Action alignment", "SoY_HealingSourceEnemy / SoY_DamageSourceEnemy", "Enemy-tagged action and damage sources");
             DrawTagRow("Technick Bus", "SoY_TechnickActive + Bit0-7", "Desktop reconstructs TECHNICK_ID_REGISTRY_v1");
             DrawTagRow("Item Bus", "SoY_ItemActive + Bit0-7", "Desktop reconstructs ITEM_ID_REGISTRY_v1; Sam.py verifies inventory");
             DrawTagRow("I-Frames", "1.0 second", "Incoming damage receiver child is disabled after each accepted hit");
@@ -2001,8 +2007,8 @@ namespace StoriesOfYggdrasil.OSC
                     .Count(component => ReadStringMember(component, "parameter", "Parameter") == ItemActiveParameter ||
                         ReadStringMember(component, "parameter", "Parameter").StartsWith(ItemBitParameterPrefix, StringComparison.Ordinal));
                 EditorGUILayout.LabelField("v0.5.3 spell bus receivers", spellBusReceivers + " / 9");
-                EditorGUILayout.LabelField("v0.5.5 Technick bus receivers", technickBusReceivers + " / 10");
-                EditorGUILayout.LabelField("v0.5.5 Item bus receivers", itemBusReceivers + " / 10");
+                EditorGUILayout.LabelField("v0.5.6 Technick bus receivers", technickBusReceivers + " / 10");
+                EditorGUILayout.LabelField("v0.5.6 Item bus receivers", itemBusReceivers + " / 10");
             }
             EditorGUILayout.HelpBox(
                 "VRChat custom collision tags are case-sensitive. This tool uses the exact spacing/capitalization requested and keeps every generated contact below the 16-tag limit.",
@@ -2600,23 +2606,49 @@ namespace StoriesOfYggdrasil.OSC
             if (addFreezeToAttack) tags.Add("Freeze");
             if (addBindToAttack) tags.Add("Bind");
             if (addBleedToAttack) tags.Add("Bleed");
-            tags = tags.Distinct().Take(16).ToList();
+            tags = tags.Distinct().Take(15).ToList();
 
             foreach (var target in GetTargets())
             {
                 var host = attackCreateChild
                     ? CreateContactChild(target, "Stories Attack - " + attackTier, attackStartsEnabled)
                     : target;
-                var component = EnsureContact(host, FindType(SenderTypeName), tags, null);
-                if (component == null)
-                    continue;
+                var allyHost = CreateContactChild(host, "[SoY Attack Ally] " + attackTier, true);
+                var enemyHost = CreateContactChild(host, "[SoY Attack Enemy] " + attackTier, false);
 
-                ConfigureContact(component, attackShape, attackRadius, attackHeight, attackBoxSize, attackPosition, attackRotation, tags);
-                SetBoolMember(component, false, "localOnly", "LocalOnly");
-                FinishContact(component);
+                ConfigureAlignedDamageSender(allyHost, tags, CasterAllyTag,
+                    attackShape, attackRadius, attackHeight, attackBoxSize, attackPosition, attackRotation);
+                ConfigureAlignedDamageSender(enemyHost, tags, CasterEnemyTag,
+                    attackShape, attackRadius, attackHeight, attackBoxSize, attackPosition, attackRotation);
+
                 Selection.activeGameObject = host;
-                Log("Attack sender ready on '" + host.name + "' with tags: " + string.Join(", ", tags));
+                Log("Attack sender ready on '" + host.name + "' with Ally/Enemy alignment and tags: " + string.Join(", ", tags));
             }
+            RebuildSpellAlignmentLayer();
+        }
+
+        private void ConfigureAlignedDamageSender(
+            GameObject host,
+            IEnumerable<string> baseTags,
+            string alignmentTag,
+            ContactShape shape,
+            float radius,
+            float height,
+            Vector3 boxSize,
+            Vector3 position,
+            Vector3 rotation)
+        {
+            var tags = (baseTags ?? Enumerable.Empty<string>())
+                .Concat(new[] { alignmentTag })
+                .Distinct()
+                .Take(16)
+                .ToList();
+            var component = EnsureContact(host, FindType(SenderTypeName), tags, null);
+            if (component == null)
+                return;
+            ConfigureContact(component, shape, radius, height, boxSize, position, rotation, tags);
+            SetBoolMember(component, false, "localOnly", "LocalOnly");
+            FinishContact(component);
         }
 
         private void CreateBlockSurfaces()
@@ -2779,22 +2811,23 @@ namespace StoriesOfYggdrasil.OSC
 
         private void CreateDebuffSenders()
         {
-            var tags = GetSelectedDebuffs().Distinct().Take(16).ToList();
+            var tags = GetSelectedDebuffs().Distinct().Take(15).ToList();
             foreach (var target in GetTargets())
             {
                 var host = debuffCreateChild
                     ? CreateContactChild(target, "Stories Debuff - " + string.Join(" + ", tags), debuffStartsEnabled)
                     : target;
-                var component = EnsureContact(host, FindType(SenderTypeName), tags, null);
-                if (component == null)
-                    continue;
-
-                ConfigureContact(component, debuffShape, debuffRadius, debuffHeight, debuffBoxSize, debuffPosition, debuffRotation, tags);
-                SetBoolMember(component, false, "localOnly", "LocalOnly");
-                FinishContact(component);
+                var label = string.Join(" + ", tags);
+                var allyHost = CreateContactChild(host, "[SoY Debuff Ally] " + label, true);
+                var enemyHost = CreateContactChild(host, "[SoY Debuff Enemy] " + label, false);
+                ConfigureAlignedDamageSender(allyHost, tags, CasterAllyTag,
+                    debuffShape, debuffRadius, debuffHeight, debuffBoxSize, debuffPosition, debuffRotation);
+                ConfigureAlignedDamageSender(enemyHost, tags, CasterEnemyTag,
+                    debuffShape, debuffRadius, debuffHeight, debuffBoxSize, debuffPosition, debuffRotation);
                 Selection.activeGameObject = host;
-                Log("Debuff sender ready on '" + host.name + "' with tags: " + string.Join(", ", tags));
+                Log("Debuff sender ready on '" + host.name + "' with Ally/Enemy alignment and tags: " + label);
             }
+            RebuildSpellAlignmentLayer();
         }
 
         private void CreateIncomingReceivers()
@@ -2818,6 +2851,8 @@ namespace StoriesOfYggdrasil.OSC
                 damageMappings.Add(new ReceiverMapping("Bind", "SoY_DebuffBind"));
                 damageMappings.Add(new ReceiverMapping("Bleed", "SoY_DebuffBleed"));
             }
+            if (incomingHits || incomingDebuffs)
+                damageMappings.Add(new ReceiverMapping(CasterEnemyTag, DamageSourceEnemyParameter));
 
             if (incomingSpells)
             {
@@ -3341,8 +3376,9 @@ namespace StoriesOfYggdrasil.OSC
             ready.motion = readyClip;
             cooldown.motion = cooldownClip;
             layer.stateMachine.defaultState = ready;
-            foreach (var parameter in new[] { "SoY_HitWeak", "SoY_HitAverage", "SoY_HitStrong", "SoY_HitCritical" })
-                AddBoolTransition(ready, cooldown, parameter, true);
+            // Start local I-Frames only after Desktop/Sam.py accepts the hit.
+            // Rejected Friendly fire never pulses SoY_Damaged.
+            AddBoolTransition(ready, cooldown, "SoY_Damaged", true);
             var back = cooldown.AddTransition(ready);
             back.hasExitTime = true;
             back.exitTime = 1f;
@@ -3368,7 +3404,9 @@ namespace StoriesOfYggdrasil.OSC
             {
                 var isTechnick = transform.name.StartsWith("Stories Technick - ", StringComparison.Ordinal);
                 var isItem = transform.name.StartsWith("Stories Item - ", StringComparison.Ordinal);
-                if (!isTechnick && !isItem)
+                var isAttack = transform.name.StartsWith("Stories Attack - ", StringComparison.Ordinal);
+                var isDebuff = transform.name.StartsWith("Stories Debuff - ", StringComparison.Ordinal);
+                if (!isTechnick && !isItem && !isAttack && !isDebuff)
                     continue;
                 var directSenders = transform.GetComponents(senderType).Cast<Component>().ToArray();
                 foreach (var sender in directSenders)
@@ -3377,7 +3415,7 @@ namespace StoriesOfYggdrasil.OSC
                     if (oldTags.Contains(CasterAllyTag) || oldTags.Contains(CasterEnemyTag))
                         continue;
                     var label = transform.name.Substring(transform.name.IndexOf(" - ", StringComparison.Ordinal) + 3);
-                    var kind = isTechnick ? "Technick" : "Item";
+                    var kind = isTechnick ? "Technick" : isItem ? "Item" : isAttack ? "Attack" : "Debuff";
                     var allyHost = CreateContactChild(transform.gameObject, "[SoY " + kind + " Ally] " + label, true);
                     var enemyHost = CreateContactChild(transform.gameObject, "[SoY " + kind + " Enemy] " + label, false);
                     UnityEditorInternal.ComponentUtility.CopyComponent(sender);
@@ -3405,12 +3443,21 @@ namespace StoriesOfYggdrasil.OSC
             {
                 ConfigureIncomingReceiver(host.gameObject, new ReceiverMapping(CasterEnemyTag, "SoY_HealingSourceEnemy"));
             }
+            foreach (var host in avatarRoot.GetComponentsInChildren<Transform>(true)
+                .Where(t => t.name == "Stories Incoming Damage Contacts"))
+            {
+                ConfigureIncomingReceiver(host.gameObject, new ReceiverMapping(CasterEnemyTag, DamageSourceEnemyParameter));
+            }
+            // Existing v0.5.5 and earlier avatars may still start I-Frames from raw hit
+            // receivers. Rebuild the layer so only Sam.py-accepted SoY_Damaged pulses
+            // can begin the one-second protection window.
+            RebuildIFrameLayer();
             RebuildSpellAlignmentLayer();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             EditorUtility.DisplayDialog(
                 "Stories OSC Action Alignment Repair",
-                "Repaired " + repaired + " legacy Technick/Item sender(s). Ally and Enemy variants now follow SoY_IsEnemy.",
+                "Repaired " + repaired + " legacy Attack/Debuff/Technick/Item sender(s). Ally and Enemy variants now follow SoY_IsEnemy.",
                 "OK");
         }
 
@@ -3426,7 +3473,9 @@ namespace StoriesOfYggdrasil.OSC
                 .Where(transform =>
                     transform.name.StartsWith("[SoY Spell Ally]", StringComparison.Ordinal) ||
                     transform.name.StartsWith("[SoY Technick Ally]", StringComparison.Ordinal) ||
-                    transform.name.StartsWith("[SoY Item Ally]", StringComparison.Ordinal))
+                    transform.name.StartsWith("[SoY Item Ally]", StringComparison.Ordinal) ||
+                    transform.name.StartsWith("[SoY Attack Ally]", StringComparison.Ordinal) ||
+                    transform.name.StartsWith("[SoY Debuff Ally]", StringComparison.Ordinal))
                 .Select(transform => transform.gameObject)
                 .Distinct()
                 .ToList();
@@ -3434,7 +3483,9 @@ namespace StoriesOfYggdrasil.OSC
                 .Where(transform =>
                     transform.name.StartsWith("[SoY Spell Enemy]", StringComparison.Ordinal) ||
                     transform.name.StartsWith("[SoY Technick Enemy]", StringComparison.Ordinal) ||
-                    transform.name.StartsWith("[SoY Item Enemy]", StringComparison.Ordinal))
+                    transform.name.StartsWith("[SoY Item Enemy]", StringComparison.Ordinal) ||
+                    transform.name.StartsWith("[SoY Attack Enemy]", StringComparison.Ordinal) ||
+                    transform.name.StartsWith("[SoY Debuff Enemy]", StringComparison.Ordinal))
                 .Select(transform => transform.gameObject)
                 .Distinct()
                 .ToList();
@@ -3460,7 +3511,7 @@ namespace StoriesOfYggdrasil.OSC
             fxController.AddLayer(layer);
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
-            Log("Rebuilt action alignment layer for " + allyHosts.Count + " Ally/Enemy sender pair(s).");
+            Log("Rebuilt action alignment layer for " + allyHosts.Count + " Ally/Enemy sender object(s).");
         }
 
         private AnimationClip CreateOrReplaceActiveClip(string path, IEnumerable<GameObject> objects, bool active, float length)
