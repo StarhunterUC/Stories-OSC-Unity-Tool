@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.7
+
+- Marks `SoY_SpellType`, `SoY_TechnickType`, and `SoY_ItemType` as synchronized Int parameters so remote players can see cast/action FX.
+- Keeps `SoY_SpellActive`, `SoY_TechnickActive`, `SoY_ItemActive`, and all Contact bus bits local and unsynced.
+- Repairs existing Expression Parameter sync flags without exceeding VRChat's 256-bit synchronized parameter budget.
+- Confirms that existing momentary Int-button FX graphs, including Clover's First Aid animation on Technick ID 42, do not require a separate CastActive parameter.
+- Adds `.unitypackage` creation to the GitHub Actions release workflow.
+- Keeps the canonical `.cs` release asset so the existing in-tool auto-updater continues to work.
+- Adds SHA-256 files for both ZIP and UnityPackage artifacts.
+- Adds release tag, source constant, and `version.json` consistency validation.
+
 ## v0.5.6
 
 - Adds Ally/Enemy variants to melee Attack and standalone Debuff senders.

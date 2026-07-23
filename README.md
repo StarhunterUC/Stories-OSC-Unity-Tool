@@ -1,8 +1,14 @@
-# Stories Of Yggdrasil OSC Contact System — Unity Tool v0.5.6
+# Stories Of Yggdrasil OSC Contact System — Unity Tool v0.5.7
 
 ## Install
 
-Place `StoriesOfYggdrasilOSCContactSystem.cs` in an Editor folder, preferably:
+Download and import:
+
+```text
+Stories_Of_Yggdrasil_OSC_Contact_System_v0.5.7.unitypackage
+```
+
+The package installs the Editor tool at:
 
 ```text
 Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs
@@ -22,98 +28,79 @@ Assets/Stories Of Yggdrasil/FX/
 
 The original FX controller is not edited.
 
-## v0.5.6 Technick and Item Contacts
+## v0.5.7 remote spell, Technick, and item animations
 
-The Outgoing Contacts page now includes **Technicks** and **Items**. Each action uses a stable registry ID and the same compact binary Contact pattern as spells:
+The generated action selector parameters are now synchronized:
+
+```text
+SoY_SpellType
+SoY_TechnickType
+SoY_ItemType
+```
+
+These are Int parameters used by the generated Expressions Menu buttons and by avatar-specific FX transitions. Synchronizing them allows remote players to see the same cast or action animation.
+
+The incoming Contact buses remain local and unsynced:
+
+```text
+SoY_SpellActive + SoY_SpellBit0-7
+SoY_TechnickActive + SoY_TechnickBit0-7
+SoY_ItemActive + SoY_ItemBit0-7
+```
+
+Those parameters are target-local collision telemetry for the Desktop bridge. They are intentionally not rebroadcast.
+
+Existing avatars can be repaired by selecting their assigned Expression Parameters asset and pressing:
+
+```text
+Add Missing SoY Expression Parameters
+```
+
+or:
+
+```text
+INSTALL / REPAIR ALL MISSING OSC HOOKS
+```
+
+The repair checks the 256-bit synchronized parameter budget before enabling the three selector Ints.
+
+## Clover / First Aid example
+
+Clover's FX controller already uses:
+
+```text
+Healing END → Healing 1
+SoY_TechnickType Equals 42
+```
+
+and returns through the animation chain after the menu button releases and the Int stops equaling `42`. No separate `SoY_CastActive` parameter is required for that controller. The selector only needed to be marked Synced.
+
+## Technick and item Contacts
+
+Each action uses a stable registry ID and a compact binary Contact pattern:
 
 ```text
 SoY Technick Active + SoY Technick Bit 0-7
 SoY Item Active      + SoY Item Bit 0-7
 ```
 
-Incoming setup creates separate receiver objects for Spell, Technick, and Item buses. All bus parameters are unsynced. Desktop v0.8.8 reconstructs the IDs and sends a one-shot VRChat action to Sam.py. OSC API v0.8.8 blocks it unless RP Combat and Dungeon Master Mode are active. Item ownership is never decided in Unity: Sam.py checks the linked character's current inventory and canonical `fight_system.py` rules before applying or consuming anything.
+Sam.py remains authoritative for Technick licenses, encounter rules, target selection, item ownership, item usability, and consumption.
 
-The generated Stories RP submenu also contains paginated Technick and Item ID pages for animator integration. Selecting an ID does not bypass Sam.py validation.
+## Release files
 
-## v0.5.6 aligned damage Contacts
-
-Attack and Debuff senders now create Ally and Enemy variants controlled by `SoY_IsEnemy`. Incoming damage receivers also create `SoY_DamageSourceEnemy`, allowing Desktop v0.8.8 and Sam.py to reject Friendly-to-Friendly melee, Burn, Bleed, Silence, Freeze, and Bind. Run **REPAIR EXISTING ATTACK / DEBUFF / ACTION ALIGNMENT** on avatars created with older tool versions, then rebuild and re-upload them.
-
-Local I-Frames now begin only after the Desktop receives an accepted Sam.py damage result and pulses `SoY_Damaged`; rejected Friendly fire does not trigger the cooldown.
-
-
-## v0.5.3 spell-ID correction
-
-Older VRChat SDKs make a Constant Contact Receiver write only `1` to an Int. A receiver listening for `SoY Spell 4` therefore reported Cure (`1`) instead of spell ID `4`.
-
-v0.5.3 replaces the per-spell Int receiver setup with a compact binary Contact bus:
+Every tagged release now publishes:
 
 ```text
-SoY_SpellActive
-SoY_SpellBit0
-SoY_SpellBit1
-SoY_SpellBit2
-SoY_SpellBit3
-SoY_SpellBit4
-SoY_SpellBit5
-SoY_SpellBit6
-SoY_SpellBit7
+StoriesOfYggdrasilOSCContactSystem.cs
+Stories_Of_Yggdrasil_OSC_Contact_System_vX.Y.Z.unitypackage
+Stories_Of_Yggdrasil_OSC_Contact_System_vX.Y.Z.unitypackage.sha256
+Stories_Of_Yggdrasil_OSC_Contact_System_vX.Y.Z.zip
+Stories_Of_Yggdrasil_OSC_Contact_System_vX.Y.Z.zip.sha256
 ```
 
-For spell ID `4`, the sender emits:
+The `.unitypackage` is the normal manual installation path. The canonical `.cs` release asset remains present for the in-tool auto-updater.
 
-```text
-SoY Spell Active
-SoY Spell Bit 2
-```
-
-Desktop v0.8.1 reconstructs `00000100` as `SoY_SpellType = 4` before sending the normal spell ID to Sam.py. All nine bus parameters are unsynced and do not consume the avatar's 256-bit synchronized parameter budget.
-
-The largest possible spell ID uses 11 sender tags total, remaining below VRChat's 16-tag Contact limit.
-
-## Repair an avatar generated by v0.5.1 or v0.5.2
-
-Open **Incoming Contacts**, then press:
-
-```text
-REPAIR v0.5.1 / v0.5.2 SPELL CONTACTS
-```
-
-The repair:
-
-1. Retags existing spell senders with the Active/bit encoding.
-2. Removes the old `SoY_SpellType` receivers that could only write `1`.
-3. Creates one Active receiver, eight bit receivers, and the caster-alignment receiver.
-4. Adds the required unsynced Animator and Expression parameters.
-5. Leaves the original FX controller untouched by applying Animator changes to its safe copy.
-
-After repair, use Desktop **v0.8.1 or newer**. VPS API v0.8.0 remains compatible because the Desktop still submits the resolved `spell_type` integer.
-
-## Spell setup
-
-Open **Outgoing Contacts → Spells**, choose a school and spell, preview the volume, position it, and finalize it. The tool creates Ally and Enemy alignment variants and automatically encodes the selected stable ID from `SPELL_ID_REGISTRY_v2.json`.
-
-Incoming spell identification no longer needs school-by-school receiver selection. One compact bus accepts all current and future spell IDs from 1-255.
-
-Registry and contract:
-
-```text
-SPELL_ID_REGISTRY_v2.json
-OSC_CONTRACT_v14.json
-```
-
-## Other v0.5.x systems retained
-
-- Temporary movable and resizable Contact previews.
-- Safe copied FX controllers.
-- Stories RP submenu with RP Combat and Enemy Mode.
-- White, Black, Green, Time, Arcane, Synergist, Illusion, Dream, Nature, Chaos, Abyssal, and Yggdrasil Light menus.
-- Mist Charge display.
-- Curse Of Diablos gauge and 25%, 50%, 90%, and 98% warnings.
-- One-second incoming-hit invincibility frames.
-- GitHub Release updater with confirmation and local backup.
-
-## Updater
+## Auto-updater
 
 The updater checks the latest published release from:
 
@@ -127,9 +114,4 @@ It never updates silently. It asks first, backs up the current script under:
 Assets/Stories Of Yggdrasil/Backups/Unity Tool/
 ```
 
-and then refreshes Unity.
-
-
-## v0.5.6 Action alignment
-
-Technick and Item senders are now generated as paired Ally and Enemy objects. The copied FX controller switches them using `SoY_IsEnemy`, matching spell sender behavior. Existing v0.5.4 Technick/Item senders can be repaired from either sender page with **REPAIR EXISTING TECHNICK / ITEM ALIGNMENT**.
+and then replaces the current Editor script with the canonical `.cs` release asset before Unity recompiles.

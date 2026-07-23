@@ -11,35 +11,95 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Read version
+      - name: Read and validate version
         id: version
         shell: bash
         run: |
+          set -euo pipefail
+
           VERSION="${GITHUB_REF_NAME#v}"
+          TOOL_VERSION="$(sed -n 's/.*private const string Version = "\([^"]*\)".*/\1/p' StoriesOfYggdrasilOSCContactSystem.cs | head -n 1)"
+          JSON_VERSION="$(python3 -c 'import json; print(json.load(open("version.json", encoding="utf-8"))["version"])')"
+
+          if [[ -z "$TOOL_VERSION" ]]; then
+            echo "Could not read the Unity tool version from StoriesOfYggdrasilOSCContactSystem.cs" >&2
+            exit 1
+          fi
+
+          if [[ "$VERSION" != "$TOOL_VERSION" || "$VERSION" != "$JSON_VERSION" ]]; then
+            echo "Version mismatch:" >&2
+            echo "  Tag:          $VERSION" >&2
+            echo "  Unity tool:   $TOOL_VERSION" >&2
+            echo "  version.json: $JSON_VERSION" >&2
+            exit 1
+          fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Build release archive
+      - name: Build ZIP and UnityPackage
         shell: bash
         run: |
+          set -euo pipefail
+
           VERSION="${{ steps.version.outputs.version }}"
           STAGE="Stories_Of_Yggdrasil_OSC_Contact_System_v${VERSION}"
+          UNITYPACKAGE="${STAGE}.unitypackage"
+
           CURRENT_CONTRACT="$(ls OSC_CONTRACT_v*.json | sort -V | tail -n 1)"
           CURRENT_SPELL_REGISTRY="$(ls SPELL_ID_REGISTRY_v*.json | sort -V | tail -n 1)"
           CURRENT_TECHNICK_REGISTRY="$(ls TECHNICK_ID_REGISTRY_v*.json | sort -V | tail -n 1)"
           CURRENT_ITEM_REGISTRY="$(ls ITEM_ID_REGISTRY_v*.json | sort -V | tail -n 1)"
+
+          # Standard downloadable archive.
           mkdir -p "$STAGE"
           cp StoriesOfYggdrasilOSCContactSystem.cs "$STAGE/"
           cp README.md CHANGELOG.md version.json GITHUB_RELEASE_SETUP.md "$STAGE/"
           cp "$CURRENT_CONTRACT" "$CURRENT_SPELL_REGISTRY" "$CURRENT_TECHNICK_REGISTRY" "$CURRENT_ITEM_REGISTRY" "$STAGE/"
+
           if compgen -G "SPELL_AUDIT_v*.md" > /dev/null; then
             cp SPELL_AUDIT_v*.md "$STAGE/"
           fi
+
           zip -r "${STAGE}.zip" "$STAGE"
+
+          # UnityPackage containing the Editor script at its canonical project path.
+          # Keep this GUID fixed across releases so importing a newer package updates
+          # the existing script asset instead of creating a duplicate.
+          UNITY_GUID="7d4fb7f9ab8d4f6683c2f9b9f516057a"
+          UNITY_ASSET_PATH="Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs"
+          UNITY_STAGE=".unitypackage-stage"
+
+          rm -rf "$UNITY_STAGE"
+          mkdir -p "$UNITY_STAGE/$UNITY_GUID"
+          cp StoriesOfYggdrasilOSCContactSystem.cs "$UNITY_STAGE/$UNITY_GUID/asset"
+
+          cat > "$UNITY_STAGE/$UNITY_GUID/asset.meta" <<EOF
+          fileFormatVersion: 2
+          guid: $UNITY_GUID
+          MonoImporter:
+            externalObjects: {}
+            serializedVersion: 2
+            defaultReferences: []
+            executionOrder: 0
+            icon: {instanceID: 0}
+            userData:
+            assetBundleName:
+            assetBundleVariant:
+          EOF
+
+          # Remove YAML indentation introduced by the shell heredoc block.
+          sed -i 's/^          //' "$UNITY_STAGE/$UNITY_GUID/asset.meta"
+          printf '%s' "$UNITY_ASSET_PATH" > "$UNITY_STAGE/$UNITY_GUID/pathname"
+
+          tar --format=ustar -czf "$UNITYPACKAGE" -C "$UNITY_STAGE" "$UNITY_GUID"
+
           sha256sum "${STAGE}.zip" > "${STAGE}.zip.sha256"
+          sha256sum "$UNITYPACKAGE" > "${UNITYPACKAGE}.sha256"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -47,5 +107,7 @@ jobs:
           generate_release_notes: true
           files: |
             StoriesOfYggdrasilOSCContactSystem.cs
+            Stories_Of_Yggdrasil_OSC_Contact_System_v${{ steps.version.outputs.version }}.unitypackage
+            Stories_Of_Yggdrasil_OSC_Contact_System_v${{ steps.version.outputs.version }}.unitypackage.sha256
             Stories_Of_Yggdrasil_OSC_Contact_System_v${{ steps.version.outputs.version }}.zip
             Stories_Of_Yggdrasil_OSC_Contact_System_v${{ steps.version.outputs.version }}.zip.sha256
