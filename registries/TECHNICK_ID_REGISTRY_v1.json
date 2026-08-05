@@ -1,0 +1,503 @@
+{
+  "registry": "TECHNICK_ID_REGISTRY_v1",
+  "version": "0.5.9",
+  "build_number": "TB3",
+  "count": 99,
+  "entries": [
+    {
+      "id": 1,
+      "name": "1000 Needles",
+      "description": "Deal 1,000 damage to one foe."
+    },
+    {
+      "id": 2,
+      "name": "Achilles",
+      "description": "Render one foe vulnerable to an additional element."
+    },
+    {
+      "id": 3,
+      "name": "Addle",
+      "description": "Lowers magick power."
+    },
+    {
+      "id": 4,
+      "name": "Aegis Step",
+      "description": "Defensive repositioning move inspired by shield-and-bow combat. Grants brief evasion and block focus."
+    },
+    {
+      "id": 5,
+      "name": "Arcane Guard",
+      "description": "Reduces magickal damage taken for 2 turns."
+    },
+    {
+      "id": 6,
+      "name": "Arsenal Quip",
+      "description": "Temporarily copy or manifest the weapon of an owned summon for 7 minutes. Cooldown: 30 seconds."
+    },
+    {
+      "id": 7,
+      "name": "Aurora",
+      "description": "Apply a regeneration effect to self or one ally."
+    },
+    {
+      "id": 8,
+      "name": "Baleful Echo",
+      "description": "Recasts the last spell with halved MP cost, but with a chance to misfire or backfire."
+    },
+    {
+      "id": 9,
+      "name": "Black Box Revival",
+      "description": "If the user would be knocked unconscious or killed, one active summon may sacrifice itself to prevent the final blow. Cooldown: 1 week."
+    },
+    {
+      "id": 10,
+      "name": "Blasting Zone",
+      "description": "Fire a concentrated aether blast from the gunblade for heavy damage."
+    },
+    {
+      "id": 11,
+      "name": "Blink Step",
+      "description": "Evade next attack and reposition instantly."
+    },
+    {
+      "id": 12,
+      "name": "Blitz",
+      "description": "Deal physical damage to targets in range."
+    },
+    {
+      "id": 13,
+      "name": "Bloodfest",
+      "description": "Instantly load Powder Cartridges for burst damage windows."
+    },
+    {
+      "id": 14,
+      "name": "Bonecrusher",
+      "description": "Consume HP to reduce the HP of one foe to 0."
+    },
+    {
+      "id": 15,
+      "name": "Bow Shock",
+      "description": "Release an explosive shockwave that damages enemies over time."
+    },
+    {
+      "id": 16,
+      "name": "Brutal Shell",
+      "description": "Follow Keen Edge with a guarded blast, dealing damage and granting a small barrier."
+    },
+    {
+      "id": 17,
+      "name": "Burst Strike",
+      "description": "Spend one Powder Cartridge to deliver a heavy gunblade explosion."
+    },
+    {
+      "id": 18,
+      "name": "Camouflage",
+      "description": "Increase evasion and reduce incoming physical damage for several turns."
+    },
+    {
+      "id": 19,
+      "name": "Challenge",
+      "description": "Force a single enemy to attack you for a short time."
+    },
+    {
+      "id": 20,
+      "name": "Charge",
+      "description": "Restores MP but may fail."
+    },
+    {
+      "id": 21,
+      "name": "Charm",
+      "description": "Cause one foe to Confuse friend with foe."
+    },
+    {
+      "id": 22,
+      "name": "Continuation",
+      "description": "Follow certain cartridge attacks with an extra precision blast."
+    },
+    {
+      "id": 23,
+      "name": "Corpse Relay",
+      "description": "Use an active summon as a battlefield relay point for targeting, pressure, and tactical awareness."
+    },
+    {
+      "id": 24,
+      "name": "Counterblow",
+      "description": "Take an enemy attack and return it upon the attacker as physical damage."
+    },
+    {
+      "id": 25,
+      "name": "Counterspell",
+      "description": "Take an enemy attack and return it upon the attacker as magick damage."
+    },
+    {
+      "id": 26,
+      "name": "Cover",
+      "description": "Intercept damage meant for one ally."
+    },
+    {
+      "id": 27,
+      "name": "Cover Breach",
+      "description": "Overload deployed cover to create pushback, smoke, stagger, or heated shrapnel."
+    },
+    {
+      "id": 28,
+      "name": "Covering Fire",
+      "description": "Allies gain Dodge advantage; interrupts enemy charges."
+    },
+    {
+      "id": 29,
+      "name": "Dead Man's Trigger",
+      "description": "When a Loyal Summon is destroyed, it may perform one final action before vanishing."
+    },
+    {
+      "id": 30,
+      "name": "Deathblow",
+      "description": "Attempt to instantly slay a target at low HP."
+    },
+    {
+      "id": 31,
+      "name": "Demon Slaughter",
+      "description": "Finish the area combo and load one Powder Cartridge."
+    },
+    {
+      "id": 32,
+      "name": "Demon Slice",
+      "description": "Perform a sweeping gunblade strike against multiple enemies."
+    },
+    {
+      "id": 33,
+      "name": "Despair Gaze",
+      "description": "Inflicts Fear and causes target to randomly skip turns."
+    },
+    {
+      "id": 34,
+      "name": "Double Down",
+      "description": "Spend two Powder Cartridges to unleash a devastating point-blank detonation."
+    },
+    {
+      "id": 35,
+      "name": "Echo Mark",
+      "description": "Mark one enemy, improving summon tracking and granting a small bonus to Extraction if the marked target dies."
+    },
+    {
+      "id": 36,
+      "name": "Elude",
+      "description": "Defend with a high probability of evading enemy attacks."
+    },
+    {
+      "id": 37,
+      "name": "Entrench",
+      "description": "Defend and prepare a counterattack, dealing more damage the longer you defend."
+    },
+    {
+      "id": 38,
+      "name": "Erasure",
+      "description": "Nullifies all active buffs on one enemy, including barrier, regen, and reflect effects."
+    },
+    {
+      "id": 39,
+      "name": "Evade",
+      "description": "Attempt to evade enemy attacks. Certain attacks cannot be evaded."
+    },
+    {
+      "id": 40,
+      "name": "Expose",
+      "description": "Lower one foe's defense."
+    },
+    {
+      "id": 41,
+      "name": "Extraction",
+      "description": "When an enemy or NPC is dead, the user gains three D100 attempts to bind the corpse as a Loyal Summon. Cooldown is 1-2 weeks depending on summon size and DM approval."
+    },
+    {
+      "id": 42,
+      "name": "First Aid",
+      "description": "Works on a living ally below 15% HP; restores a random 0–20% of maximum HP."
+    },
+    {
+      "id": 43,
+      "name": "Foresight",
+      "description": "Reveal the target’s intended action next turn, increasing evasion."
+    },
+    {
+      "id": 44,
+      "name": "Gil Toss",
+      "description": "Throw gil to damage all foes in range."
+    },
+    {
+      "id": 45,
+      "name": "Gnashing Fang",
+      "description": "Spend one Powder Cartridge to begin a brutal three-part gunblade chain."
+    },
+    {
+      "id": 46,
+      "name": "Gravebound Reload",
+      "description": "Reload or recharge one firearm by drawing residual energy from a corpse, destroyed summon, or battlefield remnant."
+    },
+    {
+      "id": 47,
+      "name": "Guard",
+      "description": "Reduces physical and magick damage taken from enemy attacks while guarding."
+    },
+    {
+      "id": 48,
+      "name": "Guard Counter",
+      "description": "Enter a guarding stance, then retaliate after blocking a hit."
+    },
+    {
+      "id": 49,
+      "name": "Heart of Corundum",
+      "description": "Upgrade Heart of Stone with stronger mitigation and emergency healing."
+    },
+    {
+      "id": 50,
+      "name": "Heart of Light",
+      "description": "Reduce magical damage taken by the party for several turns."
+    },
+    {
+      "id": 51,
+      "name": "Heart of Stone",
+      "description": "Grant a defensive barrier to self or one ally."
+    },
+    {
+      "id": 52,
+      "name": "Heavy Guard",
+      "description": "Greatly reduces physical and magick damage taken while guarding, but at a higher ATB cost."
+    },
+    {
+      "id": 53,
+      "name": "Heroic Guard",
+      "description": "Massively reduces physical and magick damage taken while guarding, but at a very high ATB cost."
+    },
+    {
+      "id": 54,
+      "name": "Highwind",
+      "description": "Release a catastrophic jump strike, clearing chain gauges. Damage varies by situation."
+    },
+    {
+      "id": 55,
+      "name": "Hollowpoint Round",
+      "description": "Fires armor-piercing shot. Ignores partial Defense."
+    },
+    {
+      "id": 56,
+      "name": "Horology",
+      "description": "Deals time-based damage."
+    },
+    {
+      "id": 57,
+      "name": "Infuse",
+      "description": "Fully consume user's MP, changing one ally's HP to 10 times that amount."
+    },
+    {
+      "id": 58,
+      "name": "Keen Edge",
+      "description": "Strike with the opening cut of the gunblade combo."
+    },
+    {
+      "id": 59,
+      "name": "Launch",
+      "description": "Attack and launch a staggered target into the air."
+    },
+    {
+      "id": 60,
+      "name": "Libra",
+      "description": "Reveal detailed information about targets."
+    },
+    {
+      "id": 61,
+      "name": "Libra II",
+      "description": "Reveal detailed information about Chaos Inflicted targets."
+    },
+    {
+      "id": 62,
+      "name": "Light Guard",
+      "description": "Slightly reduces physical and magick damage taken while guarding. Low ATB cost."
+    },
+    {
+      "id": 63,
+      "name": "Magick Counter",
+      "description": "Chance to counter with a random spell when hit by magick."
+    },
+    {
+      "id": 64,
+      "name": "Mediguard",
+      "description": "Defend while gradually recovering HP."
+    },
+    {
+      "id": 65,
+      "name": "Nebula",
+      "description": "Greatly reduce incoming damage for a short time."
+    },
+    {
+      "id": 66,
+      "name": "NulAll Guard",
+      "description": "Reduces damage taken while guarding and greatly reduces elemental-attribute damage."
+    },
+    {
+      "id": 67,
+      "name": "Numerology",
+      "description": "Damage increases with hits."
+    },
+    {
+      "id": 68,
+      "name": "Poach",
+      "description": "Capture weakened foes for loot."
+    },
+    {
+      "id": 69,
+      "name": "Power Focus",
+      "description": "Increases next magick's power by 50%."
+    },
+    {
+      "id": 70,
+      "name": "Provoke",
+      "description": "Entices enemies to attack you instead of allies."
+    },
+    {
+      "id": 71,
+      "name": "Revive",
+      "description": "Fully consume user's HP, reviving and fully restoring HP of one KO'd ally."
+    },
+    {
+      "id": 72,
+      "name": "Royal Guard",
+      "description": "Assume a tank stance, increasing threat generated and improving defensive posture."
+    },
+    {
+      "id": 73,
+      "name": "Ruin",
+      "description": "Deal non-elemental magick damage to one target."
+    },
+    {
+      "id": 74,
+      "name": "Ruinga",
+      "description": "Deal non-elemental magick damage to targets within a wide radius."
+    },
+    {
+      "id": 75,
+      "name": "Savage Claw",
+      "description": "Second strike of the Gnashing Fang chain."
+    },
+    {
+      "id": 76,
+      "name": "Shades of Black",
+      "description": "Cast a random black magick on one foe."
+    },
+    {
+      "id": 77,
+      "name": "Shadow Dance",
+      "description": "Swap places with an owned active summon. Cooldown: 50 seconds."
+    },
+    {
+      "id": 78,
+      "name": "Shear",
+      "description": "Lowers magick resistance."
+    },
+    {
+      "id": 79,
+      "name": "Sight Unseeing",
+      "description": "Unleash an attack only available when blind."
+    },
+    {
+      "id": 80,
+      "name": "Smite",
+      "description": "Deal heavy damage to a launched target about to recover from stagger."
+    },
+    {
+      "id": 81,
+      "name": "Solid Barrel",
+      "description": "Complete the core combo and load one Powder Cartridge."
+    },
+    {
+      "id": 82,
+      "name": "Souleater",
+      "description": "Consume HP to deal damage to one foe."
+    },
+    {
+      "id": 83,
+      "name": "Soulshred",
+      "description": "Deals high non-elemental damage and reduces MP of target based on caster's missing HP."
+    },
+    {
+      "id": 84,
+      "name": "Sovereign Fist",
+      "description": "Crush foes with a ruinous blow, clearing chain gauges. Damage varies by situation."
+    },
+    {
+      "id": 85,
+      "name": "Spellblade",
+      "description": "Imbue weapon with a selected element for 3 turns."
+    },
+    {
+      "id": 86,
+      "name": "Stamp",
+      "description": "Transfers status effects."
+    },
+    {
+      "id": 87,
+      "name": "Steal",
+      "description": "Steal from one foe."
+    },
+    {
+      "id": 88,
+      "name": "Steelguard",
+      "description": "Reduces damage taken while guarding. Guard becomes more effective each time damage is taken."
+    },
+    {
+      "id": 89,
+      "name": "Summon Fusion",
+      "description": "Temporarily resonate with an owned Loyal Summon to use part of that summon’s abilities. Cooldown: at least 4 days."
+    },
+    {
+      "id": 90,
+      "name": "Superbolide",
+      "description": "Drop to critical HP to become nearly immune to damage for a short duration."
+    },
+    {
+      "id": 91,
+      "name": "Suppressive Burst",
+      "description": "Reduces enemy movement and disables reactions for 1 turn."
+    },
+    {
+      "id": 92,
+      "name": "Telekinesis",
+      "description": "Allow melee weapons to hit distant targets."
+    },
+    {
+      "id": 93,
+      "name": "Traveler",
+      "description": "deals fixed damage to an enemy and enemies in range in its vicinity based on the number of steps currently taken. After being used, or after 1000 steps, the counter resets.."
+    },
+    {
+      "id": 94,
+      "name": "Trick Reload",
+      "description": "Reloads and dodges simultaneously. Grants temporary Evasion."
+    },
+    {
+      "id": 95,
+      "name": "Vein Tap",
+      "description": "Restores MP equal to the number of active illusions when cast."
+    },
+    {
+      "id": 96,
+      "name": "Vendetta",
+      "description": "Counterattack after defending, dealing more damage the more you are attacked."
+    },
+    {
+      "id": 97,
+      "name": "Vital Shot",
+      "description": "Target weak point to deal bonus damage and apply Bleed."
+    },
+    {
+      "id": 98,
+      "name": "Wicked Talon",
+      "description": "Final strike of the Gnashing Fang chain."
+    },
+    {
+      "id": 99,
+      "name": "Wither",
+      "description": "Lower one foe's strength."
+    }
+  ]
+}

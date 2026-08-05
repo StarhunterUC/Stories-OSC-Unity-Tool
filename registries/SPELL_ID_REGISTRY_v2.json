@@ -1,0 +1,1065 @@
+{
+  "registry": "SPELL_ID_REGISTRY_v2",
+  "version": "0.5.9",
+  "build_number": "TB3",
+  "unique_id_count": 144,
+  "definition_row_count": 151,
+  "entries": [
+    {
+      "id": 1,
+      "name": "Cure",
+      "school": "WhiteMagick",
+      "category": "Healing",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 2,
+      "name": "Cura",
+      "school": "WhiteMagick",
+      "category": "Healing",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 3,
+      "name": "Curaga",
+      "school": "WhiteMagick",
+      "category": "Healing",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 4,
+      "name": "Curaja",
+      "school": "WhiteMagick",
+      "category": "Healing",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 5,
+      "name": "Raise",
+      "school": "WhiteMagick",
+      "category": "Revival",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 6,
+      "name": "Arise",
+      "school": "WhiteMagick",
+      "category": "Revival",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 7,
+      "name": "Renew",
+      "school": "WhiteMagick",
+      "category": "Healing",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 8,
+      "name": "Regen",
+      "school": "WhiteMagick",
+      "category": "Healing",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 9,
+      "name": "Poisona",
+      "school": "WhiteMagick",
+      "category": "Cleanse",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 10,
+      "name": "Blindna",
+      "school": "WhiteMagick",
+      "category": "Cleanse",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 11,
+      "name": "Vox",
+      "school": "WhiteMagick",
+      "category": "Cleanse",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 12,
+      "name": "Stona",
+      "school": "WhiteMagick",
+      "category": "Cleanse",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 13,
+      "name": "Esuna",
+      "school": "WhiteMagick",
+      "category": "Cleanse",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 14,
+      "name": "Esunaga",
+      "school": "WhiteMagick",
+      "category": "Cleanse",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 15,
+      "name": "Cleanse",
+      "school": "WhiteMagick",
+      "category": "Cleanse",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 16,
+      "name": "Protect",
+      "school": "WhiteMagick",
+      "category": "Support",
+      "alternate_school_entries": [
+        {
+          "id": 16,
+          "name": "Protect",
+          "school": "SynergistMagick",
+          "category": "Support"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "Protectga",
+      "school": "WhiteMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 18,
+      "name": "Shell",
+      "school": "WhiteMagick",
+      "category": "Support",
+      "alternate_school_entries": [
+        {
+          "id": 18,
+          "name": "Shell",
+          "school": "SynergistMagick",
+          "category": "Support"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "name": "Shellga",
+      "school": "WhiteMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 20,
+      "name": "Dispel",
+      "school": "WhiteMagick",
+      "category": "Cleanse",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 21,
+      "name": "Dispelga",
+      "school": "WhiteMagick",
+      "category": "Cleanse",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 22,
+      "name": "Bravery",
+      "school": "WhiteMagick",
+      "category": "Support",
+      "alternate_school_entries": [
+        {
+          "id": 22,
+          "name": "Bravery",
+          "school": "SynergistMagick",
+          "category": "Support"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "name": "Faith",
+      "school": "WhiteMagick",
+      "category": "Support",
+      "alternate_school_entries": [
+        {
+          "id": 23,
+          "name": "Faith",
+          "school": "SynergistMagick",
+          "category": "Support"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "Holy",
+      "school": "WhiteMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 25,
+      "name": "Confuse",
+      "school": "WhiteMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 26,
+      "name": "Decoy",
+      "school": "GreenMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 27,
+      "name": "Oil",
+      "school": "GreenMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 28,
+      "name": "Reverse",
+      "school": "GreenMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 29,
+      "name": "Drain",
+      "school": "GreenMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 30,
+      "name": "Bubble",
+      "school": "GreenMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 31,
+      "name": "Syphon",
+      "school": "GreenMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 32,
+      "name": "Disablega",
+      "school": "GreenMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 33,
+      "name": "Slow",
+      "school": "TimeMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 34,
+      "name": "Immobilize",
+      "school": "TimeMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 35,
+      "name": "Reflect",
+      "school": "TimeMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 36,
+      "name": "Disable",
+      "school": "TimeMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 37,
+      "name": "Vanish",
+      "school": "TimeMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 38,
+      "name": "Balance",
+      "school": "TimeMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 39,
+      "name": "Gravity",
+      "school": "TimeMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 40,
+      "name": "Haste",
+      "school": "TimeMagick",
+      "category": "Support",
+      "alternate_school_entries": [
+        {
+          "id": 40,
+          "name": "Haste",
+          "school": "SynergistMagick",
+          "category": "Support"
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "name": "Stop",
+      "school": "TimeMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 42,
+      "name": "Bleed",
+      "school": "TimeMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 43,
+      "name": "Break",
+      "school": "TimeMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 44,
+      "name": "Countdown",
+      "school": "TimeMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 45,
+      "name": "Float",
+      "school": "TimeMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 46,
+      "name": "Berserk",
+      "school": "TimeMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 47,
+      "name": "Vanishga",
+      "school": "TimeMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 48,
+      "name": "Warp",
+      "school": "TimeMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 49,
+      "name": "Reflectga",
+      "school": "TimeMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 50,
+      "name": "Slowga",
+      "school": "TimeMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 51,
+      "name": "Graviga",
+      "school": "TimeMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 52,
+      "name": "Hastega",
+      "school": "TimeMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 53,
+      "name": "Boon",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 54,
+      "name": "Veil",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 55,
+      "name": "Vigilance",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 56,
+      "name": "Barfire",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 57,
+      "name": "Barfrost",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 58,
+      "name": "Barthunder",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 59,
+      "name": "Barwater",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 60,
+      "name": "Enfire",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 61,
+      "name": "Enfrost",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 62,
+      "name": "Enthunder",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 63,
+      "name": "Enwater",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 64,
+      "name": "Protectra",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 65,
+      "name": "Shellra",
+      "school": "SynergistMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 66,
+      "name": "Mindmaze",
+      "school": "IllusionMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 67,
+      "name": "Veil of the Unseen",
+      "school": "IllusionMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 68,
+      "name": "Mirror Walk",
+      "school": "IllusionMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 69,
+      "name": "Flicker",
+      "school": "IllusionMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 70,
+      "name": "Doppelgeist",
+      "school": "IllusionMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 71,
+      "name": "Glamour Veil",
+      "school": "IllusionMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 72,
+      "name": "False Terrain",
+      "school": "IllusionMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 73,
+      "name": "Unmake",
+      "school": "IllusionMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 74,
+      "name": "Phantom Army",
+      "school": "IllusionMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 75,
+      "name": "Phantom Atomic",
+      "school": "IllusionMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 76,
+      "name": "Dark",
+      "school": "ArcaneMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 77,
+      "name": "Darka",
+      "school": "ArcaneMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 78,
+      "name": "Darkra",
+      "school": "ArcaneMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 79,
+      "name": "Darkga",
+      "school": "ArcaneMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 80,
+      "name": "Death",
+      "school": "ArcaneMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 81,
+      "name": "Ardor",
+      "school": "ArcaneMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 82,
+      "name": "Soul Rend",
+      "school": "ArcaneMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 83,
+      "name": "Ex Nihilo",
+      "school": "ArcaneMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 84,
+      "name": "Atomic",
+      "school": "ArcaneMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 85,
+      "name": "Chaos Lance",
+      "school": "ChaosMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 86,
+      "name": "Fracture",
+      "school": "ChaosMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 87,
+      "name": "Chaos Imbuement",
+      "school": "ChaosMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 88,
+      "name": "Cataclysm",
+      "school": "ChaosMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 89,
+      "name": "Balefire",
+      "school": "ChaosMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 90,
+      "name": "Event Horizon",
+      "school": "ChaosMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 91,
+      "name": "Chaos Atomic",
+      "school": "ChaosMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 92,
+      "name": "Madness",
+      "school": "AbyssalCurses",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 93,
+      "name": "Wither",
+      "school": "AbyssalCurses",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 94,
+      "name": "Silence of Thought",
+      "school": "AbyssalCurses",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 95,
+      "name": "Null Pulse",
+      "school": "AbyssalCurses",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 96,
+      "name": "Worldrend",
+      "school": "AbyssalCurses",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 97,
+      "name": "Memory Bleed",
+      "school": "AbyssalCurses",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 98,
+      "name": "Chakra Heal",
+      "school": "YggdrasilLightMagick",
+      "category": "Healing",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 99,
+      "name": "Aura Shielding",
+      "school": "YggdrasilLightMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 100,
+      "name": "I Am... Recovery Atomic",
+      "school": "WhiteMagick",
+      "category": "Healing",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 101,
+      "name": "Fire",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 102,
+      "name": "Fira",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 103,
+      "name": "Firaga",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 104,
+      "name": "Blizzard",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 105,
+      "name": "Blizzara",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 106,
+      "name": "Blizzaga",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 107,
+      "name": "Thunder",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 108,
+      "name": "Thundara",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 109,
+      "name": "Thundaga",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 110,
+      "name": "Water",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 111,
+      "name": "Waterga",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 112,
+      "name": "Aqua",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 113,
+      "name": "Aero",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 114,
+      "name": "Aeroga",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 115,
+      "name": "Bio",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 116,
+      "name": "Poison",
+      "school": "BlackMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 117,
+      "name": "Toxify",
+      "school": "BlackMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 118,
+      "name": "Blind",
+      "school": "BlackMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 119,
+      "name": "Blindga",
+      "school": "BlackMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 120,
+      "name": "Silence",
+      "school": "BlackMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 121,
+      "name": "Silencega",
+      "school": "BlackMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 122,
+      "name": "Sleep",
+      "school": "GreenMagick",
+      "category": "Status",
+      "alternate_school_entries": [
+        {
+          "id": 122,
+          "name": "Sleep",
+          "school": "BlackMagick",
+          "category": "Status"
+        },
+        {
+          "id": 122,
+          "name": "Sleep",
+          "school": "DreamMagick",
+          "category": "Status"
+        }
+      ]
+    },
+    {
+      "id": 123,
+      "name": "Sleepga",
+      "school": "BlackMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 124,
+      "name": "Shock",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 125,
+      "name": "Scourge",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 126,
+      "name": "Flare",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 127,
+      "name": "Scathe",
+      "school": "BlackMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 128,
+      "name": "Spirit Vision",
+      "school": "DreamMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 129,
+      "name": "Whisper",
+      "school": "DreamMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 130,
+      "name": "Foresight",
+      "school": "DreamMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 131,
+      "name": "Spirit Chains",
+      "school": "DreamMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 132,
+      "name": "Soul Step",
+      "school": "DreamMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 133,
+      "name": "Bind & Banish",
+      "school": "DreamMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 134,
+      "name": "Memoryweaving",
+      "school": "DreamMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 135,
+      "name": "Thornbind",
+      "school": "NatureMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 136,
+      "name": "Verdant Ward",
+      "school": "NatureMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 137,
+      "name": "Purifying Spores",
+      "school": "NatureMagick",
+      "category": "Cleanse",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 138,
+      "name": "Briar Cage",
+      "school": "NatureMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 139,
+      "name": "Sylvan Blessing",
+      "school": "NatureMagick",
+      "category": "Healing",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 140,
+      "name": "Stormwhisper",
+      "school": "NatureMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 141,
+      "name": "Wild Growth",
+      "school": "NatureMagick",
+      "category": "Status",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 142,
+      "name": "Living Bulwark",
+      "school": "NatureMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 143,
+      "name": "Grovecall",
+      "school": "NatureMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 144,
+      "name": "Rebirth Bloom",
+      "school": "NatureMagick",
+      "category": "Revival",
+      "alternate_school_entries": []
+    }
+  ]
+}

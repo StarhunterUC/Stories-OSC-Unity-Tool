@@ -1,12 +1,19 @@
 {
-  "version": "0.5.7",
+  "product": "Stories Of Yggdrasil OSC Contact System",
   "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
-  "release_asset_script": "StoriesOfYggdrasilOSCContactSystem.cs",
-  "release_asset_unitypackage": "Stories_Of_Yggdrasil_OSC_Contact_System_v0.5.7.unitypackage",
-  "spell_registry": "SPELL_ID_REGISTRY_v2.json",
-  "technick_registry": "TECHNICK_ID_REGISTRY_v1.json",
-  "item_registry": "ITEM_ID_REGISTRY_v1.json",
-  "osc_contract": "OSC_CONTRACT_v15.json",
-  "desktop_minimum": "0.8.8",
-  "api_minimum": "0.8.8"
+  "version": "0.5.9",
+  "build_number": "TB3",
+  "build_label": "Test Build 3 — Spell Bus Audit Classification Fix",
+  "tag": "v0.5.9-TB3",
+  "channel": "test",
+  "prerelease": true,
+  "canonical_source_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
+  "unity_asset_path": "Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs",
+  "source_sha256": "1477bbb33501b561f87ac815551814359ea94138547d6e8905be7e123c791b42",
+  "registries": {
+    "spell_rows": 151,
+    "unique_spell_ids": 144,
+    "technicks": 99,
+    "items": 61
+  }
 }

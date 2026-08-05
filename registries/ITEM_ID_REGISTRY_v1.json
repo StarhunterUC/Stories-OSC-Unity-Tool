@@ -1,0 +1,313 @@
+{
+  "registry": "ITEM_ID_REGISTRY_v1",
+  "version": "0.5.9",
+  "build_number": "TB3",
+  "count": 61,
+  "entries": [
+    {
+      "id": 1,
+      "name": "Potion",
+      "description": "Restores 120 HP and removes 1 wound; amount increases with Potion Lore."
+    },
+    {
+      "id": 2,
+      "name": "Hi-Potion",
+      "description": "Restores 450 HP; amount increases with Potion Lore."
+    },
+    {
+      "id": 3,
+      "name": "X-Potion",
+      "description": "Restores 1,500 HP and clears all wounds; amount increases with Potion Lore."
+    },
+    {
+      "id": 4,
+      "name": "Ether",
+      "description": "Restores 50 MP; amount increases with Ether Lore."
+    },
+    {
+      "id": 5,
+      "name": "Hi-Ether",
+      "description": "Restores 200 MP; amount increases with Ether Lore."
+    },
+    {
+      "id": 6,
+      "name": "Elixir",
+      "description": "Completely restores HP and MP."
+    },
+    {
+      "id": 7,
+      "name": "Megalixir",
+      "description": "Completely restores HP and MP of the party within a given radius."
+    },
+    {
+      "id": 8,
+      "name": "Phoenix Down",
+      "description": "Revives a character; HP restored increases with Phoenix Lore."
+    },
+    {
+      "id": 9,
+      "name": "Black Phoenix Feather",
+      "description": "Revives a character at Full HP and regrows missing limbs, Inflicts Berserk & Bubble Will ALWAYS trigger a boss fight; A Black Phoenix feather with a transparent black mist emitting from it"
+    },
+    {
+      "id": 10,
+      "name": "Rainbow Phoenix Feather",
+      "description": "Revives a character, 4m Timer is ignored."
+    },
+    {
+      "id": 11,
+      "name": "Antidote",
+      "description": "Removes Poison."
+    },
+    {
+      "id": 12,
+      "name": "Eye Drops",
+      "description": "Removes Blind."
+    },
+    {
+      "id": 13,
+      "name": "Echo Herbs",
+      "description": "Removes Silence."
+    },
+    {
+      "id": 14,
+      "name": "Gold Needle",
+      "description": "Removes Petrify and Stone."
+    },
+    {
+      "id": 15,
+      "name": "Prince's Kiss",
+      "description": "Removes Sleep."
+    },
+    {
+      "id": 16,
+      "name": "Chronos Tear",
+      "description": "Removes Stop and Slow."
+    },
+    {
+      "id": 17,
+      "name": "Handkerchief",
+      "description": "Removes Oil."
+    },
+    {
+      "id": 18,
+      "name": "Remedy",
+      "description": "Removes Poison, Slow, Blind, and Silence; more with Remedy Lore."
+    },
+    {
+      "id": 19,
+      "name": "Vaccine",
+      "description": "Removes Disease."
+    },
+    {
+      "id": 20,
+      "name": "Serum",
+      "description": "Removes Disease."
+    },
+    {
+      "id": 21,
+      "name": "Diablos Stabilizer",
+      "description": "A rare stabilizing agent that suppresses the Curse of Diablos but does not fully remove it."
+    },
+    {
+      "id": 22,
+      "name": "Librascope",
+      "description": "Automatically performs a full Libra II scan, revealing advanced statistics, affinities, abilities, traits, and Chaos-obscured data. Consumed on use."
+    },
+    {
+      "id": 23,
+      "name": "Aero Mote",
+      "description": "Deals wind-aspected mote damage to one target."
+    },
+    {
+      "id": 24,
+      "name": "Aeroga Mote",
+      "description": "A mote containing the power of Aeroga. Deals wind damage to all foes in range and ignores Reflect."
+    },
+    {
+      "id": 25,
+      "name": "Aquara Mote",
+      "description": "A mote containing the power of Water. Deals water damage to all foes in range and ignores Reflect."
+    },
+    {
+      "id": 26,
+      "name": "Bacchus's Wine",
+      "description": "Inflicts Berserk on one target."
+    },
+    {
+      "id": 27,
+      "name": "Balance Mote",
+      "description": "A mote containing the power of Balance. Casts Balance on all foes in range and ignores Reflect."
+    },
+    {
+      "id": 28,
+      "name": "Baltoro Seed",
+      "description": "Grants Protect, Shell, Haste, Bravery, Faith, Invisible, Regen, Float, Bubble, and Libra to one target."
+    },
+    {
+      "id": 29,
+      "name": "Bio Mote",
+      "description": "A mote containing the power of Sap. Inflicts Sap and deals non-elemental damage to all foes in range, ignoring Reflect."
+    },
+    {
+      "id": 30,
+      "name": "Blue Herb",
+      "description": "Haults Poison."
+    },
+    {
+      "id": 31,
+      "name": "Bubble Mote",
+      "description": "A mote containing the power of Bubble. Grants Bubble to a single target and ignores Reflect."
+    },
+    {
+      "id": 32,
+      "name": "Cura Mote",
+      "description": "A mote containing the power of Cura. Restores HP to all allies in range and ignores Reflect."
+    },
+    {
+      "id": 33,
+      "name": "Dark Energy",
+      "description": "Deals massive non-elemental damage to all enemies in range."
+    },
+    {
+      "id": 34,
+      "name": "Dark Matter",
+      "description": "Deals damage to all foes in range. Its damage scales with the number of Knots of Rust used."
+    },
+    {
+      "id": 35,
+      "name": "Dark Mote",
+      "description": "Deals dark-aspected mote damage to one target."
+    },
+    {
+      "id": 36,
+      "name": "Dispel Mote",
+      "description": "Casts Dispel when used."
+    },
+    {
+      "id": 37,
+      "name": "Domaine Calvados",
+      "description": "Grants Bravery to one target."
+    },
+    {
+      "id": 38,
+      "name": "Float Mote",
+      "description": "A mote containing the power of Float. Grants Float to all targets in range and ignores Reflect."
+    },
+    {
+      "id": 39,
+      "name": "Gravity Mote",
+      "description": "Deals damage to all foes in range. Deals non-elemental damage equal to a portion of each target’s maximum HP and ignores Reflect."
+    },
+    {
+      "id": 40,
+      "name": "Green Herb",
+      "description": "heals a small amount of health"
+    },
+    {
+      "id": 41,
+      "name": "Hastega Mote",
+      "description": "A mote containing the power of Hastega. Grants Haste to all allies in range and ignores Reflect."
+    },
+    {
+      "id": 42,
+      "name": "Holy Mote",
+      "description": "A mote containing the power of Holy. Deals holy damage to one foe and ignores Reflect."
+    },
+    {
+      "id": 43,
+      "name": "Hypo Spray",
+      "description": "Restores 800 HP and removes 1 wound; Hypo sprays deliver stimulants, analgesics and active neuro-biological reinforcing elements through a sub-dermal injector. The solution takes time to act on the body: further trauma while it is active reduce the hypo's maximum healing potential. Even a few hits will cancel the effect altogether. "
+    },
+    {
+      "id": 44,
+      "name": "Knot of Rust",
+      "description": "Deals random non-elemental damage to one foe."
+    },
+    {
+      "id": 45,
+      "name": "Lightning Fang",
+      "description": "Deals Lightning-element damage to one foe."
+    },
+    {
+      "id": 46,
+      "name": "Meteorite (A)",
+      "description": "My hopes rose, but 'twas naught but an ordinary stone. Inflicts Sap on one enemy."
+    },
+    {
+      "id": 47,
+      "name": "Meteorite (B)",
+      "description": "A chondrite, a species of meteorite found in plenty. Inflicts Disease on one enemy."
+    },
+    {
+      "id": 48,
+      "name": "Meteorite (C)",
+      "description": "A malleable specimen, teeming with fine veins of iron withal. Deals random physical damage to one target based on the user’s maximum HP."
+    },
+    {
+      "id": 49,
+      "name": "Meteorite (D)",
+      "description": "At last, the elusive achondrite is mine! The Widmanstatten pattern is simply stunning! Deals powerful random physical damage to one target."
+    },
+    {
+      "id": 50,
+      "name": "Nu Khai Sand",
+      "description": "Removes Confuse."
+    },
+    {
+      "id": 51,
+      "name": "Overture MK II",
+      "description": "A master-crafted evolution of Overture, imbued with Ice Magicite. Its blade leaves spectral afterimages that repeat successful strikes moments later."
+    },
+    {
+      "id": 52,
+      "name": "Reflectga Mote",
+      "description": "Casts Reflectga when used."
+    },
+    {
+      "id": 53,
+      "name": "Reverse Mote",
+      "description": "A mote containing the power of Reverse. Grants Reverse to a single target and ignores Reflect."
+    },
+    {
+      "id": 54,
+      "name": "Rime Fang",
+      "description": "Deals Ice-element damage to one foe."
+    },
+    {
+      "id": 55,
+      "name": "Scathe Mote",
+      "description": "A mote containing the power of Scathe. Casts Scathe on all foes in range and ignores Reflect."
+    },
+    {
+      "id": 56,
+      "name": "Shock Mote",
+      "description": "A mote containing the power of Shock. Deals heavy non-elemental damage to all foes in range and ignores Reflect."
+    },
+    {
+      "id": 57,
+      "name": "Soleil Fang",
+      "description": "Deals Fire-element damage to one foe."
+    },
+    {
+      "id": 58,
+      "name": "Vanishga Mote",
+      "description": "A mote containing the power of Vanishga. Grants Invisible to all allies in range and ignores Reflect."
+    },
+    {
+      "id": 59,
+      "name": "Vyrrah’s Lament",
+      "description": "The Spear of the Breaking Dawn — a soul-locked divine spear born when Lumina Farron refused erasure during Father Farron’s Final Ascension Ritual. It is the shape of her refusal, her will made manifest."
+    },
+    {
+      "id": 60,
+      "name": "Warp Mote",
+      "description": "Attempts to displace a target with unstable space magick."
+    },
+    {
+      "id": 61,
+      "name": "Water Mote",
+      "description": "Deals water-aspected mote damage to one target."
+    }
+  ]
+}
