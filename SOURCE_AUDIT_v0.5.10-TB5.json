@@ -1,0 +1,20 @@
+{
+  "version": "0.5.10",
+  "build_number": "TB5",
+  "tag": "v0.5.10-TB5",
+  "source_sha256": "effbe9395909266b88b5f5770d288e70409f9d072496436cf2b80ce7e3f848e7",
+  "checks": {
+    "native_vrc_parent_constraint_world_drop": true,
+    "freeze_to_world_animated": true,
+    "constraint_has_real_ground_result_source": true,
+    "rebake_offsets_when_unfrozen": true,
+    "world_drop_holds_until_selector_release": true,
+    "world_drop_holds_after_target_loss": true,
+    "tb4_latched_confirmation_retained": true,
+    "tb3_installed_only_menus_retained": true,
+    "tb2_regen_mapping_retained": true,
+    "canonical_asset_copy_identical": true,
+    "external_world_drop_dependency_required": false,
+    "unity_compile_performed": false
+  }
+}

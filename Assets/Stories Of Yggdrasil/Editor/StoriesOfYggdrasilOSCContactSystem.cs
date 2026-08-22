@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+﻿#if UNITY_EDITOR
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -6,12 +6,16 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
 using UnityEngine.Networking;
 using VRC.SDK3.Avatars.ScriptableObjects;
 using VRC.SDK3.Avatars.Components;
+using VRC.SDK3.Dynamics.Constraint.Components;
+using VRC.Dynamics;
 
 namespace StoriesOfYggdrasil.OSC
 {
@@ -21,13 +25,27 @@ namespace StoriesOfYggdrasil.OSC
     /// Safety rule: this tool NEVER edits or replaces an existing health Animator system.
     /// It audits the selected FX controller, creates compatible Contact Senders/Receivers,
     /// and can add the missing Stories Of Yggdrasil OSC bridge parameters, spell menus,
-    /// one-second incoming-hit I-Frames, status gauges, and hook layers.
+    /// one-second incoming-hit I-Frames, status gauges, hook layers, background update checks, and managed-system repair tools.
     /// </summary>
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
-        private const string Version = "0.5.7";
+        private const string Version = "0.5.10";
+        private const string BuildNumber = "TB8";
+        private const string BuildLabel = "Test Build 6 — VRChat 3.10.5 Constraint Compatibility";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
+        private static readonly string[] RaycastTypeNames =
+        {
+            "VRC.SDK3.Dynamics.Raycast.Components.VRCRaycast",
+            "VRC.SDK3.Dynamics.Raycast.VRCRaycast",
+            "VRC.SDK3.Avatars.Components.VRCRaycast"
+        };
+        private static readonly string[] ParentConstraintTypeNames =
+        {
+            "VRC.SDK3.Dynamics.Constraint.Components.VRCParentConstraint",
+            "VRC.SDK3.Dynamics.Constraint.VRCParentConstraint",
+            "VRC.SDK3.Avatars.Components.VRCParentConstraint"
+        };
 
         private const string TagWeak = "Hit By Weak Attack";
         private const string TagAverage = "Hit By Average Attack";
@@ -41,10 +59,152 @@ namespace StoriesOfYggdrasil.OSC
         private enum StudioTab
         {
             Setup,
+            Contacts,
+            AnimatorSetup,
+            MenuBuilder,
+            Tools,
+            Help,
+
+            // Legacy internal destinations retained so older navigation calls
+            // remain harmless while the visible UI stays compact.
             OutgoingContacts,
             IncomingReceivers,
-            AnimatorSetup,
-            Help
+            Diagnostics,
+            Accessibility,
+            Backups
+        }
+
+        private enum ContactsPage
+        {
+            Outgoing,
+            Incoming
+        }
+
+        private enum ToolsPage
+        {
+            Status,
+            Repair,
+            Display,
+            Backups
+        }
+
+        private enum ManagedRepairState
+        {
+            Healthy,
+            Outdated,
+            Repairable,
+            Broken,
+            Defunct,
+            Foreign
+        }
+
+        private enum ManagedRepairKind
+        {
+            None,
+            LegacySpellReceiver,
+            AttackTagContract,
+            IncomingReceiverMapping,
+            DuplicateManagedContact,
+            MissingManagedComponent
+        }
+
+        private enum DeliveryMode
+        {
+            Contact,
+            Raycast
+        }
+
+        private enum ContactAttachmentMode
+        {
+            ContactObject,
+            WeaponRootTransform,
+            VRCParentConstraint
+        }
+
+        private enum AnimationPage
+        {
+            Health,
+            Spells,
+            Technicks,
+            Items,
+            Setup
+        }
+
+        private enum WizardStep
+        {
+            Avatar,
+            Audit,
+            SafeFx,
+            Parameters,
+            Menus,
+            Animations,
+            Contacts,
+            Validate
+        }
+
+        private enum ActionAnimationKind
+        {
+            Spell,
+            Technick,
+            Item
+        }
+
+        private enum ContactPreset
+        {
+            Custom,
+            SwordBlade,
+            ShieldFace,
+            HandSpell,
+            HealingOrb,
+            BodyReceiver,
+            Aura,
+            LargeAoe,
+            RaycastImpact
+        }
+
+        private enum RaycastCollisionTarget
+        {
+            RemotePlayersOnly = 0,
+            WorldsAndPlayers = 1,
+            Worlds = 2
+        }
+
+        private enum RaycastDeliveryStyle
+        {
+            DirectImpact,
+            SpellGroundPlacement
+        }
+
+        private enum UpdateChannel
+        {
+            Stable,
+            TestBuilds
+        }
+
+        private enum TextScaleMode
+        {
+            Normal,
+            Large,
+            ExtraLarge
+        }
+
+        private enum ColorVisionMode
+        {
+            Standard,
+            HighContrast,
+            ProtanopiaFriendly,
+            DeuteranopiaFriendly,
+            TritanopiaFriendly,
+            Monochrome
+        }
+
+        private enum MenuNavigationMode
+        {
+            Combined,
+            SchoolFirst,
+            PurposeFirst,
+            FavoritesFirst,
+            CompactCombat
         }
 
         private enum OutgoingContactKind
@@ -124,12 +284,36 @@ namespace StoriesOfYggdrasil.OSC
         private const string DiablosLayer = "Stories Of Yggdrasil | Curse Of Diablos Warnings";
         private const string IFrameLayer = "Stories Of Yggdrasil | Incoming Hit I-Frames";
         private const string SpellAlignmentLayer = "Stories Of Yggdrasil | Spell Alignment";
-        private const string FxCopyRoot = "Assets/Stories Of Yggdrasil/FX";
-        private const string MenuRoot = "Assets/Stories Of Yggdrasil/Menus";
-        private const string AnimationRoot = "Assets/Stories Of Yggdrasil/Animations";
-        private const string BackupRoot = "Assets/Stories Of Yggdrasil/Backups/Unity Tool";
+        private const string SpellCastLayer = "Stories Of Yggdrasil | Spell Cast Animations";
+        private const string TechnickCastLayer = "Stories Of Yggdrasil | Technick Animations";
+        private const string ItemUseLayer = "Stories Of Yggdrasil | Item Use Animations";
+        private const string RaycastLayerPrefix = "Stories Of Yggdrasil | Raycast Gate | ";
+        private const string RaycastTargetLayerPrefix = "Stories Of Yggdrasil | Raycast Target | ";
+        private const string RaycastFireParameter = "SoY_RaycastFire";
+        private const string RaycastTargetingParameter = "SoY_RaycastTargeting";
+        private const string GeneratedAssetRoot = "Assets/Stories Of Yggdrasil";
+        // Legacy output folders remain recognized so existing avatars are never broken or migrated implicitly.
+        private const string LegacyFxCopyRoot = "Assets/Stories Of Yggdrasil/FX";
+        private const string LegacyMenuRoot = "Assets/Stories Of Yggdrasil/Menus";
+        private const string LegacyAnimationRoot = "Assets/Stories Of Yggdrasil/Animations";
+        private const string LegacyProfileRoot = "Assets/Stories Of Yggdrasil/Profiles";
+        private const string LegacyBackupRoot = "Assets/Stories Of Yggdrasil/Backups/Unity Tool";
+        private const string LegacyManifestRoot = "Assets/Stories Of Yggdrasil/Backups/Manifests";
+        private const string LegacyRepairSnapshotRoot = "Assets/Stories Of Yggdrasil/Backups/Migrations";
+        private const string RaycastRootName = "Stories Raycast Systems";
+        private const string LegacyRaycastRootName = "Stories Raycast Results";
+        private const string LegacyRaycastOriginPrefix = "[SoY Raycast Origin] ";
+        private const string LegacyRaycastResultPrefix = "[SoY Raycast Result] ";
+        private const string SpellPlacementRigName = "Spell Ground Placement";
+        private const string SpellTargetPrefix = "SoY_SpellTarget";
+        private const string SpellGroundPrefix = "SoY_SpellGround";
+        private const float SpellGroundProbeHeight = 1.75f;
+        private const float SpellGroundProbeDistance = 6f;
+        private const float RaycastActionArmSeconds = 1.25f;
+        private const float RaycastActionPulseSeconds = 0.85f;
+        private const string SpellWorldDropPrefix = "[SoY Spell World Drop] ";
         private const string PreviewPrefix = "[TEMP] Stories Contact Preview";
-        // v0.5.3 spell contact transport.
+        // Compact spell contact transport.
         // Older VRChat SDKs force Constant receivers to write only 1, so spell IDs
         // are transmitted as an eight-bit contact bus and reconstructed by the Desktop app.
         private const string LegacySpellTagPrefix = "SoY Spell ";
@@ -153,6 +337,7 @@ namespace StoriesOfYggdrasil.OSC
         private const string GitHubRepository = "StarhunterUC/Stories-OSC-Unity-Tool";
         private const string GitHubLatestReleaseApi = "https://api.github.com/repos/StarhunterUC/Stories-OSC-Unity-Tool/releases/latest";
         private const string GitHubRepositoryUrl = "https://github.com/StarhunterUC/Stories-OSC-Unity-Tool";
+        private const double BackgroundUpdateIntervalSeconds = 6d * 60d * 60d;
         private const float HitIFrameSeconds = 1f;
 
         private struct ParameterSpec
@@ -250,6 +435,13 @@ namespace StoriesOfYggdrasil.OSC
             public bool prerelease;
             public GitHubReleaseAsset[] assets;
         }
+
+        [Serializable]
+        private sealed class GitHubReleaseList
+        {
+            public GitHubReleaseInfo[] items;
+        }
+
 
         private static readonly SpellDefinition[] SpellDefinitions =
         {
@@ -472,7 +664,7 @@ namespace StoriesOfYggdrasil.OSC
             new ActionDefinition(39, "Evade", "Attempt to evade enemy attacks. Certain attacks cannot be evaded."),
             new ActionDefinition(40, "Expose", "Lower one foe's defense."),
             new ActionDefinition(41, "Extraction", "When an enemy or NPC is dead, the user gains three D100 attempts to bind the corpse as a Loyal Summon. Cooldown is 1-2 weeks depending on summon size and DM approval."),
-            new ActionDefinition(42, "First Aid", "Restore HP to one HP Critical ally."),
+            new ActionDefinition(42, "First Aid", "Works on a living ally below 15% HP; restores a random 0–20% of maximum HP."),
             new ActionDefinition(43, "Foresight", "Reveal the target’s intended action next turn, increasing evasion."),
             new ActionDefinition(44, "Gil Toss", "Throw gil to damage all foes in range."),
             new ActionDefinition(45, "Gnashing Fang", "Spend one Powder Cartridge to begin a brutal three-part gunblade chain."),
@@ -608,6 +800,8 @@ namespace StoriesOfYggdrasil.OSC
         {
             new ParameterSpec("SoY_CombatEnabled", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, true, true),
             new ParameterSpec("SoY_IsEnemy", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, true, true),
+            new ParameterSpec(RaycastFireParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, true),
+            new ParameterSpec(RaycastTargetingParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_SpellType", AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, true),
             new ParameterSpec(SpellActiveParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(SpellBitParameterPrefix + "0", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
@@ -717,7 +911,151 @@ namespace StoriesOfYggdrasil.OSC
             public string Summary;
         }
 
+        [Serializable]
+        private sealed class SpellAnimationBinding
+        {
+            public int id;
+            public string name;
+            public string clipPath;
+            public bool enabled = true;
+        }
+
+        [Serializable]
+        private sealed class ActionAnimationBinding
+        {
+            public int id;
+            public string name;
+            public string clipPath;
+            public bool enabled = true;
+        }
+
+        [Serializable]
+        private sealed class MenuFavorite
+        {
+            public string kind;
+            public int id;
+            public string name;
+        }
+
+        [Serializable]
+        private sealed class BackupManifest
+        {
+            public string version;
+            public string build;
+            public string avatar;
+            public string timestamp;
+            public string originalFxPath;
+            public string workingFxPath;
+            public List<string> createdAssets = new List<string>();
+            public List<string> layers = new List<string>();
+            public List<string> parameters = new List<string>();
+        }
+
+        [Serializable]
+        private sealed class RepairTransformSnapshot
+        {
+            public string hierarchyPath;
+            public string parentPath;
+            public int siblingIndex;
+            public bool activeSelf;
+            public Vector3 localPosition;
+            public Quaternion localRotation;
+            public Vector3 localScale;
+            public Vector3 worldPosition;
+            public Quaternion worldRotation;
+        }
+
+        [Serializable]
+        private sealed class RepairConstraintSnapshot
+        {
+            public string hierarchyPath;
+            public string componentType;
+            public string serializedJson;
+        }
+
+        [Serializable]
+        private sealed class RepairTransactionManifest
+        {
+            public string version;
+            public string build;
+            public string avatar;
+            public string timestamp;
+            public string reason;
+            public List<RepairTransformSnapshot> transforms = new List<RepairTransformSnapshot>();
+            public List<RepairConstraintSnapshot> constraints = new List<RepairConstraintSnapshot>();
+            public List<string> plannedActions = new List<string>();
+        }
+
+        private sealed class ManagedRepairFinding
+        {
+            public GameObject Host;
+            public Component Component;
+            public ManagedRepairState State;
+            public ManagedRepairKind Kind;
+            public string Role;
+            public string Summary;
+            public string Action;
+
+            public bool CanAutoRepair
+            {
+                get
+                {
+                    return State == ManagedRepairState.Outdated ||
+                           State == ManagedRepairState.Repairable ||
+                           State == ManagedRepairState.Defunct;
+                }
+            }
+        }
+
+        [Serializable]
+        private sealed class AvatarAnimationProfile
+        {
+            public string avatarName;
+            public List<SpellAnimationBinding> spellAnimations = new List<SpellAnimationBinding>();
+            public List<ActionAnimationBinding> technickAnimations = new List<ActionAnimationBinding>();
+            public List<ActionAnimationBinding> itemAnimations = new List<ActionAnimationBinding>();
+            public List<MenuFavorite> favorites = new List<MenuFavorite>();
+            public string healthFullClipPath;
+            public string healthHalfClipPath;
+            public string healthCriticalClipPath;
+            public string healthKoClipPath;
+        }
+
         private StudioTab tab;
+        private ContactsPage contactsPage;
+        private ToolsPage toolsPage;
+        private DeliveryMode deliveryMode = DeliveryMode.Contact;
+        private AnimationPage animationPage = AnimationPage.Health;
+        private WizardStep wizardStep;
+        private string globalSearch = string.Empty;
+        private string parameterSearch = string.Empty;
+        private string menuBuilderSearch = string.Empty;
+        private string backupStatus = "No backup action performed.";
+        private ContactPreset contactPreset = ContactPreset.Custom;
+        private RaycastCollisionTarget raycastCollisionTarget = RaycastCollisionTarget.RemotePlayersOnly;
+        private RaycastDeliveryStyle raycastDeliveryStyle = RaycastDeliveryStyle.DirectImpact;
+        private bool raycastApplyRotation;
+        private bool raycastCreateLineRenderer;
+        private float raycastDistance = 25f;
+        private Vector3 raycastDirection = Vector3.forward;
+        private string raycastParameterPrefix = "SoY_Raycast";
+        private float raycastImpactRadius = 0.12f;
+        private bool raycastUseCustomPrefix;
+        private bool showRaycastAdvanced;
+        private bool showRaycastInstructions = true;
+        private bool showContactAdvanced;
+        private ContactAttachmentMode contactAttachmentMode = ContactAttachmentMode.ContactObject;
+        private GameObject weaponAttachmentTarget;
+        private bool constraintMaintainOffset = true;
+        private float constraintWeight = 1f;
+        private bool suppressContactAttachment;
+        private bool showSetupGuide;
+        private bool showSetupDiagnostics;
+        private bool showActionDetails;
+        private bool showContactUtilities;
+        private bool showAnimationAdvanced;
+        private float runtimeTestHpPercent = 1f;
+        private string runtimeTestSummary = "Not tested.";
         private VRCAvatarDescriptor avatarDescriptor;
         private AnimatorController fxController;
         private VRCExpressionParameters expressionParameters;
@@ -734,10 +1072,50 @@ namespace StoriesOfYggdrasil.OSC
         private string fxCopyPath = string.Empty;
         private UnityWebRequest updateRequest;
         private UnityWebRequest updateDownloadRequest;
+        private UnityWebRequest updateChecksumRequest;
+        private byte[] updatePendingSourceBytes;
+        private string updateDownloadAssetName = string.Empty;
         private GitHubReleaseInfo latestRelease;
-        private string updateStatus = "Not checked";
+        private string updateStatus = "Waiting for background check";
         private bool updateAvailable;
         private bool updateCheckWasManual;
+        private bool autoCheckUpdates = true;
+        private UpdateChannel updateChannel = UpdateChannel.Stable;
+        private string updateLastChecked = "Never";
+        private double nextBackgroundUpdateCheckAt;
+
+        // TB2 left-side category navigation. Categories collapse like Admin Panel groups.
+        private const float SidebarWidth = 218f;
+        private Vector2 sidebarScroll;
+        private bool showAvatarContext = true;
+        private bool navAvatarExpanded = true;
+        private bool navContactsExpanded = true;
+        private bool navAnimationsExpanded = true;
+        private bool navMaintenanceExpanded = true;
+        private bool navSupportExpanded = true;
+
+        // v0.5.10 accessibility, navigation, raycast, and managed-repair preferences.
+        private TextScaleMode textScaleMode = TextScaleMode.Normal;
+        private ColorVisionMode colorVisionMode = ColorVisionMode.Standard;
+        private MenuNavigationMode menuNavigationMode = MenuNavigationMode.Combined;
+        private bool largeControls;
+        private bool shortVrchatLabels;
+
+        // Search and animation authoring state.
+        private string spellSearch = string.Empty;
+        private string technickSearch = string.Empty;
+        private string itemSearch = string.Empty;
+        private string animationSpellSearch = string.Empty;
+        private string animationTechnickSearch = string.Empty;
+        private string animationItemSearch = string.Empty;
+        private int animationSpellSelectionIndex;
+        private int animationTechnickSelectionIndex;
+        private int animationItemSelectionIndex;
+        private AnimationClip animationSpellClip;
+        private AnimationClip animationTechnickClip;
+        private AnimationClip animationItemClip;
+        private AvatarAnimationProfile animationProfile = new AvatarAnimationProfile();
+        private string animationProfileAssetPath = string.Empty;
 
         private AttackTier attackTier = AttackTier.Average;
         private ContactShape attackShape = ContactShape.Capsule;
@@ -834,6 +1212,15 @@ namespace StoriesOfYggdrasil.OSC
 
         private Vector2 scroll;
         private readonly List<string> operationLog = new List<string>();
+        private readonly List<ManagedRepairFinding> managedRepairFindings = new List<ManagedRepairFinding>();
+        private string managedRepairSummary = "Run an audit to inspect Stories-managed contacts.";
+        private string managedRepairPreview = "No repair preview generated.";
+        private string lastRepairSnapshotPath = string.Empty;
+        private bool managedRepairAuditReady;
+        private bool managedRepairShowHealthy;
+        private bool managedRepairShowForeign;
+        private bool managedRepairConfirmDestructive = true;
+        private int lastRepairUndoGroup = -1;
         private HealthAudit cachedAudit;
         private GUIStyle titleStyle;
         private GUIStyle subtitleStyle;
@@ -851,18 +1238,27 @@ namespace StoriesOfYggdrasil.OSC
 
         private void OnEnable()
         {
+            Debug.Log("[Stories OSC Unity Tool] Loaded v" + Version + " — " + BuildLabel);
+            LoadEditorPreferences();
+            LoadCachedUpdateState();
+            if (avatarDescriptor != null)
+                LoadAnimationProfile();
             wantsMouseMove = true;
             SceneView.duringSceneGui -= DuringSceneGUI;
             SceneView.duringSceneGui += DuringSceneGUI;
+            EditorApplication.update -= BackgroundMonitorTick;
+            EditorApplication.update += BackgroundMonitorTick;
             RefreshHealthAudit();
-            EditorApplication.delayCall += AutoCheckForUpdates;
+            nextBackgroundUpdateCheckAt = EditorApplication.timeSinceStartup + 1.0d;
         }
 
         private void OnDisable()
         {
             SceneView.duringSceneGui -= DuringSceneGUI;
+            EditorApplication.update -= BackgroundMonitorTick;
             EditorApplication.update -= PollUpdateCheck;
             EditorApplication.update -= PollUpdateDownload;
+            EditorApplication.update -= PollUpdateChecksum;
             if (updateRequest != null)
             {
                 updateRequest.Abort();
@@ -875,6 +1271,12 @@ namespace StoriesOfYggdrasil.OSC
                 updateDownloadRequest.Dispose();
                 updateDownloadRequest = null;
             }
+            if (updateChecksumRequest != null)
+            {
+                updateChecksumRequest.Abort();
+                updateChecksumRequest.Dispose();
+                updateChecksumRequest = null;
+            }
             CancelStagedPreview(false);
         }
 
@@ -884,99 +1286,226 @@ namespace StoriesOfYggdrasil.OSC
                 SceneView.RepaintAll();
         }
 
+        private void BackgroundMonitorTick()
+        {
+            var now = EditorApplication.timeSinceStartup;
+            if (autoCheckUpdates && now >= nextBackgroundUpdateCheckAt && updateRequest == null && updateDownloadRequest == null && updateChecksumRequest == null)
+            {
+                nextBackgroundUpdateCheckAt = now + BackgroundUpdateIntervalSeconds;
+                CheckForUpdates(false);
+            }
+        }
+
+        private float AccessibilityScale
+        {
+            get
+            {
+                switch (textScaleMode)
+                {
+                    case TextScaleMode.Large: return 1.25f;
+                    case TextScaleMode.ExtraLarge: return 1.50f;
+                    default: return 1f;
+                }
+            }
+        }
+
+        private Color HeaderBackgroundColor
+        {
+            get
+            {
+                switch (colorVisionMode)
+                {
+                    case ColorVisionMode.HighContrast: return new Color(0.02f, 0.02f, 0.02f);
+                    case ColorVisionMode.ProtanopiaFriendly: return new Color(0.03f, 0.16f, 0.24f);
+                    case ColorVisionMode.DeuteranopiaFriendly: return new Color(0.10f, 0.08f, 0.22f);
+                    case ColorVisionMode.TritanopiaFriendly: return new Color(0.22f, 0.07f, 0.10f);
+                    case ColorVisionMode.Monochrome: return new Color(0.10f, 0.10f, 0.10f);
+                    default: return new Color(0.075f, 0.045f, 0.12f);
+                }
+            }
+        }
+
+        private Color AccentColor
+        {
+            get
+            {
+                switch (colorVisionMode)
+                {
+                    case ColorVisionMode.HighContrast: return Color.white;
+                    case ColorVisionMode.ProtanopiaFriendly: return new Color(0.15f, 0.75f, 1f);
+                    case ColorVisionMode.DeuteranopiaFriendly: return new Color(0.95f, 0.65f, 0.15f);
+                    case ColorVisionMode.TritanopiaFriendly: return new Color(1f, 0.35f, 0.45f);
+                    case ColorVisionMode.Monochrome: return new Color(0.85f, 0.85f, 0.85f);
+                    default: return new Color(0.62f, 0.35f, 0.88f);
+                }
+            }
+        }
+
+        private void InvalidateStyles()
+        {
+            titleStyle = null;
+            subtitleStyle = null;
+            cardTitleStyle = null;
+            badgeStyle = null;
+            wrappedLabel = null;
+        }
+
         private void BuildStyles()
         {
             if (titleStyle != null)
                 return;
 
+            var scale = AccessibilityScale;
             titleStyle = new GUIStyle(EditorStyles.boldLabel)
             {
-                fontSize = 20,
+                fontSize = Mathf.RoundToInt(20 * scale),
                 alignment = TextAnchor.MiddleLeft,
-                normal = { textColor = new Color(0.95f, 0.80f, 0.32f) }
+                normal = { textColor = colorVisionMode == ColorVisionMode.HighContrast ? Color.white : new Color(0.95f, 0.80f, 0.32f) }
             };
 
             subtitleStyle = new GUIStyle(EditorStyles.label)
             {
-                fontSize = 11,
-                normal = { textColor = new Color(0.72f, 0.70f, 0.82f) }
+                fontSize = Mathf.RoundToInt(11 * scale),
+                normal = { textColor = colorVisionMode == ColorVisionMode.HighContrast ? Color.white : new Color(0.72f, 0.70f, 0.82f) }
             };
 
             cardTitleStyle = new GUIStyle(EditorStyles.boldLabel)
             {
-                fontSize = 12,
-                normal = { textColor = new Color(0.90f, 0.88f, 0.96f) }
+                fontSize = Mathf.RoundToInt(12 * scale),
+                normal = { textColor = colorVisionMode == ColorVisionMode.HighContrast ? Color.white : new Color(0.90f, 0.88f, 0.96f) }
             };
 
             badgeStyle = new GUIStyle(EditorStyles.miniBoldLabel)
             {
+                fontSize = Mathf.RoundToInt(10 * scale),
                 alignment = TextAnchor.MiddleCenter,
                 padding = new RectOffset(8, 8, 3, 3)
             };
 
             wrappedLabel = new GUIStyle(EditorStyles.label)
             {
+                fontSize = Mathf.RoundToInt(11 * scale),
                 wordWrap = true,
                 richText = true
             };
         }
 
+        private void ApplyAccessibilitySkin()
+        {
+            var scale = AccessibilityScale;
+            GUI.skin.label.fontSize = Mathf.RoundToInt(11 * scale);
+            GUI.skin.button.fontSize = Mathf.RoundToInt(11 * scale);
+            GUI.skin.textField.fontSize = Mathf.RoundToInt(11 * scale);
+            GUI.skin.textArea.fontSize = Mathf.RoundToInt(11 * scale);
+            GUI.skin.toggle.fontSize = Mathf.RoundToInt(11 * scale);
+        }
+
         private void OnGUI()
         {
             BuildStyles();
+            ApplyAccessibilitySkin();
             DrawHeader();
-            DrawProjectFields();
-            DrawTabs();
 
+            EditorGUILayout.BeginHorizontal();
+            DrawSidebarNavigation();
+
+            EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
             scroll = EditorGUILayout.BeginScrollView(scroll);
+            DrawProjectFields();
+            DrawActiveWorkspace();
+            EditorGUILayout.EndScrollView();
+            EditorGUILayout.EndVertical();
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void DrawActiveWorkspace()
+        {
             switch (tab)
             {
                 case StudioTab.Setup:
                     DrawSetup();
                     break;
-                case StudioTab.OutgoingContacts:
-                    DrawOutgoingContacts();
-                    break;
-                case StudioTab.IncomingReceivers:
-                    DrawIncomingReceivers();
+                case StudioTab.Contacts:
+                    DrawContactsWorkspace();
                     break;
                 case StudioTab.AnimatorSetup:
                     DrawAnimatorSetup();
                     break;
+                case StudioTab.MenuBuilder:
+                    DrawMenuBuilder();
+                    break;
+                case StudioTab.Tools:
+                    DrawToolsWorkspace();
+                    break;
                 case StudioTab.Help:
                     DrawHelp();
                     break;
+
+                // Legacy routes are folded into the sidebar destinations.
+                case StudioTab.OutgoingContacts:
+                    contactsPage = ContactsPage.Outgoing;
+                    tab = StudioTab.Contacts;
+                    DrawContactsWorkspace();
+                    break;
+                case StudioTab.IncomingReceivers:
+                    contactsPage = ContactsPage.Incoming;
+                    tab = StudioTab.Contacts;
+                    DrawContactsWorkspace();
+                    break;
+                case StudioTab.Diagnostics:
+                    toolsPage = ToolsPage.Status;
+                    tab = StudioTab.Tools;
+                    DrawToolsWorkspace();
+                    break;
+                case StudioTab.Accessibility:
+                    toolsPage = ToolsPage.Display;
+                    tab = StudioTab.Tools;
+                    DrawToolsWorkspace();
+                    break;
+                case StudioTab.Backups:
+                    toolsPage = ToolsPage.Backups;
+                    tab = StudioTab.Tools;
+                    DrawToolsWorkspace();
+                    break;
             }
-            EditorGUILayout.EndScrollView();
         }
 
         private void DrawHeader()
         {
-            var headerRect = EditorGUILayout.GetControlRect(false, 76f);
-            EditorGUI.DrawRect(headerRect, new Color(0.075f, 0.045f, 0.12f));
-            EditorGUI.DrawRect(new Rect(headerRect.x, headerRect.yMax - 2f, headerRect.width, 2f), new Color(0.62f, 0.35f, 0.88f));
+            var headerHeight = largeControls ? 84f : 70f;
+            var headerRect = EditorGUILayout.GetControlRect(false, headerHeight);
+            EditorGUI.DrawRect(headerRect, HeaderBackgroundColor);
+            EditorGUI.DrawRect(new Rect(headerRect.x, headerRect.yMax - 3f, headerRect.width, 3f), AccentColor);
 
-            var titleRect = new Rect(headerRect.x + 18f, headerRect.y + 12f, headerRect.width - 150f, 28f);
-            var subRect = new Rect(headerRect.x + 18f, headerRect.y + 42f, headerRect.width - 36f, 20f);
+            var titleRect = new Rect(headerRect.x + 18f, headerRect.y + 10f, headerRect.width - 160f, 28f);
+            var subRect = new Rect(headerRect.x + 18f, headerRect.y + 39f, headerRect.width - 160f, 20f);
             GUI.Label(titleRect, "Stories Of Yggdrasil — OSC Contact System", titleStyle);
-            GUI.Label(subRect, "Guided contact previews • Safe FX copies • OSC bridge setup", subtitleStyle);
+            GUI.Label(subRect, "Avatar setup • Contact authoring • FX animations • Safe repair", subtitleStyle);
 
-            var versionRect = new Rect(headerRect.xMax - 112f, headerRect.y + 18f, 88f, 24f);
-            EditorGUI.DrawRect(versionRect, new Color(0.18f, 0.10f, 0.28f));
-            GUI.Label(versionRect, "v" + Version, badgeStyle);
+            var versionRect = new Rect(headerRect.xMax - 112f, headerRect.y + 12f, 88f, 24f);
+            EditorGUI.DrawRect(versionRect, colorVisionMode == ColorVisionMode.HighContrast ? Color.black : new Color(0.18f, 0.10f, 0.28f));
+            GUI.Label(versionRect, "v" + Version + " • " + BuildNumber, badgeStyle);
+
             if (updateAvailable)
             {
-                var updateRect = new Rect(headerRect.xMax - 222f, headerRect.y + 18f, 102f, 24f);
+                var updateRect = new Rect(headerRect.xMax - 222f, headerRect.y + 12f, 102f, 24f);
                 EditorGUI.DrawRect(updateRect, new Color(0.18f, 0.42f, 0.20f));
                 if (GUI.Button(updateRect, "Update Ready", badgeStyle))
                     PromptForUpdate();
             }
-            EditorGUILayout.Space(8f);
+
         }
 
         private void DrawProjectFields()
         {
-            BeginCard("Avatar Setup");
+            showAvatarContext = EditorGUILayout.Foldout(showAvatarContext, "Avatar Context", true);
+            if (!showAvatarContext)
+            {
+                EditorGUILayout.Space(4f);
+                return;
+            }
+
+            BeginCard("Avatar Context");
             EditorGUI.BeginChangeCheck();
             avatarDescriptor = (VRCAvatarDescriptor)EditorGUILayout.ObjectField(
                 "Avatar Descriptor", avatarDescriptor, typeof(VRCAvatarDescriptor), true);
@@ -1023,7 +1552,7 @@ namespace StoriesOfYggdrasil.OSC
             {
                 EditorGUILayout.HelpBox(
                     "The avatar's original FX controller will not be edited. The first Animator setup action creates a copy under:\n" +
-                    FxCopyRoot + "/<Avatar>_<FX>_SoY_FX.controller\nand assigns that copy to the avatar.",
+                    GeneratedAssetRoot + "/<Avatar>/FX/<FX>_SoY_FX.controller\nand assigns that copy to the avatar.",
                     MessageType.Info);
                 if (GUILayout.Button("Create and Assign Safe FX Copy", GUILayout.Height(30f)))
                     EnsureSafeFxCopy(true);
@@ -1078,80 +1607,3479 @@ namespace StoriesOfYggdrasil.OSC
             }
 
             RefreshHealthAudit();
-            operationLog.Insert(0, "Loaded FX, menu, Expression Parameters, and avatar root from the selected Avatar Descriptor.");
+            LoadAnimationProfile();
+            operationLog.Insert(0, "Loaded FX, menu, Expression Parameters, avatar root, and the v0.5.10 animation/repair profile.");
         }
 
-        private void DrawTabs()
+        private void DrawSidebarNavigation()
         {
-            EditorGUILayout.Space(4f);
-            tab = (StudioTab)GUILayout.Toolbar((int)tab, new[]
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.Width(SidebarWidth), GUILayout.ExpandHeight(true));
+            EditorGUILayout.LabelField("CATEGORIES", cardTitleStyle);
+            EditorGUILayout.Space(3f);
+
+            sidebarScroll = EditorGUILayout.BeginScrollView(sidebarScroll, false, false, GUILayout.Width(SidebarWidth - 8f));
+
+            DrawSidebarCategory("AVATAR", ref navAvatarExpanded);
+            if (navAvatarExpanded)
+                DrawSidebarButton("Setup & Preflight", tab == StudioTab.Setup, () => tab = StudioTab.Setup);
+
+            DrawSidebarCategory("COMBAT CONTACTS", ref navContactsExpanded);
+            if (navContactsExpanded)
             {
-                "Setup", "Outgoing Contacts", "Incoming Contacts", "Animator", "Help"
-            }, GUILayout.Height(30f));
-            EditorGUILayout.Space(6f);
+                DrawSidebarButton("Outgoing", tab == StudioTab.Contacts && contactsPage == ContactsPage.Outgoing, () =>
+                {
+                    contactsPage = ContactsPage.Outgoing;
+                    tab = StudioTab.Contacts;
+                });
+                DrawSidebarButton("Incoming", tab == StudioTab.Contacts && contactsPage == ContactsPage.Incoming, () =>
+                {
+                    contactsPage = ContactsPage.Incoming;
+                    tab = StudioTab.Contacts;
+                });
+            }
+
+            DrawSidebarCategory("AVATAR FX", ref navAnimationsExpanded);
+            if (navAnimationsExpanded)
+            {
+                DrawSidebarButton("Health States", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Health, () =>
+                {
+                    animationPage = AnimationPage.Health;
+                    tab = StudioTab.AnimatorSetup;
+                });
+                DrawSidebarButton("Spell Animations", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Spells, () =>
+                {
+                    animationPage = AnimationPage.Spells;
+                    tab = StudioTab.AnimatorSetup;
+                });
+                DrawSidebarButton("Technick Animations", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Technicks, () =>
+                {
+                    animationPage = AnimationPage.Technicks;
+                    tab = StudioTab.AnimatorSetup;
+                });
+                DrawSidebarButton("Item Animations", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Items, () =>
+                {
+                    animationPage = AnimationPage.Items;
+                    tab = StudioTab.AnimatorSetup;
+                });
+                DrawSidebarButton("Layer Setup", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Setup, () =>
+                {
+                    animationPage = AnimationPage.Setup;
+                    tab = StudioTab.AnimatorSetup;
+                });
+                DrawSidebarButton("Menu Builder", tab == StudioTab.MenuBuilder, () => tab = StudioTab.MenuBuilder);
+            }
+
+            DrawSidebarCategory("MAINTENANCE", ref navMaintenanceExpanded);
+            if (navMaintenanceExpanded)
+            {
+                DrawSidebarButton("Diagnostics", tab == StudioTab.Tools && toolsPage == ToolsPage.Status, () =>
+                {
+                    toolsPage = ToolsPage.Status;
+                    tab = StudioTab.Tools;
+                });
+                DrawSidebarButton("Managed Repair", tab == StudioTab.Tools && toolsPage == ToolsPage.Repair, () =>
+                {
+                    toolsPage = ToolsPage.Repair;
+                    tab = StudioTab.Tools;
+                });
+                DrawSidebarButton("Display", tab == StudioTab.Tools && toolsPage == ToolsPage.Display, () =>
+                {
+                    toolsPage = ToolsPage.Display;
+                    tab = StudioTab.Tools;
+                });
+                DrawSidebarButton("Backups", tab == StudioTab.Tools && toolsPage == ToolsPage.Backups, () =>
+                {
+                    toolsPage = ToolsPage.Backups;
+                    tab = StudioTab.Tools;
+                });
+            }
+
+            DrawSidebarCategory("SUPPORT", ref navSupportExpanded);
+            if (navSupportExpanded)
+                DrawSidebarButton("Help", tab == StudioTab.Help, () => tab = StudioTab.Help);
+
+            EditorGUILayout.EndScrollView();
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.LabelField("v" + Version + " • " + BuildNumber, EditorStyles.centeredGreyMiniLabel);
+            EditorGUILayout.EndVertical();
+        }
+
+        private void DrawSidebarCategory(string label, ref bool expanded)
+        {
+            var oldBackground = GUI.backgroundColor;
+            GUI.backgroundColor = colorVisionMode == ColorVisionMode.HighContrast
+                ? Color.black
+                : new Color(0.14f, 0.09f, 0.20f);
+            var marker = expanded ? "▼  " : "▶  ";
+            if (GUILayout.Button(marker + label, EditorStyles.toolbarButton, GUILayout.Height(largeControls ? 34f : 26f)))
+                expanded = !expanded;
+            GUI.backgroundColor = oldBackground;
+        }
+
+        private void DrawSidebarButton(string label, bool selected, Action activate)
+        {
+            var oldBackground = GUI.backgroundColor;
+            var oldContent = GUI.contentColor;
+            if (selected)
+            {
+                GUI.backgroundColor = AccentColor;
+                GUI.contentColor = colorVisionMode == ColorVisionMode.HighContrast ? Color.black : Color.white;
+            }
+            else
+            {
+                GUI.backgroundColor = new Color(0.11f, 0.11f, 0.14f);
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Space(10f);
+            if (GUILayout.Button(label, GUILayout.Height(largeControls ? 38f : 29f), GUILayout.ExpandWidth(true)))
+            {
+                activate?.Invoke();
+                scroll = Vector2.zero;
+                GUI.FocusControl(null);
+            }
+            EditorGUILayout.EndHorizontal();
+
+            GUI.backgroundColor = oldBackground;
+            GUI.contentColor = oldContent;
+        }
+
+        private void DrawContactsWorkspace()
+        {
+            if (contactsPage == ContactsPage.Outgoing)
+                DrawOutgoingContacts();
+            else
+                DrawIncomingReceivers();
+        }
+
+        private void DrawToolsWorkspace()
+        {
+            switch (toolsPage)
+            {
+                case ToolsPage.Status:
+                    DrawDiagnosticsWorkspace();
+                    break;
+                case ToolsPage.Repair:
+                    DrawManagedRepairCenter();
+                    break;
+                case ToolsPage.Display:
+                    DrawAccessibilitySettings();
+                    break;
+                case ToolsPage.Backups:
+                    DrawBackupCenter();
+                    break;
+            }
         }
 
         private void DrawSetup()
         {
-            BeginCard("Quick Setup");
+            BeginCard("Avatar Setup");
+            var ready = avatarDescriptor != null && fxController != null && expressionParameters != null;
             EditorGUILayout.LabelField(
-                "This prepares a safe copy of the avatar's FX controller, assigns it to the avatar, " +
-                "and installs the missing Stories Of Yggdrasil OSC hooks.",
+                ready ? "Avatar assets loaded. Safe setup and repair actions are available." : "Assign the Avatar Descriptor above, then load its assets.",
                 wrappedLabel);
 
+            EditorGUILayout.BeginHorizontal();
             using (new EditorGUI.DisabledScope(avatarDescriptor == null))
             {
-                if (GUILayout.Button("PREPARE AVATAR FOR STORIES OSC", GUILayout.Height(42f)))
+                if (GUILayout.Button("Prepare / Repair", GUILayout.Height(largeControls ? 44f : 34f)))
                 {
                     LoadFromAvatarDescriptor();
                     if (EnsureSafeFxCopy(true))
                         InstallAllBridgeHooks();
                 }
             }
+            if (GUILayout.Button("Run Preflight", GUILayout.Height(largeControls ? 44f : 34f)))
+                RefreshHealthAudit();
+            EditorGUILayout.EndHorizontal();
+
+            DrawTagRow("Avatar", avatarDescriptor != null ? "✓ Ready" : "✕ Missing", "Descriptor");
+            DrawTagRow("FX", fxController != null ? (IsSafeFxCopy(fxController) ? "✓ Safe Copy" : "! Original") : "✕ Missing", "Working controller");
+            DrawTagRow("Parameters", expressionParameters != null ? "✓ Assigned" : "✕ Missing", "Expression Parameters");
+            DrawTagRow("Menus", expressionsMenu != null ? "✓ Assigned" : "! Optional", "Expressions Menu");
+            DrawTagRow("Raycast", RaycastTypeAvailable() ? "✓ Available" : "! SDK Update", "VRCRaycast");
+            EndCard();
+
+            showSetupGuide = EditorGUILayout.Foldout(showSetupGuide, "Guided Setup", true);
+            if (showSetupGuide)
+                DrawGuidedSetupWizard();
+
+            DrawPreflightCard();
+
+            showSetupDiagnostics = EditorGUILayout.Foldout(showSetupDiagnostics, "Health & Safety Diagnostics", true);
+            if (showSetupDiagnostics)
+            {
+                DrawCriticalHpDiagnosticsCard();
+                DrawHealthSafetyCard();
+            }
+        }
+
+        private void DrawCriticalHpDiagnosticsCard()
+        {
+            BeginCard("Critical HP Runtime Diagnostic");
+            EditorGUILayout.LabelField(
+                "Canonical HP Critical is living HP strictly below 15% of effective Max HP. The tool-owned Full / Half / Critical / KO layer uses SoY_HPPercent directly, so a stale SoY_CriticalHP Bool cannot force that managed layer into Critical.",
+                wrappedLabel);
+            DrawTagRow("Threshold", "HP > 0 and < 15%", "15.00% is not Critical; 0 HP is KO");
+            DrawTagRow("Managed Layer", "SoY_HPPercent + SoY_KO", "Does not depend on SoY_CriticalHP");
+            DrawTagRow("Desktop Bool", "SoY_CriticalHP", "Must be set False again whenever HP returns to 15% or higher");
+            using (new EditorGUI.DisabledScope(fxController == null))
+            {
+                if (GUILayout.Button("REBUILD MANAGED HEALTH LAYER AT 15%", GUILayout.Height(largeControls ? 46f : 34f)))
+                    RebuildHealthAnimationLayer();
+            }
             EditorGUILayout.HelpBox(
-                "The original FX controller is preserved. Animator edits are made only to the assigned copy in " + FxCopyRoot + ".",
-                MessageType.Info);
+                "If Avatar Parameters shows SoY_CriticalHP = True while SoY_HPPercent is 0.15 or higher, the incorrect value is being sent by the Desktop OSC runtime—not generated by this Unity layer. Use the current Desktop Critical-15 audit to repair its authoritative reset path.",
+                MessageType.Warning);
+            EndCard();
+        }
+
+        private void DrawPreflightCard()
+        {
+            BeginCard("Avatar Preflight");
+            var checks = new List<KeyValuePair<string, bool>>
+            {
+                new KeyValuePair<string, bool>("Avatar Descriptor", avatarDescriptor != null),
+                new KeyValuePair<string, bool>("FX Controller", fxController != null),
+                new KeyValuePair<string, bool>("Expression Parameters", expressionParameters != null),
+                new KeyValuePair<string, bool>("Expressions Menu", expressionsMenu != null),
+                new KeyValuePair<string, bool>("Safe FX Copy", IsSafeFxCopy(fxController)),
+                new KeyValuePair<string, bool>("VRChat Contacts SDK", ContactTypesAvailable()),
+                new KeyValuePair<string, bool>("VRCRaycast SDK", RaycastTypeAvailable()),
+                new KeyValuePair<string, bool>("Single Tool Script", AssetDatabase.FindAssets("StoriesOfYggdrasilOSCContactSystem t:MonoScript").Length == 1)
+            };
+            var passed = checks.Count(pair => pair.Value);
+            var readiness = checks.Count == 0 ? 0f : passed / (float)checks.Count;
+            var rect = EditorGUILayout.GetControlRect(false, largeControls ? 28f : 20f);
+            EditorGUI.ProgressBar(rect, readiness, "Readiness " + Mathf.RoundToInt(readiness * 100f) + "% — " + passed + "/" + checks.Count);
+            foreach (var check in checks)
+                EditorGUILayout.LabelField((check.Value ? "✓ " : "✕ ") + check.Key, wrappedLabel);
+
+            if (expressionParameters != null)
+            {
+                var used = SyncedExpressionCost(expressionParameters.parameters ?? Array.Empty<VRCExpressionParameters.Parameter>());
+                EditorGUILayout.Space(4f);
+                EditorGUILayout.LabelField("Synchronized Parameter Memory", cardTitleStyle);
+                var budgetRect = EditorGUILayout.GetControlRect(false, largeControls ? 28f : 20f);
+                EditorGUI.ProgressBar(budgetRect, Mathf.Clamp01(used / 256f), used + " / 256 bits used");
+                EditorGUILayout.LabelField(used <= 179 ? "✓ Safe budget" : used <= 230 ? "! Caution: budget is becoming crowded" : "✕ Critical: very little synchronized memory remains", wrappedLabel);
+            }
+
+            if (RaycastTypeAvailable() && avatarRoot != null)
+            {
+                var raycastCount = CountRaycastComponents();
+                EditorGUILayout.Space(4f);
+                EditorGUILayout.LabelField("VRCRaycast / FinalIK Shared Budget", cardTitleStyle);
+                var raycastRect = EditorGUILayout.GetControlRect(false, largeControls ? 28f : 20f);
+                EditorGUI.ProgressBar(raycastRect, Mathf.Clamp01(raycastCount / 80f), raycastCount + " / 80 Raycast components");
+                EditorGUILayout.LabelField(
+                    raycastCount < 64 ? "✓ Healthy Raycast headroom" :
+                    raycastCount < 72 ? "! Caution: Raycast count is becoming crowded" :
+                    "✕ Critical: close to VRChat's shared Raycast/FinalIK component limit",
+                    wrappedLabel);
+            }
+
+            using (new EditorGUI.DisabledScope(avatarDescriptor == null))
+            {
+                if (GUILayout.Button("REPAIR ALL SAFE STORIES OSC ITEMS", GUILayout.Height(largeControls ? 48f : 36f)))
+                {
+                    LoadFromAvatarDescriptor();
+                    if (EnsureSafeFxCopy(true))
+                    {
+                        InstallAllBridgeHooks();
+                        AuditManagedSystems();
+                        RunManagedRepair(false);
+                    }
+                }
+            }
+            EditorGUILayout.HelpBox("This repair only manages Stories Of Yggdrasil assets and parameters. Existing third-party health logic remains locked and untouched.", MessageType.Info);
+            EndCard();
+        }
+
+        private void DrawManagedRepairCenter()
+        {
+            BeginCard("Managed-System Repair Center");
+            EditorGUILayout.LabelField(
+                "Audits only Stories Of Yggdrasil-owned Contacts. Repairs preserve the existing GameObject, parent, sibling order, local/world transform, active state, prefab overrides, and every detected constraint component. Foreign avatar systems are reported but never changed.",
+                wrappedLabel);
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("AUDIT AVATAR", GUILayout.Height(largeControls ? 44f : 32f)))
+                AuditManagedSystems();
+            if (GUILayout.Button("PREVIEW REPAIR", GUILayout.Height(largeControls ? 44f : 32f)))
+                PreviewManagedRepair();
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            using (new EditorGUI.DisabledScope(avatarRoot == null || !managedRepairAuditReady))
+            {
+                if (GUILayout.Button("REPAIR SELECTED", GUILayout.Height(largeControls ? 44f : 32f)))
+                    RunManagedRepair(true);
+                if (GUILayout.Button("REPAIR ALL SAFE", GUILayout.Height(largeControls ? 44f : 32f)))
+                    RunManagedRepair(false);
+            }
+            using (new EditorGUI.DisabledScope(lastRepairUndoGroup < 0))
+            {
+                if (GUILayout.Button("ROLL BACK LAST REPAIR", GUILayout.Height(largeControls ? 44f : 32f)))
+                    RollBackLastManagedRepair();
+            }
+            EditorGUILayout.EndHorizontal();
+
+            managedRepairConfirmDestructive = EditorGUILayout.ToggleLeft(
+                "Require confirmation before removing defunct or duplicate managed components",
+                managedRepairConfirmDestructive);
+            managedRepairShowHealthy = EditorGUILayout.ToggleLeft("Show healthy managed entries", managedRepairShowHealthy);
+            managedRepairShowForeign = EditorGUILayout.ToggleLeft("Show foreign / untouched entries", managedRepairShowForeign);
+
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.LabelField(managedRepairSummary, wrappedLabel);
+            if (!string.IsNullOrWhiteSpace(lastRepairSnapshotPath))
+                EditorGUILayout.SelectableLabel("Last snapshot: " + lastRepairSnapshotPath, EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight));
             EndCard();
 
-            DrawHealthSafetyCard();
-
-            BeginCard("Readiness");
-            DrawTagRow("Avatar", avatarDescriptor != null ? "Ready" : "Missing", "Assign the VRC Avatar Descriptor above");
-            DrawTagRow("FX Copy", IsSafeFxCopy(fxController) ? "Ready" : "Pending", "Created automatically before Animator changes");
-            DrawTagRow("Contacts", ContactTypesAvailable() ? "SDK Ready" : "SDK Missing", "VRC Contact Sender and Receiver types");
-            DrawTagRow("Target", HasUsableTargets() ? "Selected" : "Not Selected", "Select a weapon, shield, body object, or effect transform");
+            BeginCard("Repair Preview");
+            EditorGUILayout.LabelField(managedRepairPreview, wrappedLabel);
             EndCard();
 
-            BeginCard("Current Runtime Features");
-            DrawTagRow("Combat Menu", "Stories RP submenu", "Combat and Enemy toggles, Spell/Technick/Item pages, Mist and Curse gauges");
-            DrawTagRow(
-                "Spells",
-                SpellDefinitions.Select(spell => spell.Id).Distinct().Count() + " IDs / " +
-                Enum.GetValues(typeof(SpellSchool)).Length + " schools",
-                "All schools use the compact v0.5.3 eight-bit spell contact bus without changing registry IDs");
-            DrawTagRow("Technicks", TechnickDefinitions.Length + " IDs", "Compact binary Contact bus; Sam.py validates licenses, encounter, and target");
-            DrawTagRow("Items", ItemDefinitions.Length + " IDs", "Compact binary Contact bus; Sam.py validates inventory, usability, target, and consumption");
-            DrawTagRow("Remote Action FX", "Spell / Technick / Item selectors synced", "Incoming Active/Bit Contact buses remain local and unsynced");
-            DrawTagRow("I-Frames", "1.0 second", "Generated incoming damage receiver cooldown");
-            DrawTagRow("Updater", updateStatus, "GitHub Releases: " + GitHubRepository);
+            BeginCard("Audit Findings");
+            if (!managedRepairAuditReady)
+            {
+                EditorGUILayout.HelpBox("Run Audit Avatar first. Audit mode does not modify the avatar.", MessageType.Info);
+                EndCard();
+                return;
+            }
+
+            var visible = managedRepairFindings
+                .Where(finding => managedRepairShowHealthy || finding.State != ManagedRepairState.Healthy)
+                .Where(finding => managedRepairShowForeign || finding.State != ManagedRepairState.Foreign)
+                .OrderByDescending(finding => RepairStatePriority(finding.State))
+                .ThenBy(finding => finding.Host != null ? GetHierarchyPath(finding.Host.transform) : string.Empty)
+                .ToList();
+
+            if (visible.Count == 0)
+                EditorGUILayout.HelpBox("No findings match the current filters.", MessageType.Info);
+
+            foreach (var finding in visible)
+            {
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField(RepairStateLabel(finding.State), GUILayout.Width(110f));
+                EditorGUILayout.LabelField(finding.Role ?? "Managed Item", cardTitleStyle);
+                if (finding.Host != null && GUILayout.Button("Select", GUILayout.Width(58f)))
+                {
+                    Selection.activeGameObject = finding.Host;
+                    EditorGUIUtility.PingObject(finding.Host);
+                }
+                EditorGUILayout.EndHorizontal();
+                if (finding.Host != null)
+                    EditorGUILayout.SelectableLabel(GetHierarchyPath(finding.Host.transform), EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight));
+                EditorGUILayout.LabelField(finding.Summary ?? string.Empty, wrappedLabel);
+                if (!string.IsNullOrWhiteSpace(finding.Action))
+                    EditorGUILayout.LabelField("Repair: " + finding.Action, wrappedLabel);
+                EditorGUILayout.EndVertical();
+            }
+            EndCard();
+        }
+
+        private static int RepairStatePriority(ManagedRepairState state)
+        {
+            switch (state)
+            {
+                case ManagedRepairState.Broken: return 6;
+                case ManagedRepairState.Defunct: return 5;
+                case ManagedRepairState.Repairable: return 4;
+                case ManagedRepairState.Outdated: return 3;
+                case ManagedRepairState.Healthy: return 2;
+                default: return 1;
+            }
+        }
+
+        private static string RepairStateLabel(ManagedRepairState state)
+        {
+            switch (state)
+            {
+                case ManagedRepairState.Healthy: return "✓ Healthy";
+                case ManagedRepairState.Outdated: return "! Outdated";
+                case ManagedRepairState.Repairable: return "! Repairable";
+                case ManagedRepairState.Broken: return "✕ Broken";
+                case ManagedRepairState.Defunct: return "✕ Defunct";
+                default: return "— Foreign";
+            }
+        }
+
+        private void AuditManagedSystems()
+        {
+            managedRepairFindings.Clear();
+            managedRepairAuditReady = false;
+            if (avatarRoot == null)
+            {
+                managedRepairSummary = "Assign an Avatar Descriptor or Avatar Root before auditing.";
+                return;
+            }
+
+            var senderType = FindType(SenderTypeName);
+            var receiverType = FindType(ReceiverTypeName);
+            if (senderType == null || receiverType == null)
+            {
+                managedRepairSummary = "VRChat Contact component types are unavailable. Update the SDK before repairing.";
+                return;
+            }
+
+            var allTransforms = avatarRoot.GetComponentsInChildren<Transform>(true);
+            foreach (var transform in allTransforms)
+            {
+                var host = transform.gameObject;
+                var components = host.GetComponents<Component>();
+                if (components.Any(component => component == null) && IsStrictlyStoriesManagedHost(host))
+                {
+                    managedRepairFindings.Add(new ManagedRepairFinding
+                    {
+                        Host = host,
+                        State = ManagedRepairState.Broken,
+                        Kind = ManagedRepairKind.MissingManagedComponent,
+                        Role = "Missing Script",
+                        Summary = "A Stories-managed object contains a missing component. Its original type cannot be recovered automatically from Unity's missing-script placeholder.",
+                        Action = "Restore the missing package/script, then rerun the audit. The object and its transform will not be deleted."
+                    });
+                }
+
+                foreach (var receiver in host.GetComponents(receiverType).Cast<Component>())
+                    AuditManagedReceiver(receiver);
+                foreach (var sender in host.GetComponents(senderType).Cast<Component>())
+                    AuditManagedSender(sender);
+
+                AuditDuplicateManagedContacts(host, senderType, false);
+                AuditDuplicateManagedContacts(host, receiverType, true);
+
+                if (!IsStrictlyStoriesManagedHost(host) &&
+                    (host.GetComponents(senderType).Length > 0 || host.GetComponents(receiverType).Length > 0))
+                {
+                    managedRepairFindings.Add(new ManagedRepairFinding
+                    {
+                        Host = host,
+                        State = ManagedRepairState.Foreign,
+                        Kind = ManagedRepairKind.None,
+                        Role = "Foreign Contact Object",
+                        Summary = "Contact components exist, but the object does not match the strict Stories ownership signature.",
+                        Action = "No action. This object is intentionally untouched."
+                    });
+                }
+            }
+
+            managedRepairAuditReady = true;
+            var healthy = managedRepairFindings.Count(finding => finding.State == ManagedRepairState.Healthy);
+            var repairable = managedRepairFindings.Count(finding => finding.CanAutoRepair);
+            var broken = managedRepairFindings.Count(finding => finding.State == ManagedRepairState.Broken);
+            var foreign = managedRepairFindings.Count(finding => finding.State == ManagedRepairState.Foreign);
+            managedRepairSummary = "Audit complete — Healthy: " + healthy +
+                                   " • Safe repairs: " + repairable +
+                                   " • Manual review: " + broken +
+                                   " • Foreign / untouched: " + foreign + ".";
+            managedRepairPreview = "Audit complete. Press Preview Repair to list the exact safe actions.";
+            Log(managedRepairSummary);
+        }
+
+        private static bool IsLegacySpellReceiverTag(string tag)
+        {
+            if (string.IsNullOrWhiteSpace(tag) ||
+                !tag.StartsWith(LegacySpellTagPrefix, StringComparison.Ordinal))
+                return false;
+
+            // The current compact transport deliberately uses tags beginning with
+            // "SoY Spell" too: "SoY Spell Active" and "SoY Spell Bit 0-7".
+            // Only the retired numeric tags (for example "SoY Spell 24") are legacy.
+            var suffix = tag.Substring(LegacySpellTagPrefix.Length).Trim();
+            int spellId;
+            return int.TryParse(suffix, out spellId) && spellId >= 1 && spellId <= 255;
+        }
+
+        private void AuditManagedReceiver(Component receiver)
+        {
+            if (receiver == null)
+                return;
+            var host = receiver.gameObject;
+            var tags = ReadCollisionTags(receiver).ToList();
+            var parameter = ReadStringMember(receiver, "parameter", "Parameter");
+            var isLegacySpell = parameter == "SoY_SpellType" || tags.Any(IsLegacySpellReceiverTag);
+            if (isLegacySpell && IsStrictlyStoriesManagedComponent(receiver))
+            {
+                // A legacy host can contain many retired receiver components. Report
+                // and repair it once so the audit does not flood the UI with the same
+                // GameObject and the migration runs only one host-level transaction.
+                if (!managedRepairFindings.Any(finding =>
+                    finding.Host == host && finding.Kind == ManagedRepairKind.LegacySpellReceiver))
+                {
+                    managedRepairFindings.Add(new ManagedRepairFinding
+                    {
+                        Host = host,
+                        Component = receiver,
+                        State = ManagedRepairState.Defunct,
+                        Kind = ManagedRepairKind.LegacySpellReceiver,
+                        Role = "Legacy Spell Receiver",
+                        Summary = "The old Constant Int spell receiver cannot transmit IDs correctly on current SDK behavior.",
+                        Action = "Remove only the defunct receiver and install the compact Active + 8-bit spell bus on this same GameObject."
+                    });
+                }
+                return;
+            }
+
+            string expectedParameter;
+            if (TryGetCanonicalIncomingParameter(tags, out expectedParameter))
+            {
+                if (!string.Equals(parameter, expectedParameter, StringComparison.Ordinal))
+                {
+                    managedRepairFindings.Add(new ManagedRepairFinding
+                    {
+                        Host = host,
+                        Component = receiver,
+                        State = ManagedRepairState.Repairable,
+                        Kind = ManagedRepairKind.IncomingReceiverMapping,
+                        Role = "Incoming Receiver Mapping",
+                        Summary = "Canonical tag maps to '" + expectedParameter + "', but this receiver currently writes '" + parameter + "'.",
+                        Action = "Correct the receiver parameter in place without replacing its GameObject or constraint."
+                    });
+                }
+                else if (IsStrictlyStoriesManagedComponent(receiver))
+                {
+                    managedRepairFindings.Add(new ManagedRepairFinding
+                    {
+                        Host = host,
+                        Component = receiver,
+                        State = ManagedRepairState.Healthy,
+                        Kind = ManagedRepairKind.None,
+                        Role = "Incoming Receiver",
+                        Summary = "Canonical tag and parameter mapping are valid.",
+                        Action = string.Empty
+                    });
+                }
+            }
+        }
+
+        private void AuditManagedSender(Component sender)
+        {
+            if (sender == null)
+                return;
+            var tags = ReadCollisionTags(sender).ToList();
+            AttackTier tier;
+            if (!TryGetAttackTier(tags, out tier))
+                return;
+            if (!IsStrictlyStoriesManagedComponent(sender))
+                return;
+
+            var shouldBlock = tier != AttackTier.Critical;
+            var hasBlockable = tags.Contains(TagBlockable);
+            if (shouldBlock != hasBlockable)
+            {
+                managedRepairFindings.Add(new ManagedRepairFinding
+                {
+                    Host = sender.gameObject,
+                    Component = sender,
+                    State = ManagedRepairState.Repairable,
+                    Kind = ManagedRepairKind.AttackTagContract,
+                    Role = tier + " Attack Sender",
+                    Summary = shouldBlock
+                        ? "Weak, Average, and Strong attacks must include Blockable."
+                        : "Critical attacks must never include Blockable.",
+                    Action = "Repair only the canonical attack tags while preserving all other sender settings."
+                });
+            }
+            else
+            {
+                managedRepairFindings.Add(new ManagedRepairFinding
+                {
+                    Host = sender.gameObject,
+                    Component = sender,
+                    State = ManagedRepairState.Healthy,
+                    Kind = ManagedRepairKind.None,
+                    Role = tier + " Attack Sender",
+                    Summary = "Canonical attack and blocking tags are valid.",
+                    Action = string.Empty
+                });
+            }
+        }
+
+        private void AuditDuplicateManagedContacts(GameObject host, Type componentType, bool receiver)
+        {
+            if (host == null || componentType == null || !IsStrictlyStoriesManagedHost(host))
+                return;
+            var components = host.GetComponents(componentType).Cast<Component>().ToArray();
+            var groups = components.GroupBy(component =>
+            {
+                var tags = string.Join("|", ReadCollisionTags(component).OrderBy(value => value, StringComparer.Ordinal).ToArray());
+                var parameter = receiver ? ReadStringMember(component, "parameter", "Parameter") : string.Empty;
+                return tags + "::" + parameter;
+            });
+            foreach (var group in groups.Where(group => group.Count() > 1))
+            {
+                foreach (var duplicate in group.Skip(1))
+                {
+                    managedRepairFindings.Add(new ManagedRepairFinding
+                    {
+                        Host = host,
+                        Component = duplicate,
+                        State = ManagedRepairState.Outdated,
+                        Kind = ManagedRepairKind.DuplicateManagedContact,
+                        Role = "Duplicate " + componentType.Name,
+                        Summary = "An identical Stories-managed Contact component already exists on this object.",
+                        Action = "Remove only this duplicate component."
+                    });
+                }
+            }
+        }
+
+        private static bool TryGetCanonicalIncomingParameter(IEnumerable<string> tags, out string parameter)
+        {
+            var set = new HashSet<string>(tags ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            if (set.Contains(TagWeak)) { parameter = "SoY_HitWeak"; return true; }
+            if (set.Contains(TagAverage)) { parameter = "SoY_HitAverage"; return true; }
+            if (set.Contains(TagStrong)) { parameter = "SoY_HitStrong"; return true; }
+            if (set.Contains(TagCritical)) { parameter = "SoY_HitCritical"; return true; }
+            if (set.Contains("Burn")) { parameter = "SoY_DebuffBurn"; return true; }
+            if (set.Contains("Silence")) { parameter = "SoY_DebuffSilence"; return true; }
+            if (set.Contains("Freeze")) { parameter = "SoY_DebuffFreeze"; return true; }
+            if (set.Contains("Bind")) { parameter = "SoY_DebuffBind"; return true; }
+            if (set.Contains("Bleed")) { parameter = "SoY_DebuffBleed"; return true; }
+            if (set.Contains(SpellActiveTag)) { parameter = SpellActiveParameter; return true; }
+            for (var bit = 0; bit < SpellBitCount; bit++)
+                if (set.Contains(GetSpellBitTag(bit))) { parameter = GetSpellBitParameter(bit); return true; }
+            if (set.Contains(TechnickActiveTag)) { parameter = TechnickActiveParameter; return true; }
+            for (var bit = 0; bit < ActionBitCount; bit++)
+                if (set.Contains(TechnickBitTagPrefix + bit)) { parameter = TechnickBitParameterPrefix + bit; return true; }
+            if (set.Contains(ItemActiveTag)) { parameter = ItemActiveParameter; return true; }
+            for (var bit = 0; bit < ActionBitCount; bit++)
+                if (set.Contains(ItemBitTagPrefix + bit)) { parameter = ItemBitParameterPrefix + bit; return true; }
+            parameter = string.Empty;
+            return false;
+        }
+
+        private static bool TryGetAttackTier(IEnumerable<string> tags, out AttackTier tier)
+        {
+            var set = new HashSet<string>(tags ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            if (set.Contains(TagWeak)) { tier = AttackTier.Weak; return true; }
+            if (set.Contains(TagAverage)) { tier = AttackTier.Average; return true; }
+            if (set.Contains(TagStrong)) { tier = AttackTier.Strong; return true; }
+            if (set.Contains(TagCritical)) { tier = AttackTier.Critical; return true; }
+            tier = AttackTier.Average;
+            return false;
+        }
+
+        private static bool IsStrictlyStoriesManagedHost(GameObject host)
+        {
+            if (host == null)
+                return false;
+            var name = host.name ?? string.Empty;
+            if (name.StartsWith("Stories ", StringComparison.Ordinal) ||
+                name.StartsWith("[SoY ", StringComparison.Ordinal) ||
+                name == RaycastRootName)
+                return true;
+            return host.GetComponents<Component>()
+                .Where(component => component != null)
+                .Any(IsStrictlyStoriesManagedComponent);
+        }
+
+        private static bool IsStrictlyStoriesManagedComponent(Component component)
+        {
+            if (component == null)
+                return false;
+            var tags = ReadCollisionTags(component);
+            if (tags.Any(tag =>
+                tag == TagWeak || tag == TagAverage || tag == TagStrong || tag == TagCritical ||
+                tag == TagBlockable || tag == TagHitBlocked || tag == SpellActiveTag ||
+                tag.StartsWith(SpellBitTagPrefix, StringComparison.Ordinal) ||
+                IsLegacySpellReceiverTag(tag) ||
+                tag == TechnickActiveTag || tag.StartsWith(TechnickBitTagPrefix, StringComparison.Ordinal) ||
+                tag == ItemActiveTag || tag.StartsWith(ItemBitTagPrefix, StringComparison.Ordinal) ||
+                tag == CasterAllyTag || tag == CasterEnemyTag))
+                return true;
+            var parameter = ReadStringMember(component, "parameter", "Parameter");
+            return !string.IsNullOrEmpty(parameter) &&
+                   (parameter.StartsWith("SoY_", StringComparison.Ordinal) || parameter == TagHitBlocked);
+        }
+
+        private void PreviewManagedRepair()
+        {
+            if (!managedRepairAuditReady)
+                AuditManagedSystems();
+            var actions = managedRepairFindings.Where(finding => finding.CanAutoRepair).ToList();
+            if (actions.Count == 0)
+            {
+                managedRepairPreview = "No safe automatic repairs are currently required.";
+                return;
+            }
+            var builder = new StringBuilder();
+            builder.AppendLine(actions.Count + " safe repair action(s) will be performed:");
+            foreach (var finding in actions.Take(30))
+                builder.AppendLine("• " + GetHierarchyPath(finding.Host.transform) + " — " + finding.Action);
+            if (actions.Count > 30)
+                builder.AppendLine("• …and " + (actions.Count - 30) + " additional action(s).");
+            builder.AppendLine();
+            builder.AppendLine("Every affected object is snapshotted before changes. Parent, sibling index, transforms, active state, constraints, and prefab modifications are preserved.");
+            managedRepairPreview = builder.ToString();
+        }
+
+        private void RunManagedRepair(bool selectedOnly)
+        {
+            if (!managedRepairAuditReady)
+                AuditManagedSystems();
+            if (avatarRoot == null)
+                return;
+
+            var selected = Selection.activeGameObject;
+            var findings = managedRepairFindings
+                .Where(finding => finding.CanAutoRepair)
+                .Where(finding => !selectedOnly || (selected != null && finding.Host == selected))
+                .ToList();
+            if (findings.Count == 0)
+            {
+                EditorUtility.DisplayDialog("Stories OSC Repair", selectedOnly
+                    ? "The selected object has no safe automatic repair actions."
+                    : "No safe automatic repairs are required.", "OK");
+                return;
+            }
+
+            if (managedRepairConfirmDestructive && findings.Any(finding =>
+                finding.Kind == ManagedRepairKind.LegacySpellReceiver ||
+                finding.Kind == ManagedRepairKind.DuplicateManagedContact))
+            {
+                var confirmed = EditorUtility.DisplayDialog(
+                    "Confirm Managed Repair",
+                    "The repair will remove " + findings.Count(finding => finding.Kind == ManagedRepairKind.LegacySpellReceiver || finding.Kind == ManagedRepairKind.DuplicateManagedContact) +
+                    " defunct or duplicate Stories-managed component(s) after creating a migration snapshot. Unrelated components and objects will not be changed.",
+                    "Create Snapshot & Repair",
+                    "Cancel");
+                if (!confirmed)
+                    return;
+            }
+
+            var snapshots = CaptureRepairRuntimeSnapshots(findings.Select(finding => finding.Host).Distinct());
+            lastRepairSnapshotPath = WriteRepairTransactionManifest(findings, snapshots);
+            Undo.IncrementCurrentGroup();
+            var group = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName("Stories OSC Managed-System Repair");
+            lastRepairUndoGroup = group;
+
+            try
+            {
+                foreach (var snapshot in snapshots)
+                    RegisterRepairUndo(snapshot.Host);
+                foreach (var finding in findings)
+                    ApplyManagedRepairFinding(finding);
+                foreach (var snapshot in snapshots)
+                {
+                    RestoreRepairRuntimeSnapshot(snapshot);
+                    ValidateRepairRuntimeSnapshot(snapshot);
+                }
+
+                AssetDatabase.SaveAssets();
+                PrefabUtility.RecordPrefabInstancePropertyModifications(avatarRoot.transform);
+                Undo.CollapseUndoOperations(group);
+                AuditManagedSystems();
+                managedRepairPreview = "Repair committed successfully. Use Roll Back Last Repair to undo the complete transaction during this Unity session.";
+                Log("Managed-system repair completed: " + findings.Count + " action(s). Snapshot: " + lastRepairSnapshotPath);
+            }
+            catch (Exception exception)
+            {
+                Undo.RevertAllDownToGroup(group);
+                lastRepairUndoGroup = -1;
+                managedRepairPreview = "Repair failed and was rolled back: " + exception.Message;
+                Debug.LogException(exception);
+                EditorUtility.DisplayDialog("Stories OSC Repair Rolled Back", managedRepairPreview, "OK");
+            }
+        }
+
+        private sealed class ContactGeometrySnapshot
+        {
+            public ContactShape Shape = ContactShape.Sphere;
+            public float Radius = 0.1f;
+            public float Height = 0.2f;
+            public Vector3 Size = Vector3.one * 0.1f;
+            public Vector3 Position = Vector3.zero;
+            public Vector3 EulerRotation = Vector3.zero;
+            public Transform RootTransform;
+        }
+
+        private sealed class RepairRuntimeSnapshot
+        {
+            public GameObject Host;
+            public Transform Parent;
+            public int SiblingIndex;
+            public bool ActiveSelf;
+            public Vector3 LocalPosition;
+            public Quaternion LocalRotation;
+            public Vector3 LocalScale;
+            public Vector3 WorldPosition;
+            public Quaternion WorldRotation;
+            public readonly List<KeyValuePair<Component, string>> Constraints = new List<KeyValuePair<Component, string>>();
+        }
+
+        private static List<RepairRuntimeSnapshot> CaptureRepairRuntimeSnapshots(IEnumerable<GameObject> hosts)
+        {
+            var result = new List<RepairRuntimeSnapshot>();
+            foreach (var host in (hosts ?? Enumerable.Empty<GameObject>()).Where(value => value != null).Distinct())
+            {
+                var transform = host.transform;
+                var snapshot = new RepairRuntimeSnapshot
+                {
+                    Host = host,
+                    Parent = transform.parent,
+                    SiblingIndex = transform.GetSiblingIndex(),
+                    ActiveSelf = host.activeSelf,
+                    LocalPosition = transform.localPosition,
+                    LocalRotation = transform.localRotation,
+                    LocalScale = transform.localScale,
+                    WorldPosition = transform.position,
+                    WorldRotation = transform.rotation
+                };
+                foreach (var component in host.GetComponents<Component>().Where(IsConstraintComponent))
+                {
+                    try
+                    {
+                        snapshot.Constraints.Add(new KeyValuePair<Component, string>(component, EditorJsonUtility.ToJson(component, true)));
+                    }
+                    catch
+                    {
+                        // Undo still protects unsupported SDK constraint serializers.
+                    }
+                }
+                result.Add(snapshot);
+            }
+            return result;
+        }
+
+        private static bool IsConstraintComponent(Component component)
+        {
+            if (component == null)
+                return false;
+            var name = component.GetType().Name;
+            return name.IndexOf("Constraint", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static void RegisterRepairUndo(GameObject host)
+        {
+            if (host == null)
+                return;
+            Undo.RegisterFullObjectHierarchyUndo(host, "Preserve Stories Managed Object");
+            Undo.RecordObject(host, "Preserve Stories Managed Object State");
+            Undo.RecordObject(host.transform, "Preserve Stories Managed Transform");
+            foreach (var component in host.GetComponents<Component>().Where(component => component != null))
+                Undo.RecordObject(component, "Preserve Stories Managed Component");
+        }
+
+        private static void RestoreRepairRuntimeSnapshot(RepairRuntimeSnapshot snapshot)
+        {
+            if (snapshot == null || snapshot.Host == null)
+                return;
+            var transform = snapshot.Host.transform;
+            if (transform.parent != snapshot.Parent)
+                Undo.SetTransformParent(transform, snapshot.Parent, "Restore Stories Managed Parent");
+            transform.SetSiblingIndex(Mathf.Clamp(snapshot.SiblingIndex, 0, transform.parent != null ? transform.parent.childCount - 1 : snapshot.SiblingIndex));
+            transform.localPosition = snapshot.LocalPosition;
+            transform.localRotation = snapshot.LocalRotation;
+            transform.localScale = snapshot.LocalScale;
+            snapshot.Host.SetActive(snapshot.ActiveSelf);
+            foreach (var pair in snapshot.Constraints)
+            {
+                if (pair.Key == null || string.IsNullOrEmpty(pair.Value))
+                    continue;
+                try
+                {
+                    EditorJsonUtility.FromJsonOverwrite(pair.Value, pair.Key);
+                    InvokeNoArg(pair.Key, "ApplyConfigurationChanges");
+                    EditorUtility.SetDirty(pair.Key);
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(pair.Key);
+                }
+                catch
+                {
+                    // Unity Undo remains the authoritative rollback if an SDK constraint refuses JSON restore.
+                }
+            }
+            EditorUtility.SetDirty(snapshot.Host);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(snapshot.Host);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(snapshot.Host.transform);
+        }
+
+        private static void ValidateRepairRuntimeSnapshot(RepairRuntimeSnapshot snapshot)
+        {
+            if (snapshot == null || snapshot.Host == null)
+                throw new InvalidOperationException("An affected managed object was deleted during repair.");
+            var transform = snapshot.Host.transform;
+            if (transform.parent != snapshot.Parent)
+                throw new InvalidOperationException("Repair changed the parent of '" + snapshot.Host.name + "'.");
+            if ((transform.localPosition - snapshot.LocalPosition).sqrMagnitude > 0.0000001f)
+                throw new InvalidOperationException("Repair changed the local position of '" + snapshot.Host.name + "'.");
+            if (Quaternion.Angle(transform.localRotation, snapshot.LocalRotation) > 0.001f)
+                throw new InvalidOperationException("Repair changed the local rotation of '" + snapshot.Host.name + "'.");
+            if ((transform.localScale - snapshot.LocalScale).sqrMagnitude > 0.0000001f)
+                throw new InvalidOperationException("Repair changed the local scale of '" + snapshot.Host.name + "'.");
+            if (snapshot.Host.activeSelf != snapshot.ActiveSelf)
+                throw new InvalidOperationException("Repair changed the active state of '" + snapshot.Host.name + "'.");
+        }
+
+        private void ApplyManagedRepairFinding(ManagedRepairFinding finding)
+        {
+            if (finding == null || finding.Host == null)
+                return;
+            switch (finding.Kind)
+            {
+                case ManagedRepairKind.LegacySpellReceiver:
+                    RepairLegacySpellReceiverInPlace(finding);
+                    break;
+                case ManagedRepairKind.AttackTagContract:
+                    RepairAttackTagContract(finding.Component);
+                    break;
+                case ManagedRepairKind.IncomingReceiverMapping:
+                    RepairIncomingReceiverMapping(finding.Component);
+                    break;
+                case ManagedRepairKind.DuplicateManagedContact:
+                    if (finding.Component != null)
+                        Undo.DestroyObjectImmediate(finding.Component);
+                    break;
+            }
+        }
+
+        private void RepairLegacySpellReceiverInPlace(ManagedRepairFinding finding)
+        {
+            var host = finding.Host;
+            var receiverType = FindType(ReceiverTypeName);
+            if (receiverType == null)
+                throw new InvalidOperationException("VRChat receiver type is unavailable.");
+
+            var legacyReceivers = host.GetComponents(receiverType).Cast<Component>()
+                .Where(receiver =>
+                {
+                    var tags = ReadCollisionTags(receiver);
+                    var parameter = ReadStringMember(receiver, "parameter", "Parameter");
+                    return parameter == "SoY_SpellType" || tags.Any(IsLegacySpellReceiverTag);
+                })
+                .ToArray();
+            var geometry = legacyReceivers.Length > 0
+                ? CaptureContactGeometry(legacyReceivers[0])
+                : new ContactGeometrySnapshot
+                {
+                    Shape = incomingShape,
+                    Radius = incomingRadius,
+                    Height = incomingHeight,
+                    Size = incomingBoxSize,
+                    Position = incomingPosition,
+                    EulerRotation = incomingRotation,
+                    RootTransform = host.transform
+                };
+
+            foreach (var receiver in legacyReceivers)
+                Undo.DestroyObjectImmediate(receiver);
+
+            if (host.name == "Stories Incoming Spell Contacts")
+            {
+                var canonicalSibling = host.transform.parent != null
+                    ? host.transform.parent.Cast<Transform>().FirstOrDefault(child => child != host.transform && child.name == "Stories Incoming Spell Bus Contacts")
+                    : null;
+                if (canonicalSibling == null)
+                {
+                    Undo.RecordObject(host, "Rename Stories Spell Bus Host");
+                    host.name = "Stories Incoming Spell Bus Contacts";
+                }
+            }
+
+            ConfigureIncomingReceiverPreservingGeometry(host, new ReceiverMapping(SpellActiveTag, SpellActiveParameter), geometry);
+            for (var bit = 0; bit < SpellBitCount; bit++)
+                ConfigureIncomingReceiverPreservingGeometry(host, new ReceiverMapping(GetSpellBitTag(bit), GetSpellBitParameter(bit)), geometry);
+            ConfigureIncomingReceiverPreservingGeometry(host, new ReceiverMapping(CasterEnemyTag, "SoY_HealingSourceEnemy"), geometry);
+        }
+
+        private static ContactGeometrySnapshot CaptureContactGeometry(Component component)
+        {
+            var snapshot = new ContactGeometrySnapshot();
+            if (component == null)
+                return snapshot;
+
+            var shapeName = ReadStringMember(component, "shapeType", "ShapeType");
+            ContactShape shape;
+            if (Enum.TryParse(shapeName, true, out shape))
+                snapshot.Shape = shape;
+
+            var radius = ReadMember(component, "radius", "Radius");
+            if (radius is float) snapshot.Radius = Mathf.Max(0.001f, (float)radius);
+            var height = ReadMember(component, "height", "Height");
+            if (height is float) snapshot.Height = Mathf.Max(snapshot.Radius * 2f, (float)height);
+            var size = ReadMember(component, "size", "Size");
+            if (size is Vector3) snapshot.Size = ClampPositive((Vector3)size);
+            var position = ReadMember(component, "position", "Position");
+            if (position is Vector3) snapshot.Position = (Vector3)position;
+            var rotation = ReadMember(component, "rotation", "Rotation");
+            if (rotation is Quaternion) snapshot.EulerRotation = ((Quaternion)rotation).eulerAngles;
+            else if (rotation is Vector3) snapshot.EulerRotation = (Vector3)rotation;
+            snapshot.RootTransform = ReadMember(component, "rootTransform", "RootTransform") as Transform ?? component.transform;
+            return snapshot;
+        }
+
+        private void ConfigureIncomingReceiverPreservingGeometry(GameObject host, ReceiverMapping mapping, ContactGeometrySnapshot geometry)
+        {
+            var receiver = EnsureContact(host, FindType(ReceiverTypeName), new[] { mapping.Tag }, mapping.Parameter);
+            if (receiver == null)
+                throw new InvalidOperationException("Could not create repaired receiver for " + mapping.Tag + ".");
+
+            var oldSuppress = suppressContactAttachment;
+            suppressContactAttachment = true;
+            try
+            {
+                ConfigureContact(
+                    receiver,
+                    geometry.Shape,
+                    geometry.Radius,
+                    geometry.Height,
+                    geometry.Size,
+                    geometry.Position,
+                    geometry.EulerRotation,
+                    new[] { mapping.Tag });
+                SetTransformMember(receiver, geometry.RootTransform != null ? geometry.RootTransform : host.transform, "rootTransform", "RootTransform");
+                SetBoolMember(receiver, false, "allowSelf", "AllowSelf");
+                SetBoolMember(receiver, true, "allowOthers", "AllowOthers");
+                SetBoolMember(receiver, true, "localOnly", "LocalOnly");
+                SetStringMember(receiver, mapping.Parameter, "parameter", "Parameter");
+                SetEnumMember(receiver, mapping.ReceiverType, "receiverType", "ReceiverType");
+                SetFloatMember(receiver, mapping.Value, "value", "Value");
+                SetFloatMember(receiver, 0f, "minVelocity", "MinVelocity");
+                FinishContact(receiver);
+            }
+            finally
+            {
+                suppressContactAttachment = oldSuppress;
+            }
+        }
+
+        private static void RepairAttackTagContract(Component sender)
+        {
+            if (sender == null)
+                return;
+            var tags = ReadCollisionTags(sender).ToList();
+            AttackTier tier;
+            if (!TryGetAttackTier(tags, out tier))
+                return;
+            tags.RemoveAll(tag => tag == TagBlockable);
+            if (tier != AttackTier.Critical)
+                tags.Add(TagBlockable);
+            SetCollisionTags(sender, tags.Distinct().Take(16).ToArray());
+            FinishContact(sender);
+        }
+
+        private static void RepairIncomingReceiverMapping(Component receiver)
+        {
+            if (receiver == null)
+                return;
+            string parameter;
+            if (!TryGetCanonicalIncomingParameter(ReadCollisionTags(receiver), out parameter))
+                return;
+            SetStringMember(receiver, parameter, "parameter", "Parameter");
+            SetBoolMember(receiver, true, "localOnly", "LocalOnly");
+            FinishContact(receiver);
+        }
+
+        private string WriteRepairTransactionManifest(List<ManagedRepairFinding> findings, List<RepairRuntimeSnapshot> snapshots)
+        {
+            EnsureAssetFolder(CurrentAvatarGeneratedFolder("Backups/Migrations"));
+            var manifest = new RepairTransactionManifest
+            {
+                version = Version,
+                build = BuildLabel,
+                avatar = avatarRoot != null ? avatarRoot.name : "Unknown",
+                timestamp = DateTime.Now.ToString("o"),
+                reason = "Managed-system self-healing repair"
+            };
+            foreach (var finding in findings)
+                manifest.plannedActions.Add(GetHierarchyPath(finding.Host.transform) + " — " + finding.Action);
+            foreach (var snapshot in snapshots)
+            {
+                var transform = snapshot.Host.transform;
+                manifest.transforms.Add(new RepairTransformSnapshot
+                {
+                    hierarchyPath = GetHierarchyPath(transform),
+                    parentPath = snapshot.Parent != null ? GetHierarchyPath(snapshot.Parent) : string.Empty,
+                    siblingIndex = snapshot.SiblingIndex,
+                    activeSelf = snapshot.ActiveSelf,
+                    localPosition = snapshot.LocalPosition,
+                    localRotation = snapshot.LocalRotation,
+                    localScale = snapshot.LocalScale,
+                    worldPosition = snapshot.WorldPosition,
+                    worldRotation = snapshot.WorldRotation
+                });
+                foreach (var pair in snapshot.Constraints)
+                {
+                    manifest.constraints.Add(new RepairConstraintSnapshot
+                    {
+                        hierarchyPath = GetHierarchyPath(transform),
+                        componentType = pair.Key != null ? pair.Key.GetType().AssemblyQualifiedName : string.Empty,
+                        serializedJson = pair.Value
+                    });
+                }
+            }
+            var path = AvatarGeneratedFolder(manifest.avatar, "Backups/Migrations") + "/Migration_v" + Version + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".json";
+            File.WriteAllText(Path.GetFullPath(path), JsonUtility.ToJson(manifest, true));
+            AssetDatabase.Refresh();
+            return path;
+        }
+
+        private void RollBackLastManagedRepair()
+        {
+            if (lastRepairUndoGroup < 0)
+                return;
+            var confirmed = EditorUtility.DisplayDialog(
+                "Roll Back Managed Repair",
+                "Undo the most recent Stories OSC managed-system repair transaction? This uses Unity's complete Undo snapshot and restores affected components, transforms, constraints, and prefab overrides.",
+                "Roll Back",
+                "Cancel");
+            if (!confirmed)
+                return;
+            Undo.PerformUndo();
+            lastRepairUndoGroup = -1;
+            AuditManagedSystems();
+            managedRepairPreview = "The most recent repair transaction was rolled back.";
+            Log("Rolled back the most recent managed-system repair transaction.");
+        }
+
+        private static string GetHierarchyPath(Transform transform)
+        {
+            if (transform == null)
+                return string.Empty;
+            var names = new Stack<string>();
+            var current = transform;
+            while (current != null)
+            {
+                names.Push(current.name);
+                current = current.parent;
+            }
+            return string.Join("/", names.ToArray());
+        }
+
+        private void DrawAccessibilitySettings()
+        {
+            BeginCard("Accessibility & Display");
+            EditorGUILayout.LabelField("These settings affect this Unity Editor tool. Every status uses text and symbols as well as color.", wrappedLabel);
+            EditorGUI.BeginChangeCheck();
+            textScaleMode = (TextScaleMode)EditorGUILayout.EnumPopup("Text Size", textScaleMode);
+            colorVisionMode = (ColorVisionMode)EditorGUILayout.EnumPopup("Color Mode", colorVisionMode);
+            largeControls = EditorGUILayout.ToggleLeft("Larger buttons and navigation controls", largeControls);
+            shortVrchatLabels = EditorGUILayout.ToggleLeft("Short, icon-assisted VRChat menu labels", shortVrchatLabels);
+            menuNavigationMode = (MenuNavigationMode)EditorGUILayout.EnumPopup("Generated Spell Menu", menuNavigationMode);
+            if (EditorGUI.EndChangeCheck())
+            {
+                SaveEditorPreferences();
+                InvalidateStyles();
+                Repaint();
+            }
+            EditorGUILayout.Space(5f);
+            DrawTagRow("Ready", "Ready", "Uses ✓ plus readable text");
+            DrawTagRow("Attention", "Warning", "Uses ! plus readable text");
+            DrawTagRow("Missing", "Missing", "Uses ✕ plus readable text");
+            EditorGUILayout.HelpBox("VRChat controls the Expressions Menu font size. Large-label mode therefore shortens labels and adds category symbols rather than attempting to change VRChat's fixed font.", MessageType.Info);
             EndCard();
 
-            BeginCard("Next Steps");
-            EditorGUILayout.LabelField("1. Prepare the avatar above.", wrappedLabel);
-            EditorGUILayout.LabelField("2. Open Outgoing Contacts and create a temporary preview on a weapon, shield, or effect.", wrappedLabel);
-            EditorGUILayout.LabelField("3. Move, rotate, and resize the preview in the Scene view before finalizing it.", wrappedLabel);
-            EditorGUILayout.LabelField("4. Add Incoming Contacts to the avatar body only when the avatar does not already provide the needed receivers.", wrappedLabel);
-            EditorGUILayout.LabelField("5. Use the generated Stories RP submenu for Combat, Enemy Mode, gauges, and Spell/Technick/Item selection.", wrappedLabel);
-            EditorGUILayout.LabelField("6. Build & Test, enable OSC in VRChat, and connect the desktop program to Sam.py.", wrappedLabel);
+            BeginCard("Generated Menu Navigation");
+            EditorGUILayout.LabelField("Combined: purpose shortcuts plus school groups. School First: traditional Magick groups. Purpose First: Healing, Damage, Support, Status, Cleanse, and Utility first.", wrappedLabel);
+            using (new EditorGUI.DisabledScope(expressionsMenu == null))
+            {
+                if (GUILayout.Button("REBUILD STORIES RP MENUS", GUILayout.Height(largeControls ? 46f : 34f)))
+                {
+                    Undo.RecordObject(expressionsMenu, "Rebuild Accessible Stories RP Menus");
+                    AddCombatToggle(expressionsMenu);
+                    EditorUtility.SetDirty(expressionsMenu);
+                    AssetDatabase.SaveAssets();
+                }
+            }
             EndCard();
+        }
+
+        private void LoadEditorPreferences()
+        {
+            textScaleMode = (TextScaleMode)EditorPrefs.GetInt("StoriesOSC.v058.TB5.TextScale", (int)TextScaleMode.Normal);
+            colorVisionMode = (ColorVisionMode)EditorPrefs.GetInt("StoriesOSC.v058.TB5.ColorVision", (int)ColorVisionMode.Standard);
+            menuNavigationMode = (MenuNavigationMode)EditorPrefs.GetInt("StoriesOSC.v058.TB5.MenuNavigation", (int)MenuNavigationMode.Combined);
+            largeControls = EditorPrefs.GetBool("StoriesOSC.v058.TB5.LargeControls", false);
+            shortVrchatLabels = EditorPrefs.GetBool("StoriesOSC.v058.TB5.ShortMenuLabels", false);
+            autoCheckUpdates = EditorPrefs.GetBool("StoriesOSC.v058.TB5.AutoCheckUpdates", true);
+            updateChannel = (UpdateChannel)EditorPrefs.GetInt("StoriesOSC.v058.TB5.UpdateChannel", (int)UpdateChannel.Stable);
+            deliveryMode = (DeliveryMode)EditorPrefs.GetInt("StoriesOSC.v058.TB5.DeliveryMode", (int)DeliveryMode.Contact);
+            raycastUseCustomPrefix = EditorPrefs.GetBool("StoriesOSC.v058.TB5.RaycastCustomPrefix", false);
+            contactAttachmentMode = (ContactAttachmentMode)EditorPrefs.GetInt("StoriesOSC.v058.TB6.ContactAttachmentMode", (int)ContactAttachmentMode.ContactObject);
+            constraintMaintainOffset = EditorPrefs.GetBool("StoriesOSC.v058.TB6.ConstraintMaintainOffset", true);
+            constraintWeight = EditorPrefs.GetFloat("StoriesOSC.v058.TB6.ConstraintWeight", 1f);
+        }
+
+        private void SaveEditorPreferences()
+        {
+            EditorPrefs.SetInt("StoriesOSC.v058.TB5.TextScale", (int)textScaleMode);
+            EditorPrefs.SetInt("StoriesOSC.v058.TB5.ColorVision", (int)colorVisionMode);
+            EditorPrefs.SetInt("StoriesOSC.v058.TB5.MenuNavigation", (int)menuNavigationMode);
+            EditorPrefs.SetBool("StoriesOSC.v058.TB5.LargeControls", largeControls);
+            EditorPrefs.SetBool("StoriesOSC.v058.TB5.ShortMenuLabels", shortVrchatLabels);
+            EditorPrefs.SetBool("StoriesOSC.v058.TB5.AutoCheckUpdates", autoCheckUpdates);
+            EditorPrefs.SetInt("StoriesOSC.v058.TB5.UpdateChannel", (int)updateChannel);
+            EditorPrefs.SetInt("StoriesOSC.v058.TB5.DeliveryMode", (int)deliveryMode);
+            EditorPrefs.SetBool("StoriesOSC.v058.TB5.RaycastCustomPrefix", raycastUseCustomPrefix);
+            EditorPrefs.SetInt("StoriesOSC.v058.TB6.ContactAttachmentMode", (int)contactAttachmentMode);
+            EditorPrefs.SetBool("StoriesOSC.v058.TB6.ConstraintMaintainOffset", constraintMaintainOffset);
+            EditorPrefs.SetFloat("StoriesOSC.v058.TB6.ConstraintWeight", constraintWeight);
+        }
+
+        private string BuildSpellMenuLabel(SpellDefinition spell)
+        {
+            if (!shortVrchatLabels)
+                return spell.Name;
+            string prefix;
+            switch (spell.Category)
+            {
+                case SpellCategory.Healing:
+                case SpellCategory.Revival: prefix = "✚ "; break;
+                case SpellCategory.Offensive: prefix = "◆ "; break;
+                case SpellCategory.Support: prefix = "▲ "; break;
+                case SpellCategory.Status: prefix = "● "; break;
+                case SpellCategory.Cleanse: prefix = "◇ "; break;
+                default: prefix = "■ "; break;
+            }
+            return prefix + ShortenMenuLabel(spell.Name);
+        }
+
+        private string BuildActionMenuLabel(string value)
+        {
+            return shortVrchatLabels ? ShortenMenuLabel(value) : value;
+        }
+
+        private static string ShortenMenuLabel(string value)
+        {
+            var text = (value ?? string.Empty)
+                .Replace("Technick: ", string.Empty)
+                .Replace("Magick: ", string.Empty)
+                .Trim();
+            return text.Length <= 20 ? text : text.Substring(0, 19) + "…";
+        }
+
+        private static string GetSpellCategoryDisplayName(SpellCategory category)
+        {
+            switch (category)
+            {
+                case SpellCategory.Offensive: return "Damage";
+                case SpellCategory.Healing: return "Healing";
+                case SpellCategory.Revival: return "Revival";
+                case SpellCategory.Cleanse: return "Cleanse";
+                case SpellCategory.Support: return "Support";
+                case SpellCategory.Status: return "Status & Control";
+                default: return "Utility";
+            }
+        }
+
+        private string CurrentAnimationProfilePath()
+        {
+            if (avatarDescriptor == null)
+                return string.Empty;
+            var folder = CurrentAvatarGeneratedFolder("Profiles");
+            EnsureAssetFolder(folder);
+            return folder + "/StoriesOSC_AnimationProfile.json";
+        }
+
+        private void LoadAnimationProfile()
+        {
+            animationProfileAssetPath = CurrentAnimationProfilePath();
+            animationProfile = new AvatarAnimationProfile
+            {
+                avatarName = avatarDescriptor != null ? avatarDescriptor.gameObject.name : "Avatar",
+                spellAnimations = new List<SpellAnimationBinding>(),
+                technickAnimations = new List<ActionAnimationBinding>(),
+                itemAnimations = new List<ActionAnimationBinding>(),
+                favorites = new List<MenuFavorite>()
+            };
+            if (string.IsNullOrWhiteSpace(animationProfileAssetPath))
+                return;
+            try
+            {
+                var fullPath = Path.GetFullPath(animationProfileAssetPath);
+                if (File.Exists(fullPath))
+                {
+                    var loaded = JsonUtility.FromJson<AvatarAnimationProfile>(File.ReadAllText(fullPath));
+                    if (loaded != null)
+                        animationProfile = loaded;
+                }
+                if (animationProfile.spellAnimations == null)
+                    animationProfile.spellAnimations = new List<SpellAnimationBinding>();
+                if (animationProfile.technickAnimations == null)
+                    animationProfile.technickAnimations = new List<ActionAnimationBinding>();
+                if (animationProfile.itemAnimations == null)
+                    animationProfile.itemAnimations = new List<ActionAnimationBinding>();
+                if (animationProfile.favorites == null)
+                    animationProfile.favorites = new List<MenuFavorite>();
+            }
+            catch (Exception exception)
+            {
+                Log("Could not load animation profile: " + exception.Message);
+            }
+        }
+
+        private void SaveAnimationProfile()
+        {
+            animationProfileAssetPath = CurrentAnimationProfilePath();
+            if (string.IsNullOrWhiteSpace(animationProfileAssetPath))
+                return;
+            try
+            {
+                animationProfile.avatarName = avatarDescriptor != null ? avatarDescriptor.gameObject.name : animationProfile.avatarName;
+                File.WriteAllText(Path.GetFullPath(animationProfileAssetPath), JsonUtility.ToJson(animationProfile, true));
+                AssetDatabase.Refresh();
+                Log("Saved animation profile: " + animationProfileAssetPath);
+            }
+            catch (Exception exception)
+            {
+                Log("Could not save animation profile: " + exception.Message);
+            }
+        }
+
+        private static AnimationClip LoadClipFromPath(string path)
+        {
+            return string.IsNullOrWhiteSpace(path) ? null : AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
+        }
+
+        private static string ClipPath(AnimationClip clip)
+        {
+            return clip == null ? string.Empty : AssetDatabase.GetAssetPath(clip);
+        }
+
+        private void DrawSpellAnimationBuilder()
+        {
+            BeginCard("Spell Animation Layer Builder");
+            EditorGUILayout.LabelField("Builds one managed FX layer with one state per selected spell. Each state can use its own AnimationClip. This is more efficient and easier to maintain than creating a separate FX layer for every spell.", wrappedLabel);
+            animationSpellSearch = EditorGUILayout.TextField("Search Spell", animationSpellSearch);
+            var available = SpellDefinitions
+                .GroupBy(spell => spell.Id)
+                .Select(group => group.First())
+                .Where(spell => string.IsNullOrWhiteSpace(animationSpellSearch) || spell.Name.IndexOf(animationSpellSearch, StringComparison.OrdinalIgnoreCase) >= 0 || spell.Id.ToString().Contains(animationSpellSearch.Trim()))
+                .OrderBy(spell => spell.Id)
+                .ToArray();
+            if (available.Length > 0)
+            {
+                animationSpellSelectionIndex = Mathf.Clamp(animationSpellSelectionIndex, 0, available.Length - 1);
+                animationSpellSelectionIndex = EditorGUILayout.Popup("Spell", animationSpellSelectionIndex, available.Select(spell => spell.Id + " — " + spell.Name).ToArray());
+                animationSpellClip = (AnimationClip)EditorGUILayout.ObjectField("Animation Clip", animationSpellClip, typeof(AnimationClip), false);
+                if (GUILayout.Button("ADD / UPDATE SELECTED SPELL", GUILayout.Height(largeControls ? 42f : 30f)))
+                {
+                    var selected = available[animationSpellSelectionIndex];
+                    var binding = animationProfile.spellAnimations.FirstOrDefault(entry => entry.id == selected.Id);
+                    if (binding == null)
+                    {
+                        binding = new SpellAnimationBinding { id = selected.Id, name = selected.Name, enabled = true };
+                        animationProfile.spellAnimations.Add(binding);
+                    }
+                    binding.name = selected.Name;
+                    binding.clipPath = ClipPath(animationSpellClip);
+                    binding.enabled = true;
+                    SaveAnimationProfile();
+                }
+            }
+            else
+            {
+                EditorGUILayout.HelpBox("No spell matches the search.", MessageType.Info);
+            }
+
+            EditorGUILayout.Space(5f);
+            EditorGUILayout.LabelField("Selected Spell States", cardTitleStyle);
+            foreach (var binding in animationProfile.spellAnimations.OrderBy(entry => entry.id).ToList())
+            {
+                EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
+                EditorGUI.BeginChangeCheck();
+                binding.enabled = EditorGUILayout.Toggle(binding.enabled, GUILayout.Width(20f));
+                if (EditorGUI.EndChangeCheck())
+                    SaveAnimationProfile();
+                EditorGUILayout.LabelField(binding.id + " — " + binding.name, GUILayout.Width(AccessibilityScale > 1f ? 260f : 210f));
+                var clip = LoadClipFromPath(binding.clipPath);
+                var nextClip = (AnimationClip)EditorGUILayout.ObjectField(clip, typeof(AnimationClip), false);
+                if (nextClip != clip)
+                {
+                    binding.clipPath = ClipPath(nextClip);
+                    SaveAnimationProfile();
+                }
+                if (GUILayout.Button("Remove", GUILayout.Width(70f)))
+                {
+                    animationProfile.spellAnimations.Remove(binding);
+                    SaveAnimationProfile();
+                    EditorGUILayout.EndHorizontal();
+                    break;
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            using (new EditorGUI.DisabledScope(fxController == null || animationProfile.spellAnimations.Count(entry => entry.enabled) == 0))
+            {
+                if (GUILayout.Button("BUILD / REPAIR SPELL CAST ANIMATION LAYER", GUILayout.Height(largeControls ? 50f : 38f)))
+                    RebuildSpellCastAnimationLayer();
+            }
+            EditorGUILayout.HelpBox("Missing clips receive safe empty placeholders. Open the generated layer and replace or edit each state's Motion whenever the avatar-specific animation is ready.", MessageType.Info);
+            EndCard();
+        }
+
+        private void DrawHealthAnimationBuilder()
+        {
+            BeginCard("Health Animation States");
+            EditorGUILayout.LabelField("The managed OSC Vital State layer uses synchronized SoY_HPPercent and SoY_KO values. It creates Full, Half, Critical, and KO states without editing an existing third-party health layer.", wrappedLabel);
+            var full = LoadClipFromPath(animationProfile.healthFullClipPath);
+            var half = LoadClipFromPath(animationProfile.healthHalfClipPath);
+            var critical = LoadClipFromPath(animationProfile.healthCriticalClipPath);
+            var ko = LoadClipFromPath(animationProfile.healthKoClipPath);
+            var nextFull = (AnimationClip)EditorGUILayout.ObjectField("Full Health Clip", full, typeof(AnimationClip), false);
+            var nextHalf = (AnimationClip)EditorGUILayout.ObjectField("Half Health Clip", half, typeof(AnimationClip), false);
+            var nextCritical = (AnimationClip)EditorGUILayout.ObjectField("Critical HP Clip", critical, typeof(AnimationClip), false);
+            var nextKo = (AnimationClip)EditorGUILayout.ObjectField("KO Clip", ko, typeof(AnimationClip), false);
+            if (nextFull != full || nextHalf != half || nextCritical != critical || nextKo != ko)
+            {
+                animationProfile.healthFullClipPath = ClipPath(nextFull);
+                animationProfile.healthHalfClipPath = ClipPath(nextHalf);
+                animationProfile.healthCriticalClipPath = ClipPath(nextCritical);
+                animationProfile.healthKoClipPath = ClipPath(nextKo);
+                SaveAnimationProfile();
+            }
+            using (new EditorGUI.DisabledScope(fxController == null))
+            {
+                if (GUILayout.Button("BUILD / REPAIR FULL • HALF • CRITICAL • KO LAYER", GUILayout.Height(largeControls ? 50f : 38f)))
+                    RebuildHealthAnimationLayer();
+            }
+            EditorGUILayout.LabelField("Thresholds: Full above 50% • Half from 15% to 50% • Critical below 15% • KO when SoY_KO is true", wrappedLabel);
+            EndCard();
+        }
+
+        private AnimationClip GetOrCreatePlaceholderClip(string folder, string fileName)
+        {
+            EnsureAssetFolder(folder);
+            var path = folder + "/" + MakeSafeAssetName(fileName) + ".anim";
+            var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
+            if (clip != null)
+                return clip;
+            clip = new AnimationClip { frameRate = 60f, name = fileName };
+            AssetDatabase.CreateAsset(clip, path);
+            return clip;
+        }
+
+        private void RebuildSpellCastAnimationLayer()
+        {
+            if (fxController == null || !EnsureSafeFxCopy(true))
+                return;
+            var bindings = animationProfile.spellAnimations.Where(entry => entry.enabled).OrderBy(entry => entry.id).ToList();
+            if (bindings.Count == 0)
+                return;
+
+            RemoveLayerByName(fxController, SpellCastLayer);
+            var layer = CreateHookLayer(fxController, SpellCastLayer);
+            var idle = AddHookState(layer.stateMachine, "Idle", new Vector3(120f, 140f));
+            var waitForRelease = AddHookState(layer.stateMachine, "Wait For Menu Release", new Vector3(410f, 140f));
+            layer.stateMachine.defaultState = idle;
+            var release = waitForRelease.AddTransition(idle);
+            release.hasExitTime = false;
+            release.duration = 0f;
+            release.AddCondition(AnimatorConditionMode.Equals, 0f, "SoY_SpellType");
+
+            var avatarName = MakeSafeAssetName(avatarDescriptor != null ? avatarDescriptor.gameObject.name : "Avatar");
+            var folder = AvatarGeneratedFolder(avatarName, "Animations/Spell Casts");
+            for (var index = 0; index < bindings.Count; index++)
+            {
+                var binding = bindings[index];
+                var state = AddHookState(layer.stateMachine, binding.id + " — " + binding.name,
+                    new Vector3(720f + (index % 3) * 280f, 40f + (index / 3) * 110f));
+                state.motion = LoadClipFromPath(binding.clipPath) ?? GetOrCreatePlaceholderClip(folder, binding.id + "_" + binding.name);
+
+                var enter = layer.stateMachine.AddAnyStateTransition(state);
+                enter.hasExitTime = false;
+                enter.duration = 0f;
+                enter.canTransitionToSelf = false;
+                enter.AddCondition(AnimatorConditionMode.Equals, binding.id, "SoY_SpellType");
+
+                var finish = state.AddTransition(waitForRelease);
+                finish.hasExitTime = true;
+                finish.exitTime = 1f;
+                finish.duration = 0f;
+            }
+            fxController.AddLayer(layer);
+            EditorUtility.SetDirty(fxController);
+            AssetDatabase.SaveAssets();
+            Log("Built spell cast animation layer with " + bindings.Count + " selected spell state(s).");
+        }
+
+        private void RebuildHealthAnimationLayer()
+        {
+            if (fxController == null || !EnsureSafeFxCopy(true))
+                return;
+            RemoveLayerByName(fxController, VitalLayer);
+            AddVitalLayer(fxController);
+            var layer = fxController.layers.FirstOrDefault(entry => entry.name == VitalLayer);
+            if (layer == null || layer.stateMachine == null)
+                return;
+            var avatarName = MakeSafeAssetName(avatarDescriptor != null ? avatarDescriptor.gameObject.name : "Avatar");
+            var folder = AvatarGeneratedFolder(avatarName, "Animations/Health");
+            foreach (var child in layer.stateMachine.states)
+            {
+                var state = child.state;
+                if (state == null)
+                    continue;
+                if (state.name == "Full Health")
+                    state.motion = LoadClipFromPath(animationProfile.healthFullClipPath) ?? GetOrCreatePlaceholderClip(folder, "Full Health");
+                else if (state.name == "Half Health")
+                    state.motion = LoadClipFromPath(animationProfile.healthHalfClipPath) ?? GetOrCreatePlaceholderClip(folder, "Half Health");
+                else if (state.name == "Critical HP")
+                    state.motion = LoadClipFromPath(animationProfile.healthCriticalClipPath) ?? GetOrCreatePlaceholderClip(folder, "Critical HP");
+                else if (state.name == "KO")
+                    state.motion = LoadClipFromPath(animationProfile.healthKoClipPath) ?? GetOrCreatePlaceholderClip(folder, "KO");
+                EditorUtility.SetDirty(state);
+            }
+            EditorUtility.SetDirty(fxController);
+            AssetDatabase.SaveAssets();
+            Log("Rebuilt Full, Half, Critical, and KO health animation states.");
+        }
+
+        private void DrawGlobalSearchBar()
+        {
+            BeginCard("Global Search");
+            globalSearch = EditorGUILayout.TextField("Find anything", globalSearch);
+            if (string.IsNullOrWhiteSpace(globalSearch))
+            {
+                EditorGUILayout.LabelField("Search spells, Technicks, items, parameters, layers, and generated assets by name or ID.", wrappedLabel);
+                EndCard();
+                return;
+            }
+
+            var query = globalSearch.Trim();
+            var shown = 0;
+            foreach (var spell in SpellDefinitions.Where(x => x.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 || x.Id.ToString() == query).GroupBy(x => x.Id).Select(x => x.First()).Take(4))
+            {
+                if (GUILayout.Button("Spell " + spell.Id + " — " + spell.Name))
+                {
+                    tab = StudioTab.AnimatorSetup;
+                    animationSpellSearch = spell.Id.ToString();
+                }
+                shown++;
+            }
+            foreach (var action in TechnickDefinitions.Where(x => x.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 || x.Id.ToString() == query).Take(Math.Max(0, 4 - shown)))
+            {
+                if (GUILayout.Button("Technick " + action.Id + " — " + action.Name))
+                {
+                    tab = StudioTab.AnimatorSetup;
+                    animationTechnickSearch = action.Id.ToString();
+                }
+                shown++;
+            }
+            foreach (var action in ItemDefinitions.Where(x => x.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 || x.Id.ToString() == query).Take(Math.Max(0, 4 - shown)))
+            {
+                if (GUILayout.Button("Item " + action.Id + " — " + action.Name))
+                {
+                    tab = StudioTab.AnimatorSetup;
+                    animationItemSearch = action.Id.ToString();
+                }
+                shown++;
+            }
+            foreach (var spec in BridgeParameters.Where(x => x.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0).Take(Math.Max(0, 6 - shown)))
+            {
+                if (GUILayout.Button("Parameter — " + spec.Name))
+                {
+                    toolsPage = ToolsPage.Status; tab = StudioTab.Tools;
+                    parameterSearch = spec.Name;
+                }
+                shown++;
+            }
+            if (shown == 0)
+                EditorGUILayout.HelpBox("No registered Stories OSC entry matches that search.", MessageType.Info);
+            EndCard();
+        }
+
+        private void DrawGuidedSetupWizard()
+        {
+            BeginCard("Guided Setup Wizard");
+            EditorGUILayout.LabelField("Step " + ((int)wizardStep + 1) + " of 8 — " + wizardStep, cardTitleStyle);
+            var progress = ((int)wizardStep + 1) / 8f;
+            var rect = EditorGUILayout.GetControlRect(false, largeControls ? 28f : 20f);
+            EditorGUI.ProgressBar(rect, progress, Mathf.RoundToInt(progress * 100f) + "%");
+
+            switch (wizardStep)
+            {
+                case WizardStep.Avatar:
+                    EditorGUILayout.LabelField("Assign the Avatar Descriptor and load its FX, Expression Parameters, menu, and root.", wrappedLabel);
+                    using (new EditorGUI.DisabledScope(avatarDescriptor == null))
+                        if (GUILayout.Button("LOAD AVATAR CONTEXT")) LoadFromAvatarDescriptor();
+                    break;
+                case WizardStep.Audit:
+                    EditorGUILayout.LabelField("Run preflight, duplicate-script detection, health-system safety checks, parameter budget checks, and SDK capability checks.", wrappedLabel);
+                    DrawPreflightCard();
+                    break;
+                case WizardStep.SafeFx:
+                    EditorGUILayout.LabelField("Create and assign a safe FX copy. The original controller remains untouched.", wrappedLabel);
+                    using (new EditorGUI.DisabledScope(avatarDescriptor == null || fxController == null))
+                        if (GUILayout.Button("CREATE / CONFIRM SAFE FX COPY")) EnsureSafeFxCopy(true);
+                    break;
+                case WizardStep.Parameters:
+                    EditorGUILayout.LabelField("Install and repair the Stories OSC parameter contract and managed hook layers.", wrappedLabel);
+                    using (new EditorGUI.DisabledScope(fxController == null))
+                        if (GUILayout.Button("INSTALL / REPAIR OSC HOOKS")) InstallAllBridgeHooks();
+                    break;
+                case WizardStep.Menus:
+                    EditorGUILayout.LabelField("Choose a menu layout, configure Quick Access favorites, then generate the Stories RP menu tree.", wrappedLabel);
+                    if (GUILayout.Button("OPEN MENU BUILDER")) tab = StudioTab.MenuBuilder;
+                    break;
+                case WizardStep.Animations:
+                    EditorGUILayout.LabelField("Bind avatar-specific Spell, Technick, Item, and Health clips to managed FX layers.", wrappedLabel);
+                    if (GUILayout.Button("OPEN ANIMATION BINDINGS")) tab = StudioTab.AnimatorSetup;
+                    break;
+                case WizardStep.Contacts:
+                    EditorGUILayout.LabelField("Create outgoing and incoming Contacts. Use Raycast Studio for bullets/arrows/projectiles and for spells that should be placed on the floor beneath a remote player.", wrappedLabel);
+                    if (GUILayout.Button("OPEN CONTACT AUTHORING"))
+                    {
+                        contactsPage = ContactsPage.Outgoing;
+                        tab = StudioTab.Contacts;
+                    }
+                    break;
+                case WizardStep.Validate:
+                    EditorGUILayout.LabelField("Check services, parameter consistency, duplicate scripts, generated layers, menu limits, raycast support, and runtime health-state routing.", wrappedLabel);
+                    if (GUILayout.Button("OPEN DIAGNOSTICS"))
+                    {
+                        toolsPage = ToolsPage.Status;
+                        tab = StudioTab.Tools;
+                    }
+                    break;
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            using (new EditorGUI.DisabledScope(wizardStep == WizardStep.Avatar))
+                if (GUILayout.Button("◀ Back")) wizardStep = (WizardStep)Mathf.Max(0, (int)wizardStep - 1);
+            using (new EditorGUI.DisabledScope(wizardStep == WizardStep.Validate))
+                if (GUILayout.Button("Continue ▶")) wizardStep = (WizardStep)Mathf.Min((int)WizardStep.Validate, (int)wizardStep + 1);
+            EditorGUILayout.EndHorizontal();
+            EndCard();
+        }
+
+        private void DrawAnimationBindingAudit()
+        {
+            BeginCard("Animation Binding Audit");
+            DrawTagRow("Spell Selector", ParameterStatus("SoY_SpellType", AnimatorControllerParameterType.Int, true), "Remote-visible spell animation routing");
+            DrawTagRow("Technick Selector", ParameterStatus("SoY_TechnickType", AnimatorControllerParameterType.Int, true), "Remote-visible Technick animation routing");
+            DrawTagRow("Item Selector", ParameterStatus("SoY_ItemType", AnimatorControllerParameterType.Int, true), "Remote-visible Item animation routing");
+            DrawTagRow("Health Percent", ParameterStatus("SoY_HPPercent", AnimatorControllerParameterType.Float, true), "Full / Half / Critical routing");
+            DrawTagRow("KO", ParameterStatus("SoY_KO", AnimatorControllerParameterType.Bool, true), "KO routing");
+            EditorGUILayout.LabelField("The assistant creates only Stories-owned layers and reports local-only selectors, missing expression entries, type mismatches, and duplicate managed layers.", wrappedLabel);
+            EndCard();
+        }
+
+        private string ParameterStatus(string name, AnimatorControllerParameterType type, bool shouldSync)
+        {
+            var animator = fxController != null ? fxController.parameters.FirstOrDefault(x => x.name == name) : null;
+            var expression = expressionParameters != null && expressionParameters.parameters != null
+                ? expressionParameters.parameters.FirstOrDefault(x => x != null && x.name == name)
+                : null;
+            if (animator == null) return "✕ Missing Animator";
+            if (animator.type != type) return "✕ Type " + animator.type;
+            if (expression == null) return "! Missing Expression";
+            if (shouldSync && !expression.networkSynced) return "! Local Only";
+            return "✓ Ready";
+        }
+
+        private void DrawTechnickAnimationBuilder()
+        {
+            DrawActionAnimationBuilder(ActionAnimationKind.Technick, ref animationTechnickSearch, ref animationTechnickSelectionIndex,
+                ref animationTechnickClip, animationProfile.technickAnimations, TechnickDefinitions, "SoY_TechnickType", TechnickCastLayer);
+        }
+
+        private void DrawItemAnimationBuilder()
+        {
+            DrawActionAnimationBuilder(ActionAnimationKind.Item, ref animationItemSearch, ref animationItemSelectionIndex,
+                ref animationItemClip, animationProfile.itemAnimations, ItemDefinitions, "SoY_ItemType", ItemUseLayer);
+        }
+
+        private void DrawActionAnimationBuilder(
+            ActionAnimationKind kind,
+            ref string search,
+            ref int selectionIndex,
+            ref AnimationClip selectedClip,
+            List<ActionAnimationBinding> bindings,
+            ActionDefinition[] definitions,
+            string parameterName,
+            string layerName)
+        {
+            BeginCard(kind + " Animation Layer Builder");
+            EditorGUILayout.LabelField("Builds one managed layer with one state per selected " + kind + ". Menu release returns the layer to Idle without repeating the animation.", wrappedLabel);
+            search = EditorGUILayout.TextField("Search", search);
+            // C# does not allow ref parameters to be captured by lambdas.
+            // Copy the current value into an ordinary local before filtering.
+            var searchText = search ?? string.Empty;
+            var trimmedSearch = searchText.Trim();
+            var available = definitions.Where(x =>
+                string.IsNullOrWhiteSpace(searchText) ||
+                x.Name.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                x.Id.ToString().Contains(trimmedSearch)).ToArray();
+            if (available.Length > 0)
+            {
+                selectionIndex = Mathf.Clamp(selectionIndex, 0, available.Length - 1);
+                selectionIndex = EditorGUILayout.Popup(kind.ToString(), selectionIndex, available.Select(x => x.Id + " — " + x.Name).ToArray());
+                selectedClip = (AnimationClip)EditorGUILayout.ObjectField("Animation Clip", selectedClip, typeof(AnimationClip), false);
+                if (GUILayout.Button("ADD / UPDATE SELECTED " + kind.ToString().ToUpperInvariant()))
+                {
+                    var selected = available[selectionIndex];
+                    var binding = bindings.FirstOrDefault(x => x.id == selected.Id);
+                    if (binding == null)
+                    {
+                        binding = new ActionAnimationBinding { id = selected.Id, name = selected.Name, enabled = true };
+                        bindings.Add(binding);
+                    }
+                    binding.name = selected.Name;
+                    binding.clipPath = ClipPath(selectedClip);
+                    binding.enabled = true;
+                    SaveAnimationProfile();
+                }
+            }
+            foreach (var binding in bindings.OrderBy(x => x.id).ToList())
+            {
+                EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
+                EditorGUI.BeginChangeCheck();
+                binding.enabled = EditorGUILayout.Toggle(binding.enabled, GUILayout.Width(20f));
+                if (EditorGUI.EndChangeCheck()) SaveAnimationProfile();
+                EditorGUILayout.LabelField(binding.id + " — " + binding.name, GUILayout.Width(AccessibilityScale > 1f ? 260f : 210f));
+                var clip = LoadClipFromPath(binding.clipPath);
+                var nextClip = (AnimationClip)EditorGUILayout.ObjectField(clip, typeof(AnimationClip), false);
+                if (nextClip != clip) { binding.clipPath = ClipPath(nextClip); SaveAnimationProfile(); }
+                if (GUILayout.Button("Open", GUILayout.Width(55f)) && clip != null) { Selection.activeObject = clip; EditorGUIUtility.PingObject(clip); }
+                if (GUILayout.Button("Remove", GUILayout.Width(70f))) { bindings.Remove(binding); SaveAnimationProfile(); EditorGUILayout.EndHorizontal(); break; }
+                EditorGUILayout.EndHorizontal();
+            }
+            using (new EditorGUI.DisabledScope(fxController == null || bindings.Count(x => x.enabled) == 0))
+                if (GUILayout.Button("BUILD / REPAIR " + kind.ToString().ToUpperInvariant() + " ANIMATION LAYER", GUILayout.Height(largeControls ? 50f : 38f)))
+                    RebuildActionAnimationLayer(kind, parameterName, layerName, bindings);
+            EndCard();
+        }
+
+        private void RebuildActionAnimationLayer(ActionAnimationKind kind, string parameterName, string layerName, List<ActionAnimationBinding> sourceBindings)
+        {
+            if (fxController == null || !EnsureSafeFxCopy(true)) return;
+            var bindings = sourceBindings.Where(x => x.enabled).OrderBy(x => x.id).ToList();
+            if (bindings.Count == 0) return;
+            RemoveLayerByName(fxController, layerName);
+            var layer = CreateHookLayer(fxController, layerName);
+            var idle = AddHookState(layer.stateMachine, "Idle", new Vector3(120f, 140f));
+            var wait = AddHookState(layer.stateMachine, "Wait For Menu Release", new Vector3(410f, 140f));
+            layer.stateMachine.defaultState = idle;
+            var release = wait.AddTransition(idle);
+            release.hasExitTime = false; release.duration = 0f;
+            release.AddCondition(AnimatorConditionMode.Equals, 0f, parameterName);
+            var avatarName = MakeSafeAssetName(avatarDescriptor != null ? avatarDescriptor.gameObject.name : "Avatar");
+            var folder = AvatarGeneratedFolder(avatarName, "Animations/" + kind + "s");
+            for (var index = 0; index < bindings.Count; index++)
+            {
+                var binding = bindings[index];
+                var state = AddHookState(layer.stateMachine, binding.id + " — " + binding.name, new Vector3(720f + (index % 3) * 280f, 40f + (index / 3) * 110f));
+                state.motion = LoadClipFromPath(binding.clipPath) ?? GetOrCreatePlaceholderClip(folder, binding.id + "_" + binding.name);
+                var enter = layer.stateMachine.AddAnyStateTransition(state);
+                enter.hasExitTime = false; enter.duration = 0f; enter.canTransitionToSelf = false;
+                enter.AddCondition(AnimatorConditionMode.Equals, binding.id, parameterName);
+                var finish = state.AddTransition(wait);
+                finish.hasExitTime = true; finish.exitTime = 1f; finish.duration = 0f;
+            }
+            fxController.AddLayer(layer);
+            EditorUtility.SetDirty(fxController);
+            AssetDatabase.SaveAssets();
+            Log("Built " + kind + " animation layer with " + bindings.Count + " state(s).");
+        }
+
+        private void DrawMenuBuilder()
+        {
+            BeginCard("VRChat Menu Builder");
+            menuNavigationMode = (MenuNavigationMode)EditorGUILayout.EnumPopup("Navigation Layout", menuNavigationMode);
+            shortVrchatLabels = EditorGUILayout.ToggleLeft("Use short accessibility labels", shortVrchatLabels);
+            var installedSpells = GetInstalledSpellDefinitions();
+            var installedTechnicks = GetInstalledTechnickDefinitions();
+            var installedItems = GetInstalledItemDefinitions();
+            DrawTagRow("Installed Contacts", installedSpells.Length + " Spells • " + installedTechnicks.Length + " Technicks • " + installedItems.Length + " Items", "Only these managed Contact actions are added to generated menus");
+            EditorGUILayout.LabelField("Menus are install-aware: action buttons are generated only when matching Stories-managed Contacts exist on this avatar. Empty action categories are omitted instead of filling the menu with catalog entries the model cannot use.", wrappedLabel);
+            EditorGUILayout.LabelField("Layouts: Combined, School First, Purpose First, Favorites First, and Compact Combat. Generated pages reserve Previous/Next slots and never exceed eight controls.", wrappedLabel);
+            EndCard();
+
+            BeginCard("Quick Access Favorites");
+            menuBuilderSearch = EditorGUILayout.TextField("Search actions", menuBuilderSearch);
+            if (string.IsNullOrWhiteSpace(menuBuilderSearch))
+            {
+                EditorGUILayout.LabelField("Type a name or numeric ID from the actions currently installed as managed Contacts on this avatar.", wrappedLabel);
+            }
+            else
+            {
+                var spells = GetInstalledSpellDefinitions().Where(x => x.Name.IndexOf(menuBuilderSearch, StringComparison.OrdinalIgnoreCase) >= 0 || x.Id.ToString() == menuBuilderSearch.Trim()).Take(5).ToArray();
+                foreach (var spell in spells)
+                    if (GUILayout.Button("+ Spell " + spell.Id + " — " + spell.Name)) AddFavorite("spell", spell.Id, spell.Name);
+                foreach (var action in GetInstalledTechnickDefinitions().Where(x => x.Name.IndexOf(menuBuilderSearch, StringComparison.OrdinalIgnoreCase) >= 0 || x.Id.ToString() == menuBuilderSearch.Trim()).Take(5))
+                    if (GUILayout.Button("+ Technick " + action.Id + " — " + action.Name)) AddFavorite("technick", action.Id, action.Name);
+                foreach (var action in GetInstalledItemDefinitions().Where(x => x.Name.IndexOf(menuBuilderSearch, StringComparison.OrdinalIgnoreCase) >= 0 || x.Id.ToString() == menuBuilderSearch.Trim()).Take(5))
+                    if (GUILayout.Button("+ Item " + action.Id + " — " + action.Name)) AddFavorite("item", action.Id, action.Name);
+            }
+
+            EditorGUILayout.LabelField("Current Quick Access (maximum seven actions)", cardTitleStyle);
+            foreach (var favorite in animationProfile.favorites.Take(7).ToList())
+            {
+                EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
+                EditorGUILayout.LabelField(favorite.kind.ToUpperInvariant() + " " + favorite.id + " — " + favorite.name);
+                if (GUILayout.Button("▲", GUILayout.Width(28f))) MoveFavorite(favorite, -1);
+                if (GUILayout.Button("▼", GUILayout.Width(28f))) MoveFavorite(favorite, 1);
+                if (GUILayout.Button("Remove", GUILayout.Width(70f))) { animationProfile.favorites.Remove(favorite); SaveAnimationProfile(); EditorGUILayout.EndHorizontal(); break; }
+                EditorGUILayout.EndHorizontal();
+            }
+            if (animationProfile.favorites.Count > 7)
+                EditorGUILayout.HelpBox("Only the first seven favorites are generated. Move or remove entries to change the live menu.", MessageType.Warning);
+            using (new EditorGUI.DisabledScope(expressionsMenu == null))
+                if (GUILayout.Button("GENERATE / REPAIR STORIES RP MENUS", GUILayout.Height(largeControls ? 50f : 38f)))
+                {
+                    AddCombatToggle(expressionsMenu);
+                    SaveEditorPreferences();
+                }
+            DrawMenuPreview();
+            EndCard();
+        }
+
+        private void AddFavorite(string kind, int id, string name)
+        {
+            if (animationProfile.favorites.Any(x => x.kind == kind && x.id == id)) return;
+            animationProfile.favorites.Add(new MenuFavorite { kind = kind, id = id, name = name });
+            SaveAnimationProfile();
+        }
+
+        private void MoveFavorite(MenuFavorite favorite, int delta)
+        {
+            var index = animationProfile.favorites.IndexOf(favorite);
+            var next = Mathf.Clamp(index + delta, 0, animationProfile.favorites.Count - 1);
+            if (index == next) return;
+            animationProfile.favorites.RemoveAt(index);
+            animationProfile.favorites.Insert(next, favorite);
+            SaveAnimationProfile();
+        }
+
+        private void DrawMenuPreview()
+        {
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.LabelField("Installed Menu Preview", cardTitleStyle);
+            var labels = new List<string>();
+            if (HasExpressionParameter("SoY_CombatEnabled") || HasExpressionParameter("SoY_IsEnemy")) labels.Add("Combat");
+            if (GetInstalledSpellDefinitions().Length > 0) labels.Add("Spells");
+            if (GetInstalledTechnickDefinitions().Length > 0 || GetInstalledItemDefinitions().Length > 0) labels.Add("Actions");
+            if (HasInstalledManagedRaycast()) labels.Add("Targeting");
+            if (HasExpressionParameter("SoY_MistPercent") || HasExpressionParameter("SoY_DiablosPercent")) labels.Add("Status");
+            var installedFavorites = animationProfile.favorites.Count(favorite =>
+                (favorite.kind == "spell" && GetInstalledSpellDefinitions().Any(entry => entry.Id == favorite.id)) ||
+                (favorite.kind == "technick" && GetInstalledTechnickDefinitions().Any(entry => entry.Id == favorite.id)) ||
+                (favorite.kind == "item" && GetInstalledItemDefinitions().Any(entry => entry.Id == favorite.id)));
+            if (installedFavorites > 0) labels.Add("Quick Access");
+            for (var i = 0; i < 8; i += 2)
+            {
+                EditorGUILayout.BeginHorizontal();
+                for (var j = 0; j < 2; j++)
+                {
+                    var index = i + j;
+                    EditorGUILayout.HelpBox(index < labels.Count ? labels[index] : "— Empty —", MessageType.None);
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+        }
+
+        private void BuildQuickAccessMenu(VRCExpressionsMenu quickMenu)
+        {
+            Undo.RecordObject(quickMenu, "Build Stories Quick Access");
+            quickMenu.controls = new List<VRCExpressionsMenu.Control>();
+            var installedSpellIds = new HashSet<int>(GetInstalledSpellDefinitions().Select(entry => entry.Id));
+            var installedTechnickIds = new HashSet<int>(GetInstalledTechnickDefinitions().Select(entry => entry.Id));
+            var installedItemIds = new HashSet<int>(GetInstalledItemDefinitions().Select(entry => entry.Id));
+            foreach (var favorite in animationProfile.favorites.Where(favorite =>
+                (favorite.kind == "spell" && installedSpellIds.Contains(favorite.id)) ||
+                (favorite.kind == "technick" && installedTechnickIds.Contains(favorite.id)) ||
+                (favorite.kind == "item" && installedItemIds.Contains(favorite.id))).Take(7))
+            {
+                var parameter = favorite.kind == "spell" ? "SoY_SpellType" : favorite.kind == "technick" ? "SoY_TechnickType" : "SoY_ItemType";
+                quickMenu.controls.Add(new VRCExpressionsMenu.Control
+                {
+                    name = BuildActionMenuLabel(favorite.name),
+                    type = VRCExpressionsMenu.Control.ControlType.Button,
+                    parameter = new VRCExpressionsMenu.Control.Parameter { name = parameter },
+                    value = favorite.id
+                });
+            }
+            EditorUtility.SetDirty(quickMenu);
+        }
+
+        private void DrawDiagnosticsWorkspace()
+        {
+            DrawParameterSyncInspector();
+            DrawManagedHealthAudit();
+            DrawRuntimeTestPanel();
+            DrawDuplicateScriptAudit();
+            DrawUpdaterCard();
+            DrawDiagnostics();
+        }
+
+        private void DrawParameterSyncInspector()
+        {
+            BeginCard("Parameter Sync Inspector");
+            parameterSearch = EditorGUILayout.TextField("Filter Parameters", parameterSearch);
+            var used = expressionParameters == null ? 0 : SyncedExpressionCost(expressionParameters.parameters ?? Array.Empty<VRCExpressionParameters.Parameter>());
+            var rect = EditorGUILayout.GetControlRect(false, 20f);
+            EditorGUI.ProgressBar(rect, used / 256f, used + " / 256 synchronized bits");
+            foreach (var spec in BridgeParameters.Where(x => string.IsNullOrWhiteSpace(parameterSearch) || x.Name.IndexOf(parameterSearch, StringComparison.OrdinalIgnoreCase) >= 0))
+            {
+                var animator = fxController != null ? fxController.parameters.FirstOrDefault(x => x.name == spec.Name) : null;
+                var expression = expressionParameters != null && expressionParameters.parameters != null ? expressionParameters.parameters.FirstOrDefault(x => x != null && x.name == spec.Name) : null;
+                var role = ClassifyParameter(spec.Name);
+                var state = animator == null ? "✕ Animator" : animator.type != spec.AnimatorType ? "✕ Type" : expression == null ? "! Expression" : expression.networkSynced != spec.NetworkSynced ? "! Sync Flag" : "✓";
+                EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
+                EditorGUILayout.LabelField(state, GUILayout.Width(80f));
+                EditorGUILayout.LabelField(spec.Name, GUILayout.Width(220f));
+                EditorGUILayout.LabelField(spec.AnimatorType.ToString(), GUILayout.Width(70f));
+                EditorGUILayout.LabelField(role, GUILayout.Width(150f));
+                EditorGUILayout.LabelField(spec.NetworkSynced ? ExpressionParameterCost(spec.ExpressionType) + " bits" : "Local", GUILayout.Width(60f));
+                EditorGUILayout.EndHorizontal();
+            }
+            EditorGUILayout.BeginHorizontal();
+            using (new EditorGUI.DisabledScope(fxController == null))
+                if (GUILayout.Button("REPAIR ANIMATOR PARAMETERS")) { AddMissingAnimatorParameters(fxController); AssetDatabase.SaveAssets(); }
+            using (new EditorGUI.DisabledScope(expressionParameters == null))
+                if (GUILayout.Button("REPAIR EXPRESSION FLAGS")) { Undo.RecordObject(expressionParameters, "Repair Stories OSC Parameters"); AddMissingExpressionParameters(expressionParameters); EditorUtility.SetDirty(expressionParameters); AssetDatabase.SaveAssets(); }
+            EditorGUILayout.EndHorizontal();
+            EndCard();
+        }
+
+        private string ClassifyParameter(string name)
+        {
+            if (name == "SoY_CombatEnabled" || name == "SoY_IsEnemy") return "Saved Toggle";
+            if (name.EndsWith("Type", StringComparison.Ordinal) || name == "SoY_HPPercent" || name == "SoY_CriticalHP" || name == "SoY_KO") return "Networked Animation";
+            if (name.Contains("Bit") || name.EndsWith("Active", StringComparison.Ordinal)) return "Incoming Contact Bus";
+            if (name.StartsWith("SoY_Hit") || name.StartsWith("SoY_Debuff")) return "Local OSC Input";
+            return "Runtime Output";
+        }
+
+        private void DrawManagedHealthAudit()
+        {
+            BeginCard("Managed Health Layer Audit");
+            var layer = fxController != null ? fxController.layers.FirstOrDefault(x => x.name == VitalLayer) : null;
+            if (layer == null)
+            {
+                EditorGUILayout.HelpBox("The Stories-managed Vital layer is missing.", MessageType.Warning);
+            }
+            else
+            {
+                var conditions = layer.stateMachine.anyStateTransitions.SelectMany(x => x.conditions).Where(x => x.parameter == "SoY_HPPercent").ToArray();
+                var has15 = conditions.Any(x => Mathf.Abs(x.threshold - 0.15f) < 0.0001f);
+                var has50 = conditions.Any(x => Mathf.Abs(x.threshold - 0.50f) < 0.002f);
+                DrawTagRow("Critical Boundary", has15 ? "✓ 15%" : "✕ Not 15%", "Living HP strictly below 15%");
+                DrawTagRow("Half Boundary", has50 ? "✓ 50%" : "✕ Not 50%", "Half state from 15% through 50%");
+                DrawTagRow("States", string.Join(", ", layer.stateMachine.states.Select(x => x.state.name).ToArray()), "Expected: Full Health, Half Health, Critical HP, KO");
+            }
+            using (new EditorGUI.DisabledScope(fxController == null))
+                if (GUILayout.Button("REBUILD STORIES HEALTH LAYER")) RebuildHealthAnimationLayer();
+            EndCard();
+        }
+
+        private void DrawRuntimeTestPanel()
+        {
+            BeginCard("Runtime Health & Action Test Panel");
+            EditorGUILayout.LabelField("Enter Play Mode to write temporary parameters to the avatar Animator. Nothing is saved to the controller by these test buttons.", wrappedLabel);
+            runtimeTestHpPercent = EditorGUILayout.Slider("HP Percent", runtimeTestHpPercent, 0f, 1f);
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("100%")) runtimeTestHpPercent = 1f;
+            if (GUILayout.Button("50%")) runtimeTestHpPercent = 0.5f;
+            if (GUILayout.Button("15%")) runtimeTestHpPercent = 0.15f;
+            if (GUILayout.Button("14.9%")) runtimeTestHpPercent = 0.149f;
+            if (GUILayout.Button("0%")) runtimeTestHpPercent = 0f;
+            EditorGUILayout.EndHorizontal();
+            if (GUILayout.Button("APPLY HEALTH TEST")) ApplyRuntimeHealthTest();
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Weak Hit")) SetRuntimeParameter("SoY_DamageReaction", 1);
+            if (GUILayout.Button("Healing")) SetRuntimeParameter("SoY_Healing", true);
+            if (GUILayout.Button("Reset")) ResetRuntimeTestParameters();
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.LabelField(runtimeTestSummary, wrappedLabel);
+            EndCard();
+        }
+
+        private Animator RuntimeAnimator()
+        {
+            return avatarRoot != null ? avatarRoot.GetComponent<Animator>() : null;
+        }
+
+        private void ApplyRuntimeHealthTest()
+        {
+            var animator = RuntimeAnimator();
+            var expected = runtimeTestHpPercent <= 0f ? "KO" : runtimeTestHpPercent < 0.15f ? "Critical HP" : runtimeTestHpPercent <= 0.5f ? "Half Health" : "Full Health";
+            runtimeTestSummary = "Expected state: " + expected + " at " + (runtimeTestHpPercent * 100f).ToString("0.0") + "% HP.";
+            if (!EditorApplication.isPlaying || animator == null)
+            {
+                runtimeTestSummary += " Enter Play Mode with an Animator on the avatar root to write the parameters.";
+                return;
+            }
+            animator.SetFloat("SoY_HPPercent", runtimeTestHpPercent);
+            animator.SetBool("SoY_KO", runtimeTestHpPercent <= 0f);
+            animator.SetBool("SoY_CriticalHP", runtimeTestHpPercent > 0f && runtimeTestHpPercent < 0.15f);
+        }
+
+        private void SetRuntimeParameter(string name, bool value)
+        {
+            var animator = RuntimeAnimator();
+            if (EditorApplication.isPlaying && animator != null) animator.SetBool(name, value);
+        }
+
+        private void SetRuntimeParameter(string name, int value)
+        {
+            var animator = RuntimeAnimator();
+            if (EditorApplication.isPlaying && animator != null) animator.SetInteger(name, value);
+        }
+
+        private void ResetRuntimeTestParameters()
+        {
+            var animator = RuntimeAnimator();
+            if (EditorApplication.isPlaying && animator != null)
+            {
+                animator.SetFloat("SoY_HPPercent", 1f);
+                animator.SetBool("SoY_KO", false);
+                animator.SetBool("SoY_CriticalHP", false);
+                animator.SetBool("SoY_Healing", false);
+                animator.SetInteger("SoY_DamageReaction", 0);
+                animator.SetInteger("SoY_SpellType", 0);
+                animator.SetInteger("SoY_TechnickType", 0);
+                animator.SetInteger("SoY_ItemType", 0);
+            }
+            runtimeTestSummary = "Runtime test parameters reset.";
+        }
+
+        private void DrawDuplicateScriptAudit()
+        {
+            BeginCard("Duplicate Unity Tool Audit");
+            var guids = AssetDatabase.FindAssets("StoriesOfYggdrasilOSCContactSystem t:MonoScript");
+            var paths = guids.Select(AssetDatabase.GUIDToAssetPath).Where(x => x.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)).Distinct().ToArray();
+            DrawTagRow("Active scripts", paths.Length == 1 ? "✓ One" : "✕ " + paths.Length, "Unity must compile only one copy of this EditorWindow class");
+            foreach (var path in paths) EditorGUILayout.SelectableLabel(path, EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight));
+            if (paths.Length > 1) EditorGUILayout.HelpBox("Move numbered copies such as (1).cs or (9).cs outside the project. Do not delete the canonical file or its .meta.", MessageType.Error);
+            EndCard();
+        }
+
+        private void DrawBackupCenter()
+        {
+            BeginCard("Backup & Rollback Center");
+            EditorGUILayout.LabelField("Major installer actions create manifests for FX and managed-system migrations. Repair snapshots include hierarchy, transforms, active state, constraint serialization, and planned component changes. Restores never modify third-party health layers.", wrappedLabel);
+            EditorGUILayout.LabelField(backupStatus, wrappedLabel);
+            EditorGUILayout.BeginHorizontal();
+            using (new EditorGUI.DisabledScope(avatarDescriptor == null || fxController == null))
+                if (GUILayout.Button("CREATE BACKUP MANIFEST")) CreateBackupManifest();
+            if (GUILayout.Button("OPEN BACKUP FOLDER"))
+            {
+                EnsureAssetFolder(CurrentAvatarGeneratedFolder("Backups/Unity Tool"));
+                var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(CurrentAvatarGeneratedFolder("Backups/Unity Tool"));
+                Selection.activeObject = asset; EditorGUIUtility.PingObject(asset);
+            }
+            EditorGUILayout.EndHorizontal();
+            if (GUILayout.Button("OPEN MIGRATION SNAPSHOT FOLDER"))
+            {
+                EnsureAssetFolder(CurrentAvatarGeneratedFolder("Backups/Migrations"));
+                var migrationAsset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(CurrentAvatarGeneratedFolder("Backups/Migrations"));
+                Selection.activeObject = migrationAsset;
+                EditorGUIUtility.PingObject(migrationAsset);
+            }
+            using (new EditorGUI.DisabledScope(fxController == null))
+            {
+                if (GUILayout.Button("REMOVE GENERATED SPELL / TECHNICK / ITEM LAYERS"))
+                {
+                    RemoveLayerByName(fxController, SpellCastLayer); RemoveLayerByName(fxController, TechnickCastLayer); RemoveLayerByName(fxController, ItemUseLayer);
+                    EditorUtility.SetDirty(fxController); AssetDatabase.SaveAssets(); backupStatus = "Removed generated action animation layers.";
+                }
+                if (GUILayout.Button("REMOVE GENERATED HEALTH LAYER"))
+                {
+                    RemoveLayerByName(fxController, VitalLayer); EditorUtility.SetDirty(fxController); AssetDatabase.SaveAssets(); backupStatus = "Removed the Stories-managed Vital layer.";
+                }
+            }
+            if (avatarDescriptor != null && GUILayout.Button("RESTORE ORIGINAL FX ASSIGNMENT FROM LATEST MANIFEST")) RestoreOriginalFxFromLatestManifest();
+            EndCard();
+        }
+
+        private void CreateBackupManifest()
+        {
+            EnsureAssetFolder(CurrentAvatarGeneratedFolder("Backups/Manifests"));
+            var manifest = new BackupManifest
+            {
+                version = Version,
+                build = BuildLabel,
+                avatar = avatarDescriptor != null ? avatarDescriptor.gameObject.name : "Unknown",
+                timestamp = DateTime.Now.ToString("o"),
+                workingFxPath = fxController != null ? AssetDatabase.GetAssetPath(fxController) : "",
+                originalFxPath = FindOriginalFxPath()
+            };
+            if (fxController != null)
+            {
+                manifest.layers.AddRange(fxController.layers.Where(x => x.name.StartsWith("Stories Of Yggdrasil |", StringComparison.Ordinal)).Select(x => x.name));
+                manifest.parameters.AddRange(fxController.parameters.Where(x => x.name.StartsWith("SoY_", StringComparison.Ordinal)).Select(x => x.name));
+            }
+            var path = AvatarGeneratedFolder(manifest.avatar, "Backups/Manifests") + "/Manifest_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".json";
+            File.WriteAllText(Path.GetFullPath(path), JsonUtility.ToJson(manifest, true));
+            AssetDatabase.Refresh();
+            backupStatus = "Created manifest: " + path;
+        }
+
+        private string FindOriginalFxPath()
+        {
+            if (fxController == null) return "";
+            var current = AssetDatabase.GetAssetPath(fxController);
+            if (!IsSafeFxCopy(fxController)) return current;
+            var name = fxController.name.Replace("_SoY_FX", "");
+            var candidates = AssetDatabase.FindAssets(name + " t:AnimatorController").Select(AssetDatabase.GUIDToAssetPath).Where(x => x != current).ToArray();
+            return candidates.FirstOrDefault() ?? "";
+        }
+
+        private void RestoreOriginalFxFromLatestManifest()
+        {
+            var guids = AssetDatabase.FindAssets("", new[] { CurrentAvatarGeneratedFolder("Backups/Manifests"), LegacyManifestRoot });
+            var paths = guids.Select(AssetDatabase.GUIDToAssetPath).Where(x => x.EndsWith(".json", StringComparison.OrdinalIgnoreCase)).OrderByDescending(x => x).ToArray();
+            if (paths.Length == 0) { backupStatus = "No backup manifest exists."; return; }
+            var manifest = JsonUtility.FromJson<BackupManifest>(File.ReadAllText(Path.GetFullPath(paths[0])));
+            var original = manifest != null ? AssetDatabase.LoadAssetAtPath<AnimatorController>(manifest.originalFxPath) : null;
+            if (original == null) { backupStatus = "Latest manifest does not reference a valid original FX controller."; return; }
+            var layers = avatarDescriptor.baseAnimationLayers;
+            var index = Array.FindIndex(layers, x => x.type == VRCAvatarDescriptor.AnimLayerType.FX);
+            if (index < 0) return;
+            Undo.RecordObject(avatarDescriptor, "Restore Original FX Controller");
+            var layer = layers[index]; layer.isDefault = false; layer.animatorController = original; layers[index] = layer;
+            avatarDescriptor.baseAnimationLayers = layers; EditorUtility.SetDirty(avatarDescriptor); AssetDatabase.SaveAssets();
+            fxController = original; backupStatus = "Restored original FX: " + manifest.originalFxPath;
+        }
+
+        private void DrawRaycastDeliveryCard()
+        {
+            BeginCard("VRChat Raycast Studio");
+            EditorGUILayout.LabelField(
+                "v0.5.10 uses the official VRCRaycast component in two different ways: Direct Impact for bullets/arrows/projectiles, and Spell Ground Placement for spells that need to appear beneath a targeted player.",
+                wrappedLabel);
+            DrawTagRow("SDK", RaycastTypeAvailable() ? "✓ VRCRaycast Available" : "✕ Requires VRChat Avatars SDK 3.10.3+", "Official avatar raycast component");
+            var currentRaycastCount = CountRaycastComponents();
+            DrawTagRow("Raycast budget", currentRaycastCount + " / 80", currentRaycastCount >= 72 ? "Near VRChat's avatar Raycast/FinalIK shared limit" : "Spell placement reuses two shared rays");
+            var legacyRaycastCount = CountLegacyRaycastObjects();
+            if (legacyRaycastCount > 0)
+                DrawTagRow("Legacy TB3 objects", legacyRaycastCount.ToString(), "Create / Repair disables the matching old managed origin/result before rebuilding");
+            DrawTagRow("Runtime params", "_Hit / _Ratio / _Distance", "VRCRaycast output prefix is created in the FX Animator");
+            DrawTagRow("Spell fire gate", "Latched", "Button press arms the spell for 1.25s; valid player + floor hit then pulses placement for 0.85s");
+            DrawTagRow("Self-hit protection", "Remote Player layer only", "Player (9) is targeted; PlayerLocal (10) is excluded");
+            DrawTagRow("Spell placement", "Target → downward floor probe", "Final +Y follows the floor normal; the generated FX holder faces down");
+            DrawTagRow("Target icon", "Local + toggleable", "Enable Targeting in the generated menu; it hides as soon as the cast/fire action is pressed");
+
+            showRaycastInstructions = EditorGUILayout.Foldout(showRaycastInstructions, "How to use Raycasting", true);
+            if (showRaycastInstructions)
+            {
+                EditorGUILayout.HelpBox(
+                    "SPELLS: Select the hand/focus/weapon object that should aim. Choose a Spell and Raycast delivery, then create it. Generate/repair the Stories menu, turn Targeting ON, aim until the local crosshair appears, then press and hold that installed Spell button. Once placement resolves, TB5 World Drops the spell with VRChat Freeze To World and keeps it locked until the button is released (or a future toggle is turned off).",
+                    MessageType.Info);
+                EditorGUILayout.HelpBox(
+                    "BULLETS / ARROWS / PROJECTILES: Select the muzzle or projectile origin, choose Attack/Technick/Item/Debuff and Raycast delivery, then create it. Generate/repair the Stories menu and turn Targeting ON. Technick/Item buttons fire selector raycasts; Projectile Fire appears only when an installed Attack/Debuff raycast needs the manual fire trigger.",
+                    MessageType.Info);
+                EditorGUILayout.HelpBox(
+                    "WORLD DROP VS FOLLOW: Before firing, the ground result follows the targeted player. After a valid cast, TB5 freezes the placed spell in world space until the action is released. If you intentionally need an effect to keep following a moving target after cast, that remains a separate tracker-style system.",
+                    MessageType.None);
+                EditorGUILayout.HelpBox(
+                    "ANIMATIONS: Raycast clips are created from the actual avatar hierarchy path under <Avatar>/Animations/Raycasts. Selector actions (Spell/Technick/Item) are automatically added to the managed cast-animation layer. Pressing the installed menu button is the fire trigger; edit the generated Cast_*.anim if you want an avatar-specific casting motion.",
+                    MessageType.None);
+                EditorGUILayout.HelpBox(
+                    "TESTING: Select the generated VRCRaycast to see its Scene-view gizmo. VRChat's avatar Raycast can also be exercised in Unity Play Mode before an avatar upload. Watch the generated _Hit, _Ratio, and _Distance Animator parameters while testing.",
+                    MessageType.None);
+            }
+
+            raycastDistance = Mathf.Clamp(EditorGUILayout.FloatField("Maximum Aim Distance", raycastDistance), 0.1f, 1000f);
+            raycastImpactRadius = Mathf.Clamp(EditorGUILayout.FloatField("Impact Contact Radius", raycastImpactRadius), 0.01f, 1f);
+
+            if (outgoingKind == OutgoingContactKind.Spell)
+            {
+                raycastDeliveryStyle = RaycastDeliveryStyle.SpellGroundPlacement;
+                EditorGUILayout.LabelField("Mode", "Spell Ground Placement (automatic)");
+                EditorGUILayout.LabelField("Aim Direction", raycastDirection.ToString(), EditorStyles.miniLabel);
+            }
+            else
+            {
+                raycastDeliveryStyle = RaycastDeliveryStyle.DirectImpact;
+                EditorGUILayout.LabelField("Mode", "Direct Impact");
+                raycastCollisionTarget = (RaycastCollisionTarget)EditorGUILayout.EnumPopup("Collision Target", raycastCollisionTarget);
+            }
+
+            showRaycastAdvanced = EditorGUILayout.Foldout(showRaycastAdvanced, "Advanced Raycast Settings", true);
+            if (showRaycastAdvanced)
+            {
+                raycastDirection = EditorGUILayout.Vector3Field("Local Aim Direction", raycastDirection);
+                using (new EditorGUI.DisabledScope(outgoingKind == OutgoingContactKind.Spell))
+                    raycastApplyRotation = EditorGUILayout.ToggleLeft("Direct impact: align result to hit surface", raycastApplyRotation);
+                raycastCreateLineRenderer = EditorGUILayout.ToggleLeft("Create optional LineRenderer holder", raycastCreateLineRenderer);
+                raycastUseCustomPrefix = EditorGUILayout.ToggleLeft("Use custom asset prefix", raycastUseCustomPrefix);
+                if (raycastUseCustomPrefix)
+                    raycastParameterPrefix = EditorGUILayout.TextField("Custom Prefix", raycastParameterPrefix);
+            }
+
+            var suggested = CurrentRaycastSuggestedPrefix();
+            EditorGUILayout.LabelField("Generated action: " + suggested, EditorStyles.miniLabel);
+            using (new EditorGUI.DisabledScope(!RaycastTypeAvailable() || !HasUsableTargets() || avatarRoot == null))
+            {
+                if (GUILayout.Button("CREATE / REPAIR RAYCAST FOR CURRENT ACTION", GUILayout.Height(largeControls ? 50f : 38f)))
+                    CreateRaycastDeliveryForCurrentAction();
+            }
+            EndCard();
+
+            BeginCard("Contact Presets & Utilities");
+            contactPreset = (ContactPreset)EditorGUILayout.EnumPopup("Preset", contactPreset);
+            if (GUILayout.Button("APPLY PRESET TO CURRENT CONTACT EDITOR")) ApplyContactPreset(contactPreset);
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Duplicate Selected")) DuplicateSelectedContactObject();
+            if (GUILayout.Button("Mirror X")) MirrorSelectedContactObject();
+            if (GUILayout.Button("Copy Collider Shape")) CopySelectedColliderToCurrentGeometry();
+            EditorGUILayout.EndHorizontal();
+            EndCard();
+        }
+
+        private Type FindRaycastType()
+        {
+            foreach (var name in RaycastTypeNames)
+            {
+                var type = FindType(name);
+                if (type != null) return type;
+            }
+            return AppDomain.CurrentDomain.GetAssemblies().SelectMany(x => { try { return x.GetTypes(); } catch { return Type.EmptyTypes; } }).FirstOrDefault(x => x.Name == "VRCRaycast");
+        }
+
+        private bool RaycastTypeAvailable() { return FindRaycastType() != null; }
+
+        private int CountRaycastComponents()
+        {
+            var raycastType = FindRaycastType();
+            if (avatarRoot == null || raycastType == null)
+                return 0;
+            return avatarRoot.GetComponentsInChildren<Component>(true)
+                .Count(component => component != null && raycastType.IsInstanceOfType(component));
+        }
+
+        private static bool TryParseManagedActionId(string objectName, string prefix, out int id)
+        {
+            id = 0;
+            if (string.IsNullOrWhiteSpace(objectName) || string.IsNullOrWhiteSpace(prefix) ||
+                !objectName.StartsWith(prefix, StringComparison.Ordinal))
+                return false;
+
+            var suffix = objectName.Substring(prefix.Length).TrimStart();
+            var digits = new string(suffix.TakeWhile(char.IsDigit).ToArray());
+            return !string.IsNullOrWhiteSpace(digits) && int.TryParse(digits, out id) && id > 0;
+        }
+
+        private HashSet<int> GetInstalledManagedActionIds(string managedPrefix)
+        {
+            var result = new HashSet<int>();
+            if (avatarRoot == null)
+                return result;
+
+            foreach (var transform in avatarRoot.GetComponentsInChildren<Transform>(true))
+            {
+                int id;
+                if (transform != null && TryParseManagedActionId(transform.name, managedPrefix, out id))
+                    result.Add(id);
+            }
+            return result;
+        }
+
+        private SpellDefinition[] GetInstalledSpellDefinitions()
+        {
+            var ids = GetInstalledManagedActionIds("Stories Spell - ");
+            return SpellDefinitions
+                .Where(spell => ids.Contains(spell.Id))
+                .GroupBy(spell => spell.Id)
+                .Select(group => group.First())
+                .OrderBy(spell => spell.Id)
+                .ToArray();
+        }
+
+        private ActionDefinition[] GetInstalledTechnickDefinitions()
+        {
+            var ids = GetInstalledManagedActionIds("Stories Technick - ");
+            return TechnickDefinitions.Where(action => ids.Contains(action.Id)).OrderBy(action => action.Id).ToArray();
+        }
+
+        private ActionDefinition[] GetInstalledItemDefinitions()
+        {
+            var ids = GetInstalledManagedActionIds("Stories Item - ");
+            return ItemDefinitions.Where(action => ids.Contains(action.Id)).OrderBy(action => action.Id).ToArray();
+        }
+
+        private bool HasInstalledManagedRaycast()
+        {
+            if (avatarRoot == null)
+                return false;
+            var raycastType = FindRaycastType();
+            return raycastType != null && avatarRoot.GetComponentsInChildren<Component>(true)
+                .Any(component => component != null && raycastType.IsInstanceOfType(component));
+        }
+
+        private bool HasManualRaycastFireAction()
+        {
+            if (avatarRoot == null)
+                return false;
+            return avatarRoot.GetComponentsInChildren<Transform>(true).Any(transform =>
+                transform != null &&
+                (transform.name.StartsWith("[SoY Direct Raycast Result] Attack_", StringComparison.Ordinal) ||
+                 transform.name.StartsWith("[SoY Direct Raycast Result] Debuff_", StringComparison.Ordinal)));
+        }
+
+        private bool HasExpressionParameter(string parameterName)
+        {
+            return expressionParameters != null && expressionParameters.parameters != null &&
+                expressionParameters.parameters.Any(parameter => parameter != null && parameter.name == parameterName);
+        }
+
+        private void EnsureLocalRaycastTargetingExpressionParameter()
+        {
+            if (expressionParameters == null || HasExpressionParameter(RaycastTargetingParameter))
+                return;
+
+            Undo.RecordObject(expressionParameters, "Add Local Stories Raycast Targeting Parameter");
+            var list = (expressionParameters.parameters ?? Array.Empty<VRCExpressionParameters.Parameter>()).ToList();
+            list.Add(new VRCExpressionParameters.Parameter
+            {
+                name = RaycastTargetingParameter,
+                valueType = VRCExpressionParameters.ValueType.Bool,
+                defaultValue = 0f,
+                saved = false,
+                networkSynced = false
+            });
+            expressionParameters.parameters = list.ToArray();
+            EditorUtility.SetDirty(expressionParameters);
+        }
+
+        private string RaycastHierarchyAnimationFolder(GameObject hierarchyObject, string actionKey)
+        {
+            var avatarName = MakeSafeAssetName(avatarDescriptor != null ? avatarDescriptor.gameObject.name : "Avatar");
+            var root = AvatarGeneratedFolder(avatarName, "Animations/Raycasts");
+            var relative = hierarchyObject != null && avatarRoot != null
+                ? GetRelativePath(avatarRoot.transform, hierarchyObject.transform)
+                : string.Empty;
+            var segments = (relative ?? string.Empty).Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(MakeSafeAssetName)
+                .Where(segment => !string.IsNullOrWhiteSpace(segment))
+                .ToList();
+            if (!string.IsNullOrWhiteSpace(actionKey))
+                segments.Add(MakeSafeAssetName(actionKey));
+            var folder = segments.Count > 0 ? root + "/" + string.Join("/", segments.ToArray()) : root;
+            EnsureAssetFolder(folder);
+            return folder;
+        }
+
+        private AnimationClip EnsureRaycastSelectorAnimationBinding(
+            OutgoingContactKind kind,
+            int actionId,
+            string actionName,
+            GameObject hierarchyObject)
+        {
+            if (actionId <= 0 || string.IsNullOrWhiteSpace(actionName))
+                return null;
+
+            var folder = RaycastHierarchyAnimationFolder(hierarchyObject, actionId + "_" + actionName);
+            var generated = GetOrCreatePlaceholderClip(folder, "Cast_" + actionId + "_" + actionName);
+
+            if (kind == OutgoingContactKind.Spell)
+            {
+                var binding = animationProfile.spellAnimations.FirstOrDefault(entry => entry.id == actionId);
+                if (binding == null)
+                {
+                    binding = new SpellAnimationBinding { id = actionId, name = actionName, enabled = true };
+                    animationProfile.spellAnimations.Add(binding);
+                }
+                binding.name = actionName;
+                binding.enabled = true;
+                if (string.IsNullOrWhiteSpace(binding.clipPath))
+                    binding.clipPath = ClipPath(generated);
+                SaveAnimationProfile();
+                if (fxController != null)
+                    RebuildSpellCastAnimationLayer();
+                return LoadClipFromPath(binding.clipPath) ?? generated;
+            }
+
+            if (kind == OutgoingContactKind.Technick || kind == OutgoingContactKind.Item)
+            {
+                var bindings = kind == OutgoingContactKind.Technick ? animationProfile.technickAnimations : animationProfile.itemAnimations;
+                var binding = bindings.FirstOrDefault(entry => entry.id == actionId);
+                if (binding == null)
+                {
+                    binding = new ActionAnimationBinding { id = actionId, name = actionName, enabled = true };
+                    bindings.Add(binding);
+                }
+                binding.name = actionName;
+                binding.enabled = true;
+                if (string.IsNullOrWhiteSpace(binding.clipPath))
+                    binding.clipPath = ClipPath(generated);
+                SaveAnimationProfile();
+                if (fxController != null)
+                {
+                    if (kind == OutgoingContactKind.Technick)
+                        RebuildActionAnimationLayer(ActionAnimationKind.Technick, "SoY_TechnickType", TechnickCastLayer, animationProfile.technickAnimations);
+                    else
+                        RebuildActionAnimationLayer(ActionAnimationKind.Item, "SoY_ItemType", ItemUseLayer, animationProfile.itemAnimations);
+                }
+                return LoadClipFromPath(binding.clipPath) ?? generated;
+            }
+
+            return null;
+        }
+
+        private SpellDefinition[] GetVisibleSpellDefinitions()
+        {
+            return GetSpellsForSchool(spellSchool)
+                .Where(entry => string.IsNullOrWhiteSpace(spellSearch) ||
+                    entry.Name.IndexOf(spellSearch, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    entry.Id.ToString().Contains(spellSearch.Trim()))
+                .ToArray();
+        }
+
+        private ActionDefinition[] GetVisibleTechnickDefinitions()
+        {
+            return TechnickDefinitions
+                .Where(entry => string.IsNullOrWhiteSpace(technickSearch) ||
+                    entry.Name.IndexOf(technickSearch, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    entry.Id.ToString().Contains(technickSearch.Trim()))
+                .ToArray();
+        }
+
+        private ActionDefinition[] GetVisibleItemDefinitions()
+        {
+            return ItemDefinitions
+                .Where(entry => string.IsNullOrWhiteSpace(itemSearch) ||
+                    entry.Name.IndexOf(itemSearch, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    entry.Id.ToString().Contains(itemSearch.Trim()))
+                .ToArray();
+        }
+
+        private bool TryGetSelectedSpell(out SpellDefinition spell)
+        {
+            var rows = GetVisibleSpellDefinitions();
+            if (rows.Length == 0)
+            {
+                spell = default(SpellDefinition);
+                return false;
+            }
+
+            spellSelectionIndex = Mathf.Clamp(spellSelectionIndex, 0, rows.Length - 1);
+            spell = rows[spellSelectionIndex];
+            return true;
+        }
+
+        private bool TryGetSelectedTechnick(out ActionDefinition technick)
+        {
+            var rows = GetVisibleTechnickDefinitions();
+            if (rows.Length == 0)
+            {
+                technick = default(ActionDefinition);
+                return false;
+            }
+
+            technickSelectionIndex = Mathf.Clamp(technickSelectionIndex, 0, rows.Length - 1);
+            technick = rows[technickSelectionIndex];
+            return true;
+        }
+
+        private bool TryGetSelectedItem(out ActionDefinition item)
+        {
+            var rows = GetVisibleItemDefinitions();
+            if (rows.Length == 0)
+            {
+                item = default(ActionDefinition);
+                return false;
+            }
+
+            itemSelectionIndex = Mathf.Clamp(itemSelectionIndex, 0, rows.Length - 1);
+            item = rows[itemSelectionIndex];
+            return true;
+        }
+
+        private void GetCurrentRaycastActionGate(out string parameter, out int value, out bool integerGate)
+        {
+            parameter = RaycastFireParameter;
+            value = 1;
+            integerGate = false;
+
+            SpellDefinition spell;
+            ActionDefinition action;
+            if (outgoingKind == OutgoingContactKind.Spell && TryGetSelectedSpell(out spell))
+            {
+                parameter = "SoY_SpellType";
+                value = spell.Id;
+                integerGate = true;
+            }
+            else if (outgoingKind == OutgoingContactKind.Technick && TryGetSelectedTechnick(out action))
+            {
+                parameter = "SoY_TechnickType";
+                value = action.Id;
+                integerGate = true;
+            }
+            else if (outgoingKind == OutgoingContactKind.Item && TryGetSelectedItem(out action))
+            {
+                parameter = "SoY_ItemType";
+                value = action.Id;
+                integerGate = true;
+            }
+        }
+
+        private void CreateRaycastDeliveryForCurrentAction()
+        {
+            if (outgoingKind == OutgoingContactKind.Spell)
+            {
+                CreateSpellGroundPlacementRaycastDelivery();
+                return;
+            }
+            CreateDirectRaycastDelivery();
+        }
+
+        private GameObject GetOrCreateRaycastRoot()
+        {
+            if (avatarRoot == null)
+                return null;
+            var existing = avatarRoot.transform.Cast<Transform>().FirstOrDefault(x => x.name == RaycastRootName);
+            return existing != null ? existing.gameObject : CreateContactChild(avatarRoot, RaycastRootName, true);
+        }
+
+        private static bool IsInsideManagedRaycastHierarchy(GameObject target)
+        {
+            if (target == null)
+                return false;
+            var current = target.transform;
+            while (current != null)
+            {
+                if (current.name == RaycastRootName || current.name == LegacyRaycastRootName)
+                    return true;
+                current = current.parent;
+            }
+            return false;
+        }
+
+        private bool ValidateRaycastOrigin(GameObject originTarget)
+        {
+            if (originTarget == null)
+                return false;
+            if (!IsInsideManagedRaycastHierarchy(originTarget))
+                return true;
+
+            EditorUtility.DisplayDialog(
+                "Invalid Raycast Origin",
+                "Select a hand, weapon muzzle, staff/focus, or another avatar object outside the generated '" +
+                RaycastRootName +
+                "' hierarchy. VRChat warns against using a Raycast Result Transform or one of its parents as the Raycast origin.",
+                "OK");
+            return false;
+        }
+
+        private int DisableLegacyRaycastDelivery(string safePrefix)
+        {
+            if (avatarRoot == null || string.IsNullOrWhiteSpace(safePrefix))
+                return 0;
+
+            var legacyNames = new HashSet<string>(StringComparer.Ordinal)
+            {
+                LegacyRaycastOriginPrefix + safePrefix,
+                LegacyRaycastResultPrefix + safePrefix
+            };
+
+            var disabled = 0;
+            foreach (var transform in avatarRoot.GetComponentsInChildren<Transform>(true))
+            {
+                if (transform == null || !legacyNames.Contains(transform.name))
+                    continue;
+
+                // These exact names were generated by Stories OSC v0.5.9 TB3 and earlier.
+                // Disable rather than destroy so the migration remains reversible through Undo
+                // and never deletes user-authored children/materials placed beneath the result.
+                if (transform.gameObject.activeSelf)
+                {
+                    Undo.RecordObject(transform.gameObject, "Disable Legacy Stories Raycast");
+                    transform.gameObject.SetActive(false);
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(transform.gameObject);
+                    disabled++;
+                }
+            }
+
+            if (disabled > 0)
+                Log("Disabled " + disabled + " legacy TB3 Raycast object(s) for '" + safePrefix + "' before creating the v0.5.10 delivery.");
+
+            return disabled;
+        }
+
+        private int CountLegacyRaycastObjects()
+        {
+            if (avatarRoot == null)
+                return 0;
+            return avatarRoot.GetComponentsInChildren<Transform>(true)
+                .Count(transform => transform != null &&
+                    (transform.name.StartsWith(LegacyRaycastOriginPrefix, StringComparison.Ordinal) ||
+                     transform.name.StartsWith(LegacyRaycastResultPrefix, StringComparison.Ordinal)));
+        }
+
+        private void ConfigureRaycastCommon(
+            Component component,
+            Vector3 direction,
+            float distance,
+            Transform result,
+            string parameterPrefix,
+            RaycastCollisionTarget collisionTarget,
+            bool applyRotation,
+            bool alignPositiveY)
+        {
+            if (component == null)
+                return;
+            Undo.RecordObject(component, "Configure Stories VRCRaycast");
+            SetVector3Member(component,
+                direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward,
+                "raycastDirection", "RaycastDirection", "direction", "Direction");
+            SetFloatMember(component, distance, "distance", "Distance", "maxDistance", "MaxDistance");
+            SetBoolMember(component, false, "applyTransformScale", "ApplyTransformScale");
+            SetBoolMember(component, applyRotation, "applyRotation", "ApplyRotation");
+            SetTransformMember(component, result, "resultTransform", "ResultTransform");
+            SetStringMember(component, parameterPrefix, "parameter", "Parameter", "parameterName", "ParameterName");
+            ConfigureRaycastCollision(component, collisionTarget);
+            if (applyRotation && alignPositiveY)
+                SetEnumMemberByKeywords(component, new[] { "positive", "y" }, "alignmentAxis", "AlignmentAxis");
+            SetEnumMemberByKeywords(component, new[] { "start" }, "behaviorOnMiss", "BehaviorOnMiss", "positioningOnMiss", "PositioningOnMiss");
+            FinishContact(component);
+        }
+
+        private void ConfigureRaycastCollision(Component component, RaycastCollisionTarget collisionTarget)
+        {
+            if (component == null)
+                return;
+
+            if (collisionTarget == RaycastCollisionTarget.RemotePlayersOnly)
+            {
+                // Preferred path: Hit Custom Layers with Player (9) only.
+                // VRChat reserves PlayerLocal (10) for the local avatar, so excluding it prevents
+                // the ray from immediately colliding with the caster when its origin is near the body.
+                SetEnumMemberByKeywords(component, new[] { "custom" }, "collisionMode", "CollisionMode");
+                var customMaskApplied = SetLayerMaskMember(
+                    component,
+                    1 << 9,
+                    "customCollisionLayers", "CustomCollisionLayers",
+                    "customLayers", "CustomLayers",
+                    "customLayerMask", "CustomLayerMask",
+                    "collisionLayers", "CollisionLayers",
+                    "collisionLayerMask", "CollisionLayerMask",
+                    "layerMask", "LayerMask");
+
+                if (!customMaskApplied)
+                {
+                    // SDK internals can move between releases. Never leave a VRCRaycast in
+                    // Hit Custom Layers with an unknown/empty mask: fall back to Hit Players.
+                    // This includes PlayerLocal, so the UI warns that self-hit protection is degraded,
+                    // but the ray still functions instead of silently targeting nothing.
+                    SetEnumMemberByKeywords(component, new[] { "player" }, "collisionMode", "CollisionMode");
+                    var warning = "Raycast warning: this SDK build did not expose the custom layer-mask member. Fell back to Hit Players; update the VRChat Avatars SDK for remote-player-only self-hit protection.";
+                    operationLog.Insert(0, warning);
+                    Debug.LogWarning("[Stories Of Yggdrasil OSC Contact System] " + warning);
+                }
+            }
+            else if (collisionTarget == RaycastCollisionTarget.Worlds)
+            {
+                SetEnumMemberByKeywords(component, new[] { "world" }, "collisionMode", "CollisionMode");
+            }
+            else
+            {
+                SetEnumMemberByKeywords(component, new[] { "world", "player" }, "collisionMode", "CollisionMode");
+            }
+        }
+
+        private void EnsureRaycastAnimatorParameters(string prefix)
+        {
+            if (fxController == null)
+                return;
+            EnsureAnimatorParameter(fxController, prefix + "_Hit", AnimatorControllerParameterType.Bool);
+            EnsureAnimatorParameter(fxController, prefix + "_Ratio", AnimatorControllerParameterType.Float);
+            EnsureAnimatorParameter(fxController, prefix + "_Distance", AnimatorControllerParameterType.Float);
+            EnsureAnimatorParameter(fxController, "IsLocal", AnimatorControllerParameterType.Bool);
+            EnsureAnimatorParameter(fxController, RaycastFireParameter, AnimatorControllerParameterType.Bool);
+            EnsureAnimatorParameter(fxController, RaycastTargetingParameter, AnimatorControllerParameterType.Bool);
+        }
+
+        private GameObject GetOrCreateSharedSpellAimOrigin(GameObject originTarget)
+        {
+            if (avatarRoot == null || originTarget == null)
+                return null;
+
+            var matches = avatarRoot.GetComponentsInChildren<Transform>(true)
+                .Where(t => t != null && t.name == "[SoY Spell Aim Origin]")
+                .ToArray();
+
+            GameObject aimOrigin = null;
+            if (matches.Length > 0)
+            {
+                aimOrigin = matches[0].gameObject;
+                if (!aimOrigin.activeSelf)
+                {
+                    Undo.RecordObject(aimOrigin, "Enable Stories Shared Spell Aim Origin");
+                    aimOrigin.SetActive(true);
+                }
+
+                if (aimOrigin.transform.parent != originTarget.transform)
+                {
+                    Undo.SetTransformParent(
+                        aimOrigin.transform,
+                        originTarget.transform,
+                        "Move Stories Shared Spell Aim Origin");
+                    Undo.RecordObject(aimOrigin.transform, "Reset Stories Shared Spell Aim Origin");
+                    aimOrigin.transform.localPosition = Vector3.zero;
+                    aimOrigin.transform.localRotation = Quaternion.identity;
+                    aimOrigin.transform.localScale = Vector3.one;
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(aimOrigin.transform);
+                    Log("Moved the shared Spell Aim Origin to '" + originTarget.name + "'. All spell ground placement now uses this single aim source.");
+                }
+
+                // Older/test-build repairs may have produced more than one shared writer.
+                // Disable only exact Stories-managed duplicates so a single parameter prefix
+                // has a single VRCRaycast authority.
+                for (var i = 1; i < matches.Length; i++)
+                {
+                    var duplicate = matches[i] != null ? matches[i].gameObject : null;
+                    if (duplicate == null || !duplicate.activeSelf)
+                        continue;
+                    Undo.RecordObject(duplicate, "Disable Duplicate Stories Spell Aim Origin");
+                    duplicate.SetActive(false);
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(duplicate);
+                    Log("Disabled duplicate managed Spell Aim Origin '" + GetHierarchyPath(duplicate.transform) + "'.");
+                }
+            }
+            else
+            {
+                aimOrigin = CreateContactChild(originTarget, "[SoY Spell Aim Origin]", true);
+            }
+
+            return aimOrigin;
+        }
+
+        private GameObject CreateLocalTargetingIcon(GameObject parent, string name)
+        {
+            var icon = CreateContactChild(parent, name, false);
+            if (icon.transform.childCount > 0)
+                return icon;
+
+            // A material-less primitive uses Unity's default renderer material. Keeping the
+            // icon as simple geometry avoids introducing shader/package dependencies.
+            CreateTargetingIconBar(icon, "Horizontal", new Vector3(0.14f, 0.012f, 0.012f), Vector3.zero);
+            CreateTargetingIconBar(icon, "Vertical", new Vector3(0.012f, 0.14f, 0.012f), Vector3.zero);
+            CreateTargetingIconBar(icon, "Left Tick", new Vector3(0.05f, 0.012f, 0.012f), new Vector3(-0.115f, 0f, 0f));
+            CreateTargetingIconBar(icon, "Right Tick", new Vector3(0.05f, 0.012f, 0.012f), new Vector3(0.115f, 0f, 0f));
+            return icon;
+        }
+
+        private static void CreateTargetingIconBar(GameObject parent, string name, Vector3 scale, Vector3 localPosition)
+        {
+            var bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            bar.name = name;
+            Undo.RegisterCreatedObjectUndo(bar, "Create Stories Local Targeting Icon");
+            bar.transform.SetParent(parent.transform, false);
+            bar.transform.localPosition = localPosition;
+            bar.transform.localRotation = Quaternion.identity;
+            bar.transform.localScale = scale;
+            var collider = bar.GetComponent<Collider>();
+            if (collider != null)
+                Undo.DestroyObjectImmediate(collider);
+        }
+
+        private void RemoveMismatchedManagedRaycastActionChildren(
+            GameObject actionHost,
+            OutgoingContactKind kind,
+            int expectedId)
+        {
+            if (actionHost == null || expectedId <= 0)
+                return;
+
+            string prefix;
+            switch (kind)
+            {
+                case OutgoingContactKind.Spell: prefix = "Stories Spell - "; break;
+                case OutgoingContactKind.Technick: prefix = "Stories Technick - "; break;
+                case OutgoingContactKind.Item: prefix = "Stories Item - "; break;
+                default: return;
+            }
+
+            var expectedPrefix = prefix + expectedId + " ";
+            var stale = actionHost.transform.Cast<Transform>()
+                .Where(child => child != null &&
+                    child.name.StartsWith(prefix, StringComparison.Ordinal) &&
+                    !child.name.StartsWith(expectedPrefix, StringComparison.Ordinal))
+                .Select(child => child.gameObject)
+                .ToArray();
+
+            foreach (var child in stale)
+            {
+                Log("Removed stale managed Raycast action child '" + child.name +
+                    "' while repairing expected action ID " + expectedId + ".");
+                Undo.DestroyObjectImmediate(child);
+            }
+        }
+
+        private void CreateDirectRaycastDelivery()
+        {
+            var originTarget = explicitTarget != null ? explicitTarget : Selection.activeGameObject;
+            var raycastType = FindRaycastType();
+            if (originTarget == null || avatarRoot == null || raycastType == null)
+                return;
+            if (!ValidateRaycastOrigin(originTarget))
+                return;
+            if (fxController != null && !EnsureSafeFxCopy(true))
+                return;
+
+            var sourcePrefix = raycastUseCustomPrefix ? raycastParameterPrefix : CurrentRaycastSuggestedPrefix();
+            var safePrefix = RegexSafeParameter(sourcePrefix);
+            DisableLegacyRaycastDelivery(safePrefix);
+            string actionGateParameter;
+            int actionGateValue;
+            bool actionGateIsInteger;
+            GetCurrentRaycastActionGate(out actionGateParameter, out actionGateValue, out actionGateIsInteger);
+
+            var origin = CreateContactChild(originTarget, "[SoY Direct Raycast Origin] " + safePrefix, true);
+            ApplyRaycastOriginAttachment(origin);
+            var resultRoot = GetOrCreateRaycastRoot();
+            var result = CreateContactChild(resultRoot, "[SoY Direct Raycast Result] " + safePrefix, true);
+            result.transform.localPosition = Vector3.zero;
+
+            var component = origin.GetComponent(raycastType) as Component ?? Undo.AddComponent(origin, raycastType) as Component;
+            ConfigureRaycastCommon(
+                component,
+                raycastDirection,
+                raycastDistance,
+                result.transform,
+                safePrefix,
+                raycastCollisionTarget,
+                raycastApplyRotation,
+                true);
+            EnsureRaycastAnimatorParameters(safePrefix);
+            EnsureLocalRaycastTargetingExpressionParameter();
+
+            var targetIcon = CreateLocalTargetingIcon(result, "[LOCAL ONLY] Targeting Icon");
+            var actionHost = CreateContactChild(result, "[SoY Raycast Action] " + safePrefix, false);
+            RemoveMismatchedManagedRaycastActionChildren(actionHost, outgoingKind, actionGateValue);
+
+            var oldTarget = explicitTarget;
+            explicitTarget = actionHost;
+            var oldSpellRadius = spellRadius; var oldTechnickRadius = technickRadius; var oldItemRadius = itemRadius; var oldAttackRadius = attackRadius;
+            var oldAttackEnabled = attackStartsEnabled; var oldSpellEnabled = spellStartsEnabled; var oldTechnickEnabled = technickStartsEnabled; var oldItemEnabled = itemStartsEnabled; var oldDebuffEnabled = debuffStartsEnabled;
+            spellRadius = technickRadius = itemRadius = attackRadius = raycastImpactRadius;
+            attackStartsEnabled = spellStartsEnabled = technickStartsEnabled = itemStartsEnabled = debuffStartsEnabled = true;
+            suppressContactAttachment = true;
+            try
+            {
+                switch (outgoingKind)
+                {
+                    case OutgoingContactKind.Attack: CreateAttackSenders(); break;
+                    case OutgoingContactKind.Technick: CreateTechnickSenders(); break;
+                    case OutgoingContactKind.Item: CreateItemSenders(); break;
+                    case OutgoingContactKind.Debuff: CreateDebuffSenders(); break;
+                    default:
+                        EditorUtility.DisplayDialog("Raycast Delivery", "Direct Impact supports Attack, Technick, Item, or Debuff. Spells use Spell Ground Placement.", "OK");
+                        break;
+                }
+            }
+            finally
+            {
+                spellRadius = oldSpellRadius; technickRadius = oldTechnickRadius; itemRadius = oldItemRadius; attackRadius = oldAttackRadius;
+                attackStartsEnabled = oldAttackEnabled; spellStartsEnabled = oldSpellEnabled; technickStartsEnabled = oldTechnickEnabled; itemStartsEnabled = oldItemEnabled; debuffStartsEnabled = oldDebuffEnabled;
+                suppressContactAttachment = false;
+                explicitTarget = oldTarget;
+            }
+
+            RebuildRaycastGateLayer(safePrefix, actionHost, safePrefix, actionGateParameter, actionGateValue, actionGateIsInteger, null);
+            RebuildRaycastTargetingLayer(safePrefix, targetIcon, safePrefix, actionGateParameter, actionGateValue, actionGateIsInteger, false);
+
+            if (actionGateIsInteger)
+            {
+                ActionDefinition selectorAction;
+                if (outgoingKind == OutgoingContactKind.Technick && TryGetSelectedTechnick(out selectorAction))
+                    EnsureRaycastSelectorAnimationBinding(OutgoingContactKind.Technick, selectorAction.Id, selectorAction.Name, actionHost);
+                else if (outgoingKind == OutgoingContactKind.Item && TryGetSelectedItem(out selectorAction))
+                    EnsureRaycastSelectorAnimationBinding(OutgoingContactKind.Item, selectorAction.Id, selectorAction.Name, actionHost);
+            }
+
+            if (raycastCreateLineRenderer && origin.GetComponent<LineRenderer>() == null)
+            {
+                var line = Undo.AddComponent<LineRenderer>(origin);
+                line.positionCount = 2;
+                line.useWorldSpace = true;
+                line.widthMultiplier = 0.01f;
+                line.enabled = false;
+            }
+
+            Selection.activeGameObject = origin;
+            Log("Created/repaired Direct Impact VRCRaycast '" + safePrefix + "'.");
+        }
+
+        private void CreateSpellGroundPlacementRaycastDelivery()
+        {
+            var originTarget = explicitTarget != null ? explicitTarget : Selection.activeGameObject;
+            var raycastType = FindRaycastType();
+            if (originTarget == null || avatarRoot == null || raycastType == null)
+                return;
+            if (!ValidateRaycastOrigin(originTarget))
+                return;
+            if (fxController != null && !EnsureSafeFxCopy(true))
+                return;
+
+            string actionGateParameter;
+            int spellId;
+            bool integerGate;
+            GetCurrentRaycastActionGate(out actionGateParameter, out spellId, out integerGate);
+            SpellDefinition selectedSpell;
+            if (!integerGate || actionGateParameter != "SoY_SpellType" || spellId <= 0 ||
+                !TryGetSelectedSpell(out selectedSpell) || selectedSpell.Id != spellId)
+            {
+                EditorUtility.DisplayDialog("Spell Ground Placement", "Select a valid Spell before creating the ground-placement raycast.", "OK");
+                return;
+            }
+
+            var sourcePrefix = raycastUseCustomPrefix ? raycastParameterPrefix : CurrentRaycastSuggestedPrefix();
+            var safePrefix = RegexSafeParameter(sourcePrefix);
+            DisableLegacyRaycastDelivery(safePrefix);
+            var resultRoot = GetOrCreateRaycastRoot();
+            var rig = CreateContactChild(resultRoot, SpellPlacementRigName, true);
+
+            // One reusable player-targeting ray for the whole spell placement system.
+            // Repairing from a different hand/focus moves this exact Stories-managed origin
+            // instead of creating a second ray that writes to the same target parameters.
+            var aimOrigin = GetOrCreateSharedSpellAimOrigin(originTarget);
+            if (aimOrigin == null)
+                return;
+            ApplyRaycastOriginAttachment(aimOrigin);
+            var targetAnchor = CreateContactChild(rig, "[SoY Spell Target Anchor]", true);
+            targetAnchor.transform.localPosition = Vector3.zero;
+            var aimRay = aimOrigin.GetComponent(raycastType) as Component ?? Undo.AddComponent(aimOrigin, raycastType) as Component;
+            ConfigureRaycastCommon(
+                aimRay,
+                raycastDirection,
+                raycastDistance,
+                targetAnchor.transform,
+                SpellTargetPrefix,
+                RaycastCollisionTarget.RemotePlayersOnly,
+                false,
+                false);
+            EnsureRaycastAnimatorParameters(SpellTargetPrefix);
+            EnsureLocalRaycastTargetingExpressionParameter();
+
+            // The second ray starts above the tracked player hit and always casts straight down.
+            // It collides with world surfaces only, then rotates the result so local +Y follows
+            // the surface normal. A generated child turns conventional +Z-facing VFX downward.
+            var groundOrigin = CreateContactChild(targetAnchor, "[SoY Downward Ground Probe]", true);
+            groundOrigin.transform.localPosition = Vector3.up * SpellGroundProbeHeight;
+            groundOrigin.transform.localRotation = Quaternion.identity;
+            var groundResult = CreateContactChild(rig, "[SoY Spell Ground Result]", true);
+            groundResult.transform.localPosition = Vector3.zero;
+            var groundRay = groundOrigin.GetComponent(raycastType) as Component ?? Undo.AddComponent(groundOrigin, raycastType) as Component;
+            ConfigureRaycastCommon(
+                groundRay,
+                Vector3.down,
+                SpellGroundProbeDistance,
+                groundResult.transform,
+                SpellGroundPrefix,
+                RaycastCollisionTarget.Worlds,
+                true,
+                true);
+            EnsureRaycastAnimatorParameters(SpellGroundPrefix);
+
+            var targetIcon = CreateLocalTargetingIcon(targetAnchor, "[LOCAL ONLY] Spell Targeting Icon");
+
+            // TB5: the visible/contact payload lives under a dedicated world-drop carrier.
+            // While unfrozen, the carrier follows the native Raycast ground result through a
+            // VRCParentConstraint. Once the spell is fired and placement is valid, the FX
+            // Animator toggles FreezeToWorld so the spell remains fixed in world space until
+            // the menu button is released (or a future toggle is disabled).
+            var worldDropCarrier = CreateContactChild(rig, SpellWorldDropPrefix + safePrefix, true);
+            worldDropCarrier.transform.localPosition = Vector3.zero;
+            worldDropCarrier.transform.localRotation = Quaternion.identity;
+            worldDropCarrier.transform.localScale = Vector3.one;
+            var worldDropConstraint = ConfigureWorldDropParentConstraint(worldDropCarrier, groundResult.transform);
+            if (worldDropConstraint == null)
+            {
+                EditorUtility.DisplayDialog(
+                    "Spell Ground Placement",
+                    "TB8 could not configure the VRChat Parent Constraint required for World Drop. Check the Stories tool log for the direct SDK Sources API diagnostic, then run Create / Repair again.",
+                    "OK");
+                return;
+            }
+
+            var actionName = "[SoY Spell Placement] " + safePrefix;
+            var legacyAction = groundResult.transform.Cast<Transform>().FirstOrDefault(child => child.name == actionName);
+            if (legacyAction != null && legacyAction.parent != worldDropCarrier.transform)
+            {
+                Undo.SetTransformParent(legacyAction, worldDropCarrier.transform, "Migrate Stories Spell Placement To World Drop");
+                Undo.RecordObject(legacyAction, "Reset Stories Spell Placement World Drop Offset");
+                legacyAction.localPosition = Vector3.zero;
+                legacyAction.localRotation = Quaternion.identity;
+                legacyAction.localScale = Vector3.one;
+                Log("Migrated the existing TB4 spell placement host into the TB5 World Drop carrier without replacing its children.");
+            }
+
+            var actionHost = CreateContactChild(worldDropCarrier, actionName, false);
+            RemoveMismatchedManagedRaycastActionChildren(actionHost, OutgoingContactKind.Spell, selectedSpell.Id);
+            var effectHolder = CreateContactChild(actionHost, "FX — Faces Down (Place Particle Here)", true);
+            effectHolder.transform.localPosition = Vector3.zero;
+            effectHolder.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            effectHolder.transform.localScale = Vector3.one;
+
+            var oldTarget = explicitTarget;
+            explicitTarget = actionHost;
+            var oldSpellRadius = spellRadius;
+            var oldSpellEnabled = spellStartsEnabled;
+            spellRadius = raycastImpactRadius;
+            spellStartsEnabled = true;
+            suppressContactAttachment = true;
+            try
+            {
+                CreateSpellSenders();
+            }
+            finally
+            {
+                spellRadius = oldSpellRadius;
+                spellStartsEnabled = oldSpellEnabled;
+                suppressContactAttachment = false;
+                explicitTarget = oldTarget;
+            }
+
+            RebuildRaycastGateLayer(
+                safePrefix,
+                actionHost,
+                SpellGroundPrefix,
+                actionGateParameter,
+                spellId,
+                true,
+                SpellTargetPrefix,
+                worldDropConstraint);
+            RebuildRaycastTargetingLayer(
+                "SpellGroundPlacement",
+                targetIcon,
+                SpellTargetPrefix,
+                "SoY_SpellType",
+                0,
+                true,
+                true,
+                SpellGroundPrefix);
+
+            var castClip = EnsureRaycastSelectorAnimationBinding(OutgoingContactKind.Spell, selectedSpell.Id, selectedSpell.Name, actionHost);
+            if (castClip != null)
+                Log("Raycast cast animation is bound to the same Spell menu parameter. Edit: " + AssetDatabase.GetAssetPath(castClip));
+
+            Selection.activeGameObject = aimOrigin;
+            Log("Created/repaired Spell Ground Placement for spell ID " + spellId + ". The Spell button arms placement, then World Drops the spell at the valid floor hit and keeps it frozen until the button/toggle releases. The targeting icon only appears when both player + floor hits are valid.");
+        }
+
+        private string RegexSafeParameter(string value)
+        {
+            var cleaned = new string((value ?? "SoY_Raycast").Where(x => char.IsLetterOrDigit(x) || x == '_').ToArray());
+            return string.IsNullOrWhiteSpace(cleaned) ? "SoY_Raycast" : cleaned;
+        }
+
+        private void RebuildRaycastGateLayer(
+            string layerKey,
+            GameObject actionHost,
+            string hitPrefix,
+            string actionParameter,
+            int actionValue,
+            bool integerGate,
+            string additionalRequiredHitPrefix,
+            Component worldDropConstraint = null)
+        {
+            if (fxController == null || actionHost == null)
+                return;
+
+            var layerName = RaycastLayerPrefix + layerKey;
+            RemoveLayerByName(fxController, layerName);
+            var layer = CreateHookLayer(fxController, layerName);
+
+            // Two-stage VRCRaycast actions must not require the selector button and
+            // both _Hit parameters to become true on the exact same Animator frame.
+            // The menu press first arms the cast, then the layer waits briefly for
+            // target/floor confirmation before pulsing the managed action host.
+            var ready = AddHookState(layer.stateMachine, "Ready / Hidden", new Vector3(120f, 120f));
+            var armed = AddHookState(layer.stateMachine, "Armed / Waiting For Raycast", new Vector3(420f, 120f));
+            var on = AddHookState(layer.stateMachine, "Cast / Contact Enabled", new Vector3(720f, 120f));
+            var waitForRelease = AddHookState(layer.stateMachine, "Wait For Menu Release", new Vector3(720f, 300f));
+            layer.stateMachine.defaultState = ready;
+
+            var folder = RaycastHierarchyAnimationFolder(actionHost, layerKey);
+            if (worldDropConstraint != null)
+            {
+                ready.motion = CreateOrReplaceWorldDropClip(folder + "/WorldDrop_Ready.anim", actionHost, worldDropConstraint, false, false, 1f / 60f);
+                armed.motion = CreateOrReplaceWorldDropClip(folder + "/WorldDrop_Armed.anim", actionHost, worldDropConstraint, false, false, RaycastActionArmSeconds);
+                on.motion = CreateOrReplaceWorldDropClip(folder + "/WorldDrop_Placed.anim", actionHost, worldDropConstraint, true, true, 1f / 60f);
+                waitForRelease.motion = CreateOrReplaceWorldDropClip(folder + "/WorldDrop_Reset.anim", actionHost, worldDropConstraint, false, false, 1f / 60f);
+            }
+            else
+            {
+                ready.motion = CreateOrReplaceActiveClip(folder + "/Contact_Ready.anim", new[] { actionHost }, false, 1f / 60f);
+                armed.motion = CreateOrReplaceActiveClip(folder + "/Contact_Armed.anim", new[] { actionHost }, false, RaycastActionArmSeconds);
+                on.motion = CreateOrReplaceActiveClip(folder + "/Contact_Pulse.anim", new[] { actionHost }, true, RaycastActionPulseSeconds);
+                waitForRelease.motion = CreateOrReplaceActiveClip(folder + "/Contact_WaitRelease.anim", new[] { actionHost }, false, 1f / 60f);
+            }
+
+            var arm = ready.AddTransition(armed);
+            arm.hasExitTime = false;
+            arm.duration = 0f;
+            arm.AddCondition(integerGate ? AnimatorConditionMode.Equals : AnimatorConditionMode.If,
+                integerGate ? actionValue : 0f, actionParameter);
+            arm.AddCondition(AnimatorConditionMode.IfNot, 0f, "SoY_KO");
+
+            var confirm = armed.AddTransition(on);
+            confirm.hasExitTime = false;
+            confirm.duration = 0f;
+            confirm.AddCondition(AnimatorConditionMode.If, 0f, hitPrefix + "_Hit");
+            if (!string.IsNullOrWhiteSpace(additionalRequiredHitPrefix))
+                confirm.AddCondition(AnimatorConditionMode.If, 0f, additionalRequiredHitPrefix + "_Hit");
+            confirm.AddCondition(AnimatorConditionMode.IfNot, 0f, "SoY_KO");
+
+            // If the Raycast never becomes valid, silently cancel after a short arm window.
+            var timeout = armed.AddTransition(waitForRelease);
+            timeout.hasExitTime = true;
+            timeout.exitTime = 1f;
+            timeout.duration = 0f;
+
+            if (worldDropConstraint == null)
+            {
+                var pulseDone = on.AddTransition(waitForRelease);
+                pulseDone.hasExitTime = true;
+                pulseDone.exitTime = 1f;
+                pulseDone.duration = 0f;
+            }
+            else
+            {
+                // World-dropped spells remain frozen exactly as long as the action selector
+                // remains active. VRChat Expression Menu Buttons reset when released; if a
+                // future action uses a Toggle, this same condition naturally waits for OFF.
+                var worldDropReleased = on.AddTransition(waitForRelease);
+                worldDropReleased.hasExitTime = false;
+                worldDropReleased.duration = 0f;
+                worldDropReleased.AddCondition(integerGate ? AnimatorConditionMode.NotEqual : AnimatorConditionMode.IfNot,
+                    integerGate ? actionValue : 0f, actionParameter);
+            }
+
+            var koFromArmed = armed.AddTransition(waitForRelease);
+            koFromArmed.hasExitTime = false;
+            koFromArmed.duration = 0f;
+            koFromArmed.AddCondition(AnimatorConditionMode.If, 0f, "SoY_KO");
+
+            var koFromOn = on.AddTransition(waitForRelease);
+            koFromOn.hasExitTime = false;
+            koFromOn.duration = 0f;
+            koFromOn.AddCondition(AnimatorConditionMode.If, 0f, "SoY_KO");
+
+            var released = waitForRelease.AddTransition(ready);
+            released.hasExitTime = false;
+            released.duration = 0f;
+            released.AddCondition(integerGate ? AnimatorConditionMode.NotEqual : AnimatorConditionMode.IfNot,
+                integerGate ? actionValue : 0f, actionParameter);
+
+            fxController.AddLayer(layer);
+            EditorUtility.SetDirty(fxController);
+            AssetDatabase.SaveAssets();
+        }
+
+        private void RebuildRaycastTargetingLayer(
+            string layerKey,
+            GameObject targetIcon,
+            string hitPrefix,
+            string actionParameter,
+            int actionValue,
+            bool integerGate,
+            bool showOnlyWhenActionIsZero,
+            string additionalRequiredHitPrefix = null)
+        {
+            if (fxController == null || targetIcon == null)
+                return;
+
+            EnsureAnimatorParameter(fxController, "IsLocal", AnimatorControllerParameterType.Bool);
+            var layerName = RaycastTargetLayerPrefix + layerKey;
+            RemoveLayerByName(fxController, layerName);
+            var layer = CreateHookLayer(fxController, layerName);
+            var hidden = AddHookState(layer.stateMachine, "Hidden", new Vector3(180f, 160f));
+            var visible = AddHookState(layer.stateMachine, "Local Targeting", new Vector3(500f, 160f));
+            layer.stateMachine.defaultState = hidden;
+
+            var folder = RaycastHierarchyAnimationFolder(targetIcon, layerKey + "_Targeting");
+            hidden.motion = CreateOrReplaceActiveClip(folder + "/Crosshair_Hidden.anim", new[] { targetIcon }, false, 1f / 60f);
+            visible.motion = CreateOrReplaceActiveClip(folder + "/Crosshair_Visible.anim", new[] { targetIcon }, true, 1f / 60f);
+
+            var show = hidden.AddTransition(visible);
+            show.hasExitTime = false;
+            show.duration = 0f;
+            show.AddCondition(AnimatorConditionMode.If, 0f, "IsLocal");
+            show.AddCondition(AnimatorConditionMode.If, 0f, RaycastTargetingParameter);
+            show.AddCondition(AnimatorConditionMode.If, 0f, hitPrefix + "_Hit");
+            if (!string.IsNullOrWhiteSpace(additionalRequiredHitPrefix))
+                show.AddCondition(AnimatorConditionMode.If, 0f, additionalRequiredHitPrefix + "_Hit");
+            show.AddCondition(AnimatorConditionMode.IfNot, 0f, "SoY_KO");
+            if (showOnlyWhenActionIsZero && integerGate)
+                show.AddCondition(AnimatorConditionMode.Equals, 0f, actionParameter);
+            else
+                show.AddCondition(integerGate ? AnimatorConditionMode.NotEqual : AnimatorConditionMode.IfNot, integerGate ? actionValue : 0f, actionParameter);
+
+            var targetingDisabled = visible.AddTransition(hidden);
+            targetingDisabled.hasExitTime = false;
+            targetingDisabled.duration = 0f;
+            targetingDisabled.AddCondition(AnimatorConditionMode.IfNot, 0f, RaycastTargetingParameter);
+
+            var lost = visible.AddTransition(hidden);
+            lost.hasExitTime = false;
+            lost.duration = 0f;
+            lost.AddCondition(AnimatorConditionMode.IfNot, 0f, hitPrefix + "_Hit");
+
+            if (!string.IsNullOrWhiteSpace(additionalRequiredHitPrefix))
+            {
+                var floorLost = visible.AddTransition(hidden);
+                floorLost.hasExitTime = false;
+                floorLost.duration = 0f;
+                floorLost.AddCondition(AnimatorConditionMode.IfNot, 0f, additionalRequiredHitPrefix + "_Hit");
+            }
+
+            var remote = visible.AddTransition(hidden);
+            remote.hasExitTime = false;
+            remote.duration = 0f;
+            remote.AddCondition(AnimatorConditionMode.IfNot, 0f, "IsLocal");
+
+            var ko = visible.AddTransition(hidden);
+            ko.hasExitTime = false;
+            ko.duration = 0f;
+            ko.AddCondition(AnimatorConditionMode.If, 0f, "SoY_KO");
+
+            var fired = visible.AddTransition(hidden);
+            fired.hasExitTime = false;
+            fired.duration = 0f;
+            if (showOnlyWhenActionIsZero && integerGate)
+                fired.AddCondition(AnimatorConditionMode.NotEqual, 0f, actionParameter);
+            else
+                fired.AddCondition(integerGate ? AnimatorConditionMode.Equals : AnimatorConditionMode.If, integerGate ? actionValue : 0f, actionParameter);
+
+            fxController.AddLayer(layer);
+            EditorUtility.SetDirty(fxController);
+            AssetDatabase.SaveAssets();
+        }
+
+        private void EnsureAnimatorParameter(AnimatorController controller, string name, AnimatorControllerParameterType type)
+        {
+            if (controller == null || controller.parameters.Any(x => x.name == name)) return;
+            controller.AddParameter(name, type); EditorUtility.SetDirty(controller);
+        }
+
+        private void SetEnumMemberByKeywords(Component component, string[] keywords, params string[] names)
+        {
+            if (component == null || keywords == null || keywords.Length == 0)
+                return;
+
+            var member = FindMember(component.GetType(), names);
+            var enumType = member is FieldInfo ? ((FieldInfo)member).FieldType : member is PropertyInfo ? ((PropertyInfo)member).PropertyType : null;
+            if (enumType != null && enumType.IsEnum)
+            {
+                var values = Enum.GetValues(enumType).Cast<object>().ToArray();
+                var matches = values
+                    .Where(value => keywords.All(keyword => value.ToString().IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0))
+                    .OrderBy(value => value.ToString().Length)
+                    .ToArray();
+                var match = matches.FirstOrDefault();
+                if (match == null)
+                    match = values.OrderBy(value => value.ToString().Length)
+                        .FirstOrDefault(value => value.ToString().IndexOf(keywords[0], StringComparison.OrdinalIgnoreCase) >= 0);
+                if (match != null && WriteMember(component, match, names))
+                    return;
+            }
+
+            SetSerializedEnumMemberByKeywords(component, keywords, names);
+        }
+
+        private void ApplyContactPreset(ContactPreset preset)
+        {
+            switch (preset)
+            {
+                case ContactPreset.SwordBlade: attackShape = ContactShape.Capsule; attackRadius = 0.05f; attackHeight = 0.8f; attackPosition = Vector3.zero; attackRotation = Vector3.zero; break;
+                case ContactPreset.ShieldFace: blockShape = ContactShape.Box; blockBoxSize = new Vector3(0.5f, 0.7f, 0.08f); break;
+                case ContactPreset.HandSpell: spellShape = ContactShape.Sphere; spellRadius = 0.12f; spellPosition = Vector3.zero; break;
+                case ContactPreset.HealingOrb: spellShape = ContactShape.Sphere; spellRadius = 0.2f; break;
+                case ContactPreset.BodyReceiver: incomingShape = ContactShape.Capsule; incomingRadius = 0.22f; incomingHeight = 0.65f; break;
+                case ContactPreset.Aura: debuffShape = ContactShape.Sphere; debuffRadius = 0.65f; break;
+                case ContactPreset.LargeAoe: spellShape = ContactShape.Sphere; spellRadius = 1.5f; break;
+                case ContactPreset.RaycastImpact: attackShape = spellShape = technickShape = itemShape = ContactShape.Sphere; attackRadius = spellRadius = technickRadius = itemRadius = raycastImpactRadius; break;
+            }
+            Log("Applied contact preset: " + preset);
+        }
+
+        private void DuplicateSelectedContactObject()
+        {
+            if (Selection.activeGameObject == null) return;
+            var clone = Instantiate(Selection.activeGameObject, Selection.activeGameObject.transform.parent);
+            clone.name = Selection.activeGameObject.name + " Copy";
+            Undo.RegisterCreatedObjectUndo(clone, "Duplicate Stories Contact");
+            Selection.activeGameObject = clone;
+        }
+
+        private void MirrorSelectedContactObject()
+        {
+            var selected = Selection.activeGameObject;
+            if (selected == null) return;
+            Undo.RecordObject(selected.transform, "Mirror Stories Contact");
+            var pos = selected.transform.localPosition; pos.x = -pos.x; selected.transform.localPosition = pos;
+            var rot = selected.transform.localEulerAngles; rot.y = -rot.y; rot.z = -rot.z; selected.transform.localEulerAngles = rot;
+        }
+
+        private ContactDraftKind CurrentDraftKind()
+        {
+            switch (outgoingKind)
+            {
+                case OutgoingContactKind.Spell: return ContactDraftKind.Spell;
+                case OutgoingContactKind.Technick: return ContactDraftKind.Technick;
+                case OutgoingContactKind.Item: return ContactDraftKind.Item;
+                case OutgoingContactKind.Blocking: return ContactDraftKind.Blocking;
+                case OutgoingContactKind.Debuff: return ContactDraftKind.Debuff;
+                default: return ContactDraftKind.Attack;
+            }
+        }
+
+        private void CopySelectedColliderToCurrentGeometry()
+        {
+            var selected = Selection.activeGameObject;
+            if (selected == null) return;
+            var sphere = selected.GetComponent<SphereCollider>();
+            var capsule = selected.GetComponent<CapsuleCollider>();
+            var box = selected.GetComponent<BoxCollider>();
+            var kind = CurrentDraftKind();
+            if (sphere != null) SetGeometry(kind, ContactShape.Sphere, sphere.radius, sphere.radius * 2f, Vector3.one, selected.transform.localPosition, selected.transform.localEulerAngles);
+            else if (capsule != null) SetGeometry(kind, ContactShape.Capsule, capsule.radius, capsule.height, Vector3.one, selected.transform.localPosition, selected.transform.localEulerAngles);
+            else if (box != null) SetGeometry(kind, ContactShape.Box, 0.1f, 0.2f, box.size, selected.transform.localPosition, selected.transform.localEulerAngles);
+            else EditorUtility.DisplayDialog("Copy Collider", "The selected object has no Sphere, Capsule, or Box Collider.", "OK");
+        }
+
+        private string ComputeSha256(byte[] bytes)
+        {
+            using (var sha = SHA256.Create())
+                return string.Concat(sha.ComputeHash(bytes).Select(x => x.ToString("x2")).ToArray());
+        }
+
+
+        private bool DrawDeliverySelector(string actionLabel)
+        {
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Delivery", GUILayout.Width(70f));
+            EditorGUI.BeginChangeCheck();
+            deliveryMode = (DeliveryMode)GUILayout.Toolbar(
+                (int)deliveryMode,
+                new[] { "Contact", "Raycast" },
+                GUILayout.Height(largeControls ? 34f : 24f));
+            if (EditorGUI.EndChangeCheck())
+                SaveEditorPreferences();
+            EditorGUILayout.EndHorizontal();
+
+            if (deliveryMode == DeliveryMode.Raycast)
+            {
+                var gate = CurrentRaycastGateSummary();
+                EditorGUILayout.LabelField(actionLabel + " raycast • " + gate, wrappedLabel);
+                DrawCompactRaycastSettings();
+                return true;
+            }
+            return false;
+        }
+
+        private string CurrentRaycastGateSummary()
+        {
+            string parameter;
+            int value;
+            bool integerGate;
+            GetCurrentRaycastActionGate(out parameter, out value, out integerGate);
+            return integerGate ? parameter + " = " + value : RaycastFireParameter + " button";
+        }
+
+        private string CurrentRaycastSuggestedPrefix()
+        {
+            SpellDefinition spell;
+            ActionDefinition action;
+            if (outgoingKind == OutgoingContactKind.Spell && TryGetSelectedSpell(out spell))
+                return "Spell_" + spell.Id + "_" + MakeSafeAssetName(spell.Name);
+            if (outgoingKind == OutgoingContactKind.Technick && TryGetSelectedTechnick(out action))
+                return "Technick_" + action.Id + "_" + MakeSafeAssetName(action.Name);
+            if (outgoingKind == OutgoingContactKind.Item && TryGetSelectedItem(out action))
+                return "Item_" + action.Id + "_" + MakeSafeAssetName(action.Name);
+            if (outgoingKind == OutgoingContactKind.Attack)
+                return "Attack_" + attackTier;
+            if (outgoingKind == OutgoingContactKind.Debuff)
+                return "Debuff_" + string.Join("_", GetSelectedDebuffs().DefaultIfEmpty("Effect").ToArray());
+            return "SoY_Raycast";
+        }
+
+        private void DrawCompactRaycastSettings()
+        {
+            DrawTagRow("SDK", RaycastTypeAvailable() ? "✓ Ready" : "✕ Missing", "Official VRCRaycast");
+            var currentRaycastCount = CountRaycastComponents();
+            DrawTagRow("Budget", currentRaycastCount + " / 80", currentRaycastCount >= 72 ? "Near shared Raycast/FinalIK limit" : "OK");
+            raycastDistance = Mathf.Clamp(EditorGUILayout.FloatField("Range", raycastDistance), 0.1f, 1000f);
+            raycastImpactRadius = Mathf.Clamp(EditorGUILayout.FloatField("Impact Radius", raycastImpactRadius), 0.01f, 1f);
+
+            if (outgoingKind == OutgoingContactKind.Spell)
+            {
+                raycastDeliveryStyle = RaycastDeliveryStyle.SpellGroundPlacement;
+                DrawTagRow("Mode", "Spell Ground Placement", "Remote-player aim → world-floor probe → downward-facing FX holder");
+                EditorGUILayout.HelpBox(
+                    "After generating/repairing menus, turn Targeting ON. Aim at another player until the LOCAL crosshair appears, then press the installed Spell button. That same button fires the Raycast Contact and its managed cast-animation state. The crosshair hides during the cast.",
+                    MessageType.Info);
+            }
+            else
+            {
+                raycastDeliveryStyle = RaycastDeliveryStyle.DirectImpact;
+                raycastCollisionTarget = (RaycastCollisionTarget)EditorGUILayout.EnumPopup("Targets", raycastCollisionTarget);
+                EditorGUILayout.LabelField("Direct Impact is intended for bullets, arrows, projectile-like Technicks, Items, and Debuffs.", wrappedLabel);
+            }
+
+            showRaycastAdvanced = EditorGUILayout.Foldout(showRaycastAdvanced, "Advanced Raycast", true);
+            if (showRaycastAdvanced)
+            {
+                raycastDirection = EditorGUILayout.Vector3Field("Local Aim Direction", raycastDirection);
+                if (outgoingKind != OutgoingContactKind.Spell)
+                    raycastApplyRotation = EditorGUILayout.ToggleLeft("Align direct impact to hit surface", raycastApplyRotation);
+                raycastCreateLineRenderer = EditorGUILayout.ToggleLeft("Create visual LineRenderer holder", raycastCreateLineRenderer);
+                raycastUseCustomPrefix = EditorGUILayout.ToggleLeft("Use custom asset prefix", raycastUseCustomPrefix);
+                if (raycastUseCustomPrefix)
+                    raycastParameterPrefix = EditorGUILayout.TextField("Custom Prefix", raycastParameterPrefix);
+            }
+
+            var suggested = CurrentRaycastSuggestedPrefix();
+            EditorGUILayout.LabelField("Creates / repairs: " + suggested, EditorStyles.miniLabel);
+            using (new EditorGUI.DisabledScope(!RaycastTypeAvailable() || !HasUsableTargets() || avatarRoot == null))
+            {
+                if (GUILayout.Button("Create / Repair Raycast", GUILayout.Height(largeControls ? 42f : 32f)))
+                    CreateRaycastDeliveryForCurrentAction();
+            }
+        }
+
+        private void DrawCompactContactSettings(
+            ContactDraftKind kind,
+            ref ContactShape shape,
+            ref float radius,
+            ref float height,
+            ref Vector3 boxSize,
+            ref Vector3 position,
+            ref Vector3 rotation,
+            bool canCreate,
+            string previewLabel)
+        {
+            DrawShapeEditor(ref shape, ref radius, ref height, ref boxSize, ref position, ref rotation);
+            showContactAdvanced = EditorGUILayout.Foldout(showContactAdvanced, "Advanced Contact Utilities", true);
+            if (showContactAdvanced)
+            {
+                contactPreset = (ContactPreset)EditorGUILayout.EnumPopup("Preset", contactPreset);
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("Apply Preset")) ApplyContactPreset(contactPreset);
+                if (GUILayout.Button("Copy Collider")) CopySelectedColliderToCurrentGeometry();
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUI.BeginChangeCheck();
+                contactAttachmentMode = (ContactAttachmentMode)EditorGUILayout.EnumPopup("Attachment", contactAttachmentMode);
+                if (contactAttachmentMode != ContactAttachmentMode.ContactObject)
+                    weaponAttachmentTarget = (GameObject)EditorGUILayout.ObjectField("Weapon / Prop", weaponAttachmentTarget, typeof(GameObject), true);
+                if (contactAttachmentMode == ContactAttachmentMode.VRCParentConstraint)
+                {
+                    constraintMaintainOffset = EditorGUILayout.Toggle("Keep Current Offset", constraintMaintainOffset);
+                    constraintWeight = EditorGUILayout.Slider("Constraint Weight", constraintWeight, 0f, 1f);
+                }
+                if (EditorGUI.EndChangeCheck()) SaveEditorPreferences();
+                if (contactAttachmentMode != ContactAttachmentMode.ContactObject && weaponAttachmentTarget == null)
+                    EditorGUILayout.HelpBox("Assign the weapon or prop transform used by this Contact.", MessageType.Warning);
+            }
+            DrawDraftControls(kind, canCreate, previewLabel);
         }
 
         private void DrawOutgoingContacts()
         {
             outgoingKind = (OutgoingContactKind)GUILayout.Toolbar((int)outgoingKind, new[]
             {
-                "Attack", "Spells", "Technicks", "Items", "Blocking", "Debuff"
-            }, GUILayout.Height(28f));
+                "Attack", "Spell", "Technick", "Item", "Block", "Debuff"
+            }, GUILayout.Height(largeControls ? 36f : 26f));
             EditorGUILayout.Space(4f);
 
             switch (outgoingKind)
@@ -1180,19 +5108,9 @@ namespace StoriesOfYggdrasil.OSC
         private void DrawAttackSenders()
         {
             DrawHealthSafetyMini();
-            BeginCard("Attack Contact Profile");
-            attackTier = (AttackTier)EditorGUILayout.EnumPopup("Attack Tier", attackTier);
+            BeginCard("Attack");
+            attackTier = (AttackTier)EditorGUILayout.EnumPopup("Tier", attackTier);
 
-            var baseTags = GetAttackTags(attackTier).ToList();
-            var tagText = string.Join(", ", baseTags);
-            EditorGUILayout.HelpBox(
-                attackTier == AttackTier.Critical
-                    ? "Critical uses only '" + TagCritical + "'. It deliberately does NOT receive '" + TagBlockable + "'."
-                    : "This sender will use: " + tagText,
-                attackTier == AttackTier.Critical ? MessageType.Warning : MessageType.Info);
-
-            EditorGUILayout.Space(4f);
-            EditorGUILayout.LabelField("Optional debuffs on the same hit", cardTitleStyle);
             EditorGUILayout.BeginHorizontal();
             addBurnToAttack = GUILayout.Toggle(addBurnToAttack, "Burn", "Button");
             addSilenceToAttack = GUILayout.Toggle(addSilenceToAttack, "Silence", "Button");
@@ -1201,48 +5119,33 @@ namespace StoriesOfYggdrasil.OSC
             addBleedToAttack = GUILayout.Toggle(addBleedToAttack, "Bleed", "Button");
             EditorGUILayout.EndHorizontal();
 
-            DrawShapeEditor(ref attackShape, ref attackRadius, ref attackHeight, ref attackBoxSize, ref attackPosition, ref attackRotation);
-            attackCreateChild = EditorGUILayout.ToggleLeft("Create a dedicated child contact object", attackCreateChild);
-            attackStartsEnabled = EditorGUILayout.ToggleLeft("Start contact object enabled", attackStartsEnabled);
-            if (attackStartsEnabled)
-                EditorGUILayout.HelpBox("An always-enabled weapon sender can damage someone from passive touching. Animation-gated hit frames are safer.", MessageType.Warning);
-
-            DrawDraftControls(
-                ContactDraftKind.Attack,
-                HasUsableTargets() && ContactTypesAvailable(),
-                "Preview Attack Contact");
-            if (GUILayout.Button("REPAIR EXISTING ATTACK / DEBUFF / ACTION ALIGNMENT"))
-                RepairExistingActionAlignment();
-            EndCard();
-
-            BeginCard("Bullet / Projectile Guidance");
-            EditorGUILayout.LabelField(
-                "For a real moving bullet object, select that projectile transform and create a Weak sender on it. " +
-                "For hitscan-style guns, use a narrow Box contact aligned to local +Z and animate it ON for a single firing frame. " +
-                "This is an approximation: avatar Contacts do not provide true networked ballistic simulation.",
-                wrappedLabel);
-            if (GUILayout.Button("Load Weak Hitscan Box Preset"))
+            var isRaycast = DrawDeliverySelector(attackTier + " attack");
+            if (!isRaycast)
             {
-                attackTier = AttackTier.Weak;
-                attackShape = ContactShape.Box;
-                attackBoxSize = new Vector3(0.035f, 0.035f, 8f);
-                attackPosition = new Vector3(0f, 0f, 4f);
-                attackRotation = Vector3.zero;
-                attackStartsEnabled = false;
-                operationLog.Insert(0, "Loaded Weak hitscan box preset (8 m along local +Z)." );
+                DrawCompactContactSettings(
+                    ContactDraftKind.Attack,
+                    ref attackShape, ref attackRadius, ref attackHeight, ref attackBoxSize,
+                    ref attackPosition, ref attackRotation,
+                    HasUsableTargets() && ContactTypesAvailable(),
+                    "Preview Attack");
+                attackStartsEnabled = EditorGUILayout.ToggleLeft("Start enabled", attackStartsEnabled);
             }
+
+            if (attackTier == AttackTier.Critical)
+                EditorGUILayout.LabelField("Critical attacks are not Blockable.", EditorStyles.miniLabel);
             EndCard();
         }
 
         private void DrawSpellSenders()
         {
             DrawHealthSafetyMini();
-            BeginCard("Spell Contact Sender");
-            spellSchool = (SpellSchool)EditorGUILayout.EnumPopup("Magick School", spellSchool);
-            var spells = GetSpellsForSchool(spellSchool);
+            BeginCard("Spell");
+            spellSchool = (SpellSchool)EditorGUILayout.EnumPopup("School", spellSchool);
+            spellSearch = EditorGUILayout.TextField("Search", spellSearch);
+            var spells = GetVisibleSpellDefinitions();
             if (spells.Length == 0)
             {
-                EditorGUILayout.HelpBox("No spells are registered for this school.", MessageType.Warning);
+                EditorGUILayout.HelpBox("No matching spell.", MessageType.Info);
                 EndCard();
                 return;
             }
@@ -1253,32 +5156,29 @@ namespace StoriesOfYggdrasil.OSC
                 spellSelectionIndex,
                 spells.Select(spell => spell.Id + " — " + spell.Name).ToArray());
             var selected = spells[spellSelectionIndex];
-            EditorGUILayout.HelpBox(
-                "Spell ID " + selected.Id + " is encoded as " + GetSpellBinary(selected.Id) + " on the v0.5.3 contact bus. " +
-                "School: " + GetSpellSchoolDisplayName(selected.School) + ". Category: " + selected.Category + ". " +
-                (selected.IsHealing
-                    ? "Healing and revival spells include caster-alignment tags for the Enemy healing rule."
-                    : "The generated sender also includes a category tag for future Sam.py routing."),
-                selected.IsHealing ? MessageType.Info : MessageType.None);
 
-            DrawShapeEditor(ref spellShape, ref spellRadius, ref spellHeight, ref spellBoxSize, ref spellPosition, ref spellRotation);
-            spellStartsEnabled = EditorGUILayout.ToggleLeft("Start spell contact enabled", spellStartsEnabled);
-            if (spellStartsEnabled)
-                EditorGUILayout.HelpBox("Spell contacts should normally be animation-gated to the active cast or impact frames.", MessageType.Warning);
-
-            DrawDraftControls(
-                ContactDraftKind.Spell,
-                HasUsableTargets() && ContactTypesAvailable(),
-                "Preview Spell Contact");
-            EndCard();
-
-            BeginCard("Enemy / Ally Healing Alignment");
             EditorGUILayout.LabelField(
-                "Every generated spell sender receives an Ally and Enemy alignment variant. The FX copy activates the correct variant from SoY_IsEnemy. " +
-                "When the target is marked as an Enemy, Sam.py/OSC can reject healing contacts whose source is not also marked as an Enemy.",
-                wrappedLabel);
-            DrawTagRow("Ally caster", CasterAllyTag, "Used while SoY_IsEnemy is false");
-            DrawTagRow("Enemy caster", CasterEnemyTag, "Used while SoY_IsEnemy is true");
+                "ID " + selected.Id + " • " + GetSpellSchoolDisplayName(selected.School) + " • " + selected.Category,
+                EditorStyles.miniLabel);
+
+            var isRaycast = DrawDeliverySelector(selected.Name);
+            if (!isRaycast)
+            {
+                DrawCompactContactSettings(
+                    ContactDraftKind.Spell,
+                    ref spellShape, ref spellRadius, ref spellHeight, ref spellBoxSize,
+                    ref spellPosition, ref spellRotation,
+                    HasUsableTargets() && ContactTypesAvailable(),
+                    "Preview Spell");
+                spellStartsEnabled = EditorGUILayout.ToggleLeft("Start enabled", spellStartsEnabled);
+            }
+
+            showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Details", true);
+            if (showActionDetails)
+                EditorGUILayout.LabelField(
+                    "Outgoing bus: " + GetSpellBinary(selected.Id) +
+                    " • Alignment: " + CasterAllyTag + " / " + CasterEnemyTag,
+                    wrappedLabel);
             EndCard();
         }
 
@@ -1286,83 +5186,78 @@ namespace StoriesOfYggdrasil.OSC
         private void DrawTechnickSenders()
         {
             DrawHealthSafetyMini();
-            BeginCard("Technick Contact Sender");
-            if (TechnickDefinitions.Length == 0)
+            BeginCard("Technick");
+            technickSearch = EditorGUILayout.TextField("Search", technickSearch);
+            var rows = GetVisibleTechnickDefinitions();
+            if (rows.Length == 0)
             {
-                EditorGUILayout.HelpBox("No Technicks are registered.", MessageType.Warning);
+                EditorGUILayout.HelpBox("No matching Technick.", MessageType.Info);
                 EndCard();
                 return;
             }
 
-            technickSelectionIndex = Mathf.Clamp(technickSelectionIndex, 0, TechnickDefinitions.Length - 1);
+            technickSelectionIndex = Mathf.Clamp(technickSelectionIndex, 0, rows.Length - 1);
             technickSelectionIndex = EditorGUILayout.Popup(
                 "Technick",
                 technickSelectionIndex,
-                TechnickDefinitions.Select(entry => entry.Id + " — " + entry.Name).ToArray());
-            var selected = TechnickDefinitions[technickSelectionIndex];
-            EditorGUILayout.HelpBox(
-                "Technick ID " + selected.Id + " is encoded as " + GetActionBinary(selected.Id) + ". " +
-                "Sam.py remains authoritative for license, teaching item, cooldown, and effect checks. Encounters are optional for OSC use.",
-                MessageType.Info);
-            if (!string.IsNullOrEmpty(selected.Description))
+                rows.Select(entry => entry.Id + " — " + entry.Name).ToArray());
+            var selected = rows[technickSelectionIndex];
+
+            EditorGUILayout.LabelField("ID " + selected.Id + " • Gate: SoY_TechnickType", EditorStyles.miniLabel);
+            var isRaycast = DrawDeliverySelector(selected.Name);
+            if (!isRaycast)
+            {
+                DrawCompactContactSettings(
+                    ContactDraftKind.Technick,
+                    ref technickShape, ref technickRadius, ref technickHeight, ref technickBoxSize,
+                    ref technickPosition, ref technickRotation,
+                    HasUsableTargets() && ContactTypesAvailable(),
+                    "Preview Technick");
+                technickStartsEnabled = EditorGUILayout.ToggleLeft("Start enabled", technickStartsEnabled);
+            }
+
+            showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Details", true);
+            if (showActionDetails && !string.IsNullOrWhiteSpace(selected.Description))
                 EditorGUILayout.LabelField(selected.Description, wrappedLabel);
-
-            DrawShapeEditor(ref technickShape, ref technickRadius, ref technickHeight, ref technickBoxSize, ref technickPosition, ref technickRotation);
-            technickStartsEnabled = EditorGUILayout.ToggleLeft("Start Technick contact enabled", technickStartsEnabled);
-            if (technickStartsEnabled)
-                EditorGUILayout.HelpBox("Technick contacts should normally be animation-gated to the action impact frame.", MessageType.Warning);
-
-            DrawDraftControls(
-                ContactDraftKind.Technick,
-                HasUsableTargets() && ContactTypesAvailable(),
-                "Preview Technick Contact");
-            if (GUILayout.Button("REPAIR EXISTING ATTACK / DEBUFF / ACTION ALIGNMENT"))
-                RepairExistingActionAlignment();
             EndCard();
         }
 
         private void DrawItemSenders()
         {
             DrawHealthSafetyMini();
-            BeginCard("Item-Use Contact Sender");
-            if (ItemDefinitions.Length == 0)
+            BeginCard("Item");
+            itemSearch = EditorGUILayout.TextField("Search", itemSearch);
+            var rows = GetVisibleItemDefinitions();
+            if (rows.Length == 0)
             {
-                EditorGUILayout.HelpBox("No combat items are registered.", MessageType.Warning);
+                EditorGUILayout.HelpBox("No matching item.", MessageType.Info);
                 EndCard();
                 return;
             }
 
-            itemSelectionIndex = Mathf.Clamp(itemSelectionIndex, 0, ItemDefinitions.Length - 1);
+            itemSelectionIndex = Mathf.Clamp(itemSelectionIndex, 0, rows.Length - 1);
             itemSelectionIndex = EditorGUILayout.Popup(
                 "Item",
                 itemSelectionIndex,
-                ItemDefinitions.Select(entry => entry.Id + " — " + entry.Name).ToArray());
-            var selected = ItemDefinitions[itemSelectionIndex];
-            EditorGUILayout.HelpBox(
-                "Item ID " + selected.Id + " is encoded as " + GetActionBinary(selected.Id) + ". " +
-                "Sam.py checks the linked character inventory before applying and consuming the item.",
-                MessageType.Info);
-            if (!string.IsNullOrEmpty(selected.Description))
+                rows.Select(entry => entry.Id + " — " + entry.Name).ToArray());
+            var selected = rows[itemSelectionIndex];
+
+            EditorGUILayout.LabelField("ID " + selected.Id + " • Gate: SoY_ItemType", EditorStyles.miniLabel);
+            var isRaycast = DrawDeliverySelector(selected.Name);
+            if (!isRaycast)
+            {
+                DrawCompactContactSettings(
+                    ContactDraftKind.Item,
+                    ref itemShape, ref itemRadius, ref itemHeight, ref itemBoxSize,
+                    ref itemPosition, ref itemRotation,
+                    HasUsableTargets() && ContactTypesAvailable(),
+                    "Preview Item");
+                itemStartsEnabled = EditorGUILayout.ToggleLeft("Start enabled", itemStartsEnabled);
+            }
+
+            showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Details", true);
+            if (showActionDetails && !string.IsNullOrWhiteSpace(selected.Description))
                 EditorGUILayout.LabelField(selected.Description, wrappedLabel);
-
-            DrawShapeEditor(ref itemShape, ref itemRadius, ref itemHeight, ref itemBoxSize, ref itemPosition, ref itemRotation);
-            itemStartsEnabled = EditorGUILayout.ToggleLeft("Start item contact enabled", itemStartsEnabled);
-            if (itemStartsEnabled)
-                EditorGUILayout.HelpBox("Item contacts should normally be enabled only during the intended use animation.", MessageType.Warning);
-
-            DrawDraftControls(
-                ContactDraftKind.Item,
-                HasUsableTargets() && ContactTypesAvailable(),
-                "Preview Item Contact");
-            if (GUILayout.Button("REPAIR EXISTING ATTACK / DEBUFF / ACTION ALIGNMENT"))
-                RepairExistingActionAlignment();
-            EndCard();
-
-            BeginCard("Inventory Authority");
-            EditorGUILayout.LabelField(
-                "The Contact only identifies the requested item. The VPS checks the linked Sam.py character's live inventory. " +
-                "No item is applied or consumed when the quantity is zero.",
-                wrappedLabel);
             EndCard();
         }
 
@@ -1397,8 +5292,7 @@ namespace StoriesOfYggdrasil.OSC
         private void DrawDebuffs()
         {
             DrawHealthSafetyMini();
-            BeginCard("Debuff Contact Sender");
-            EditorGUILayout.LabelField("Select one or more exact compatible tags:", wrappedLabel);
+            BeginCard("Debuff");
             EditorGUILayout.BeginHorizontal();
             debuffBurn = GUILayout.Toggle(debuffBurn, "Burn", "Button");
             debuffSilence = GUILayout.Toggle(debuffSilence, "Silence", "Button");
@@ -1407,26 +5301,17 @@ namespace StoriesOfYggdrasil.OSC
             debuffBleed = GUILayout.Toggle(debuffBleed, "Bleed", "Button");
             EditorGUILayout.EndHorizontal();
 
-            DrawShapeEditor(ref debuffShape, ref debuffRadius, ref debuffHeight, ref debuffBoxSize, ref debuffPosition, ref debuffRotation);
-            debuffCreateChild = EditorGUILayout.ToggleLeft("Create a dedicated child debuff-contact object", debuffCreateChild);
-            debuffStartsEnabled = EditorGUILayout.ToggleLeft("Start contact object enabled", debuffStartsEnabled);
-            if (debuffStartsEnabled)
-                EditorGUILayout.HelpBox("DOT/control senders should normally be enabled only while the effect is active.", MessageType.Warning);
-
-            DrawDraftControls(
-                ContactDraftKind.Debuff,
-                HasUsableTargets() && ContactTypesAvailable() && GetSelectedDebuffs().Any(),
-                "Preview Debuff Contact");
-            if (GUILayout.Button("REPAIR EXISTING ATTACK / DEBUFF / ACTION ALIGNMENT"))
-                RepairExistingActionAlignment();
-            EndCard();
-
-            BeginCard("Expected Health-System Mappings");
-            DrawTagRow("Burn", "DoT Burn", "Slow damage-over-time tick");
-            DrawTagRow("Bleed", "DoT Bleed", "Slow damage-over-time tick");
-            DrawTagRow("Silence", "Suppress Silence", "Disables Magick/abilities through the existing controller");
-            DrawTagRow("Freeze", "Slow Freeze", "Disables or suppresses movement through the existing controller");
-            DrawTagRow("Bind", "Slow Bind", "Disables or suppresses movement through the existing controller");
+            var isRaycast = DrawDeliverySelector("Debuff");
+            if (!isRaycast)
+            {
+                DrawCompactContactSettings(
+                    ContactDraftKind.Debuff,
+                    ref debuffShape, ref debuffRadius, ref debuffHeight, ref debuffBoxSize,
+                    ref debuffPosition, ref debuffRotation,
+                    HasUsableTargets() && ContactTypesAvailable() && GetSelectedDebuffs().Any(),
+                    "Preview Debuff");
+                debuffStartsEnabled = EditorGUILayout.ToggleLeft("Start enabled", debuffStartsEnabled);
+            }
             EndCard();
         }
 
@@ -1457,7 +5342,7 @@ namespace StoriesOfYggdrasil.OSC
             EditorGUILayout.LabelField("Incoming Spell Identification", cardTitleStyle);
             incomingSpells = EditorGUILayout.ToggleLeft("Create compact binary spell receiver bus", incomingSpells);
             EditorGUILayout.HelpBox(
-                "v0.5.3 uses one Active receiver plus eight bit receivers for every spell ID from 1-255. " +
+                "The compact receiver bus uses one Active receiver plus eight bit receivers for every spell ID from 1-255. " +
                 "This replaces the broken SDK behavior where every Constant Int receiver reported 1. " +
                 "All Magick schools are supported automatically with only nine unsynced Bool parameters.",
                 MessageType.Info);
@@ -1472,11 +5357,6 @@ namespace StoriesOfYggdrasil.OSC
                 "The separate SoY_TechnickType and SoY_ItemType menu selectors are synced so remote players can see action FX.",
                 MessageType.Info);
             EditorGUILayout.LabelField("Required Desktop", "Stories Of Yggdrasil OSC v0.8.4 or newer");
-            using (new EditorGUI.DisabledScope(avatarRoot == null || !ContactTypesAvailable()))
-            {
-                if (GUILayout.Button("REPAIR v0.5.1 / v0.5.2 SPELL CONTACTS", GUILayout.Height(34f)))
-                    RepairSpellContactBus();
-            }
             DrawShapeEditor(ref incomingShape, ref incomingRadius, ref incomingHeight, ref incomingBoxSize, ref incomingPosition, ref incomingRotation);
             incomingCreateChild = true;
             EditorGUILayout.HelpBox(
@@ -1510,205 +5390,174 @@ namespace StoriesOfYggdrasil.OSC
 
         private void DrawAnimatorSetup()
         {
-            DrawHealthSafetyCard();
-
-            BeginCard("Safe FX Copy");
-            if (IsSafeFxCopy(fxController))
+            switch (animationPage)
             {
-                fxCopyPath = AssetDatabase.GetAssetPath(fxController);
-                EditorGUILayout.HelpBox(
-                    "Animator changes are being applied to:\n" + fxCopyPath,
-                    MessageType.Info);
+                case AnimationPage.Health:
+                    DrawHealthAnimationBuilder();
+                    break;
+                case AnimationPage.Spells:
+                    DrawSpellAnimationBuilder();
+                    break;
+                case AnimationPage.Technicks:
+                    DrawTechnickAnimationBuilder();
+                    break;
+                case AnimationPage.Items:
+                    DrawItemAnimationBuilder();
+                    break;
+                case AnimationPage.Setup:
+                    DrawAnimationMaintenance();
+                    break;
+            }
+        }
+
+        private void DrawAnimationMaintenance()
+        {
+            BeginCard("Animation Setup");
+            var safeFx = IsSafeFxCopy(fxController);
+            var missingAnimator = fxController == null
+                ? BridgeParameters.Length
+                : BridgeParameters.Count(spec => !fxController.parameters.Any(p => p.name == spec.Name));
+            var missingExpression = expressionParameters == null
+                ? BridgeParameters.Length
+                : BridgeParameters.Count(spec =>
+                    expressionParameters.parameters == null ||
+                    !expressionParameters.parameters.Any(p => p != null && p.name == spec.Name));
+
+            DrawTagRow("FX", safeFx ? "✓ Safe Copy" : fxController != null ? "! Original" : "✕ Missing", "Working controller");
+            DrawTagRow("Animator", missingAnimator == 0 ? "✓ Ready" : "! " + missingAnimator + " missing", "SoY parameters");
+            DrawTagRow("Expressions", missingExpression == 0 ? "✓ Ready" : "! " + missingExpression + " missing", "OSC parameters");
+
+            using (new EditorGUI.DisabledScope(fxController == null))
+            {
+                if (GUILayout.Button("Install / Repair Animation Hooks", GUILayout.Height(largeControls ? 44f : 34f)))
+                    InstallAllBridgeHooks();
+            }
+
+            showAnimationAdvanced = EditorGUILayout.Foldout(showAnimationAdvanced, "Advanced Maintenance", true);
+            if (showAnimationAdvanced)
+            {
+                DrawHealthSafetyCard();
+                DrawAnimationBindingAudit();
+
                 EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("Select FX Copy"))
+                using (new EditorGUI.DisabledScope(fxController == null || avatarRoot == null))
+                {
+                    if (GUILayout.Button("Rebuild I-Frames")) RebuildIFrameLayer();
+                    if (GUILayout.Button("Rebuild Alignment")) RebuildSpellAlignmentLayer();
+                }
+                EditorGUILayout.EndHorizontal();
+
+                if (safeFx && GUILayout.Button("Select FX Copy"))
                 {
                     Selection.activeObject = fxController;
                     EditorGUIUtility.PingObject(fxController);
                 }
-                if (GUILayout.Button("Open FX Folder"))
-                {
-                    var folder = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(FxCopyRoot);
-                    Selection.activeObject = folder;
-                    EditorGUIUtility.PingObject(folder);
-                }
-                EditorGUILayout.EndHorizontal();
             }
-            else
-            {
-                EditorGUILayout.HelpBox(
-                    "The original FX will not be edited. Pressing an Animator install button creates and assigns a copy under " + FxCopyRoot + ".",
-                    MessageType.Info);
-                using (new EditorGUI.DisabledScope(avatarDescriptor == null || fxController == null))
-                {
-                    if (GUILayout.Button("Create and Assign Safe FX Copy", GUILayout.Height(30f)))
-                        EnsureSafeFxCopy(true);
-                }
-            }
-            EndCard();
-
-            BeginCard("Stories Of Yggdrasil OSC Bridge Hooks");
-            EditorGUILayout.HelpBox(
-                "This installer adds only missing SoY_ bridge parameters and empty routing layers. " +
-                "It never creates, replaces, renames, or rewrites Health/HP parameters, damage tiers, DOT logic, resistance logic, or existing health layers.",
-                MessageType.Info);
-
-            var missingAnimator = fxController == null
-                ? BridgeParameters.Length
-                : BridgeParameters.Count(spec => !fxController.parameters.Any(p => p.name == spec.Name));
-            var missingLayers = fxController == null
-                ? 4
-                : new[] { CombatLayer, VitalLayer, ReactionLayer, DiablosLayer }.Count(name => !fxController.layers.Any(layer => layer.name == name));
-            var missingExpression = expressionParameters == null
-                ? BridgeParameters.Length
-                : BridgeParameters.Count(spec => expressionParameters.parameters == null || !expressionParameters.parameters.Any(p => p != null && p.name == spec.Name));
-            var compatibleAvailable = CountCompatibleAnimatorParameters(fxController);
-            var missingCompatibleExpression = expressionParameters == null || fxController == null
-                ? compatibleAvailable
-                : CompatibleOscParameters.Count(spec =>
-                    fxController.parameters.Any(p => p.name == spec.Name && p.type == spec.AnimatorType) &&
-                    (expressionParameters.parameters == null || !expressionParameters.parameters.Any(p => p != null && p.name == spec.Name)));
-
-            DrawTagRow("Animator Parameters", missingAnimator + " missing", "SoY_ contact events, combat opt-in, HP telemetry, reactions, and KO state");
-            DrawTagRow("Hook Layers", missingLayers + " missing", "Combat, Vital, Reaction, and Curse warning states; contact-specific layers are rebuilt as needed");
-            DrawTagRow("Expression Parameters", missingExpression + " missing", "Local OSC telemetry plus synced Spell/Technick/Item selectors for remote-visible FX");
-            DrawTagRow("Existing Avatar OSC", missingCompatibleExpression + " missing", compatibleAvailable + " existing compatible parameters can be exposed locally to OSC without editing their Animator logic");
-
-            EditorGUILayout.Space(6f);
-            using (new EditorGUI.DisabledScope(fxController == null))
-            {
-                EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("Add Missing Animator Parameters", GUILayout.Height(32f)))
-                {
-                    if (EnsureSafeFxCopy(true))
-                    {
-                        var added = AddMissingAnimatorParameters(fxController);
-                        FinishAnimatorAssetChange("Animator parameters", added);
-                    }
-                }
-                if (GUILayout.Button("Add Missing Hook Layers", GUILayout.Height(32f)))
-                {
-                    if (EnsureSafeFxCopy(true))
-                    {
-                        var added = EnsureHookLayers(fxController);
-                        FinishAnimatorAssetChange("Animator hook layers", added);
-                    }
-                }
-                EditorGUILayout.EndHorizontal();
-            }
-
-            using (new EditorGUI.DisabledScope(expressionParameters == null))
-            {
-                if (GUILayout.Button("Add Missing SoY Expression Parameters", GUILayout.Height(30f)))
-                {
-                    Undo.RecordObject(expressionParameters, "Add Stories Of Yggdrasil Expression Parameters");
-                    var added = AddMissingExpressionParameters(expressionParameters);
-                    EditorUtility.SetDirty(expressionParameters);
-                    SaveAndLog("SoY Expression parameters", added);
-                }
-            }
-
-            using (new EditorGUI.DisabledScope(expressionParameters == null || fxController == null || compatibleAvailable == 0))
-            {
-                if (GUILayout.Button("Register Existing Compatible Avatar Parameters for Local OSC", GUILayout.Height(32f)))
-                {
-                    Undo.RecordObject(expressionParameters, "Register Existing Avatar OSC Parameters");
-                    var added = AddMissingCompatibleExpressionParameters(expressionParameters, fxController);
-                    EditorUtility.SetDirty(expressionParameters);
-                    SaveAndLog("existing avatar local OSC parameters", added);
-                }
-            }
-
-            using (new EditorGUI.DisabledScope(expressionsMenu == null))
-            {
-                if (GUILayout.Button("Add Stories Combat Sub-Menu", GUILayout.Height(30f)))
-                {
-                    Undo.RecordObject(expressionsMenu, "Add Stories Of Yggdrasil Combat Sub-Menu");
-                    var added = AddCombatToggle(expressionsMenu);
-                    EditorUtility.SetDirty(expressionsMenu);
-                    SaveAndLog("Stories combat sub-menu", added);
-                }
-            }
-
-            EditorGUILayout.Space(5f);
-            using (new EditorGUI.DisabledScope(fxController == null || avatarRoot == null))
-            {
-                EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("Rebuild 1s I-Frame Layer", GUILayout.Height(30f)))
-                    RebuildIFrameLayer();
-                if (GUILayout.Button("Rebuild Spell Alignment", GUILayout.Height(30f)))
-                    RebuildSpellAlignmentLayer();
-                EditorGUILayout.EndHorizontal();
-            }
-            using (new EditorGUI.DisabledScope(fxController == null))
-            {
-                if (GUILayout.Button("INSTALL / REPAIR ALL MISSING OSC HOOKS", GUILayout.Height(42f)))
-                    InstallAllBridgeHooks();
-            }
-            EndCard();
-
-            BeginCard("Layer Purpose");
-            DrawTagRow("OSC Combat Gate", "SoY_CombatEnabled", "Opt-in state only; it does not disable or alter an existing health system");
-            DrawTagRow("OSC Vital State", "SoY_CriticalHP / SoY_KO", "Empty Normal, Critical, and KO states ready for avatar-specific animation clips");
-            DrawTagRow("OSC Reaction Router", "SoY_DamageReaction", "Empty Weak, Average, Strong, Critical, Blocked, and Healing reaction states");
-            DrawTagRow("Curse Warnings", "25 / 50 / 90 / 98", "Animator warning states driven directly by the Curse gauge");
-            DrawTagRow("Hit I-Frames", "1 second", "Generated damage receiver objects are disabled between accepted hits");
-            DrawTagRow("Spell Alignment", "SoY_IsEnemy", "Selects ally or enemy spell-sender tags without editing the source FX");
-            DrawTagRow("Remote Cast / Action FX", "SoY_SpellType / SoY_TechnickType / SoY_ItemType", "Synced Int selectors; no separate CastActive parameter is required");
-            EditorGUILayout.HelpBox(
-                "The standalone OSC application reads exact compatible avatar parameters directly when they exist, and falls back to SoY_ incoming receivers on avatars without a health system. " +
-                "Existing Health logic remains authoritative and is never rewritten.",
-                MessageType.None);
             EndCard();
         }
 
         private void DrawHelp()
         {
-            BeginCard("Five-Minute Tutorial");
+            BeginCard("Start Here — Recommended Workflow");
             EditorGUILayout.LabelField("1. Assign the avatar's VRC Avatar Descriptor and press Load From Avatar.", wrappedLabel);
-            EditorGUILayout.LabelField("2. Open Setup and press PREPARE AVATAR FOR STORIES OSC. The tool creates a safe FX copy and assigns it automatically.", wrappedLabel);
-            EditorGUILayout.LabelField("3. Select a weapon, shield, body object, or effect transform. Use Contact Target when selection should remain fixed.", wrappedLabel);
-            EditorGUILayout.LabelField("4. Open Outgoing Contacts or Incoming Contacts and press Preview. A temporary object appears under the selected target.", wrappedLabel);
-            EditorGUILayout.LabelField("5. Move and rotate the temporary object with Unity's Transform tools. Resize it through its Sphere, Capsule, or Box Collider.", wrappedLabel);
-            EditorGUILayout.LabelField("6. Return to this window and press Finalize & Create Contact. The temporary object deletes itself after the real contact is created.", wrappedLabel);
-            EditorGUILayout.LabelField("7. Use the generated Stories RP submenu to enable combat, set Enemy Mode, view Mist/Curse gauges, and select spell IDs.", wrappedLabel);
-            EditorGUILayout.LabelField("8. Animate attack, spell, and debuff contact objects ON only during valid hit frames, then Build & Test.", wrappedLabel);
+            EditorGUILayout.LabelField("2. Open Setup and press PREPARE AVATAR FOR STORIES OSC. The tool creates and assigns a safe FX copy; the original FX controller is never edited.", wrappedLabel);
+            EditorGUILayout.LabelField("3. Use Contacts for physical/contact senders and receivers. Use Raycast Studio for bullets, arrows, projectiles, and ground-placed spells.", wrappedLabel);
+            EditorGUILayout.LabelField("4. Build or repair the generated Stories RP menu. The menu is grouped into Combat, Spells, Actions, Targeting, Status, and optional Quick Access.", wrappedLabel);
+            EditorGUILayout.LabelField("5. Run Build & Test / Audit before uploading the avatar.", wrappedLabel);
             EndCard();
 
-            BeginCard("Temporary Contact Preview");
+            BeginCard("Generated Avatar Workspace");
             EditorGUILayout.LabelField(
-                "The preview is not a VRChat Contact. It uses a normal trigger Collider so it can be positioned and resized safely before anything permanent is added. " +
-                "Finalizing copies the preview's local position, rotation, and dimensions into the real Contact, then removes the preview object.",
+                "New generated assets stay together under a folder named for the avatar/model. Existing legacy generated assets are recognized but are not automatically moved, so old Unity references are not broken.",
+                wrappedLabel);
+            EditorGUILayout.SelectableLabel(
+                GeneratedAssetRoot + "/<Avatar>/",
+                EditorStyles.textField,
+                GUILayout.Height(EditorGUIUtility.singleLineHeight));
+            DrawTagRow("FX", "<Avatar>/FX", "Safe FX controller copies");
+            DrawTagRow("Menus", "<Avatar>/Menus", "Stories RP menus and menu pages");
+            DrawTagRow("Animations", "<Avatar>/Animations", "Contact, Raycast, I-Frame, status, and helper clips");
+            DrawTagRow("Profiles", "<Avatar>/Profiles", "Animation/profile metadata");
+            DrawTagRow("Backups", "<Avatar>/Backups", "Manifests, migrations, and repair snapshots");
+            EndCard();
+
+            BeginCard("Raycast — Direct Impact");
+            EditorGUILayout.LabelField(
+                "Use Direct Impact for bullets, arrows, beams, thrown effects, and other actions that should resolve at the first surface/player hit. Select the muzzle, weapon, hand, or focus that supplies the local ray direction.",
                 wrappedLabel);
             EditorGUILayout.LabelField(
-                "Preview objects are marked as editor-only and are also removed when this tool window closes.",
+                "Remote Players Only is the recommended player mode. The tool prefers VRChat's custom Player layer (9) and excludes PlayerLocal (10). If the current SDK does not expose the custom layer-mask member, the builder falls back to Hit Players and writes a warning instead of creating a dead raycast.",
+                wrappedLabel);
+            EditorGUILayout.LabelField(
+                "Attack/Debuff raycasts use the generated Targeting → Projectile Fire control. Selector actions such as Technicks and Items use their action selection/trigger.",
+                wrappedLabel);
+            EndCard();
+
+            BeginCard("Raycast — Spell Ground Placement");
+            EditorGUILayout.LabelField(
+                "Use Spell Ground Placement when the effect should appear beneath another player rather than directly on their body. Spell delivery uses a shared two-stage rig so every spell does not consume two more VRCRaycast components.",
+                wrappedLabel);
+            EditorGUILayout.LabelField(
+                "Stage 1 aims at a remote player. When a valid target is found, a local-only targeting icon appears at the hit point. Pressing the selected Spell hides that icon immediately and arms the cast.",
+                wrappedLabel);
+            EditorGUILayout.LabelField(
+                "Stage 2 begins above that target point and casts straight down into world geometry. The final ground result enables Apply Rotation with +Y aligned to the floor normal. Put particles/VFX under the generated child named:",
+                wrappedLabel);
+            EditorGUILayout.SelectableLabel(
+                "FX — Faces Down (Place Particle Here)",
+                EditorStyles.textField,
+                GUILayout.Height(EditorGUIUtility.singleLineHeight));
+            EditorGUILayout.LabelField(
+                "That child is rotated so conventional +Z-facing effects point downward while still following the contacted floor's orientation. Do not re-parent the VRCRaycast Result Transform under its own ray origin.",
+                wrappedLabel);
+            EditorGUILayout.HelpBox(
+                "Persistent target following after you stop aiming is intentionally not generated here. VRCRaycast follows the current hit while aiming; a Contact-Tracker-style system is a separate feature for effects that must remain attached to a moving player after the cast.",
+                MessageType.Info);
+            EndCard();
+
+            BeginCard("Local Targeting Icon");
+            EditorGUILayout.LabelField(
+                "The targeting crosshair is controlled by VRChat's built-in IsLocal parameter. It is visible only on the avatar owner, only while a valid target exists, and only while the corresponding action is not being fired/cast. Other players do not see it.",
+                wrappedLabel);
+            EndCard();
+
+            BeginCard("Contact Preview");
+            EditorGUILayout.LabelField(
+                "Preview is an editor-only trigger Collider, not a VRChat Contact. Position, rotate, and resize it safely with Unity Transform/Collider tools. Finalize copies the preview transform/shape into the real Contact and removes the temporary preview object.",
                 wrappedLabel);
             EndCard();
 
             BeginCard("Safe FX Copy Workflow");
             EditorGUILayout.LabelField(
-                "The tool never edits the avatar's original FX controller. Before adding Animator parameters or layers it duplicates the controller, stores it under:",
+                "The tool never edits the avatar's original FX controller. Before adding Animator parameters or layers it duplicates the controller and stores the managed copy under:",
                 wrappedLabel);
-            EditorGUILayout.SelectableLabel(FxCopyRoot + "/<Avatar>_<FX>_SoY_FX.controller", EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight));
-            EditorGUILayout.LabelField(
-                "The copy is automatically assigned to the avatar's FX layer. A confirmation dialog shows the exact asset path.",
-                wrappedLabel);
+            EditorGUILayout.SelectableLabel(
+                GeneratedAssetRoot + "/<Avatar>/FX/<FX>_SoY_FX.controller",
+                EditorStyles.textField,
+                GUILayout.Height(EditorGUIUtility.singleLineHeight));
             EndCard();
 
-            BeginCard("Stories RP Sub-Menu");
-            EditorGUILayout.LabelField(
-                "The root Expressions Menu receives one Stories RP submenu instead of a direct combat toggle. The generated submenu contains RP Combat, Enemy Mode, spell pages, Mist Charge, and Curse Of Diablos gauges.",
-                wrappedLabel);
-            EditorGUILayout.LabelField(
-                "Enemy Mode is exposed through SoY_IsEnemy. Spell, Technick, and Item senders now use Ally/Enemy pairs so target-side alignment checks receive the caster state.",
-                wrappedLabel);
+            BeginCard("Stories RP Menu Map");
+            DrawTagRow("Combat", "RP Combat / Enemy Mode", "Core on/off and alignment controls");
+            DrawTagRow("Spells", "School pages", "Stable Spell IDs and momentary spell actions");
+            DrawTagRow("Actions", "Technicks / Items", "Non-spell action selectors");
+            DrawTagRow("Targeting", "Projectile Fire", "Direct-impact Raycast fire control");
+            DrawTagRow("Status", "Mist / Curse / status gauges", "Status and resource visibility");
+            DrawTagRow("Quick Access", "Optional shortcuts", "Frequently used controls without cluttering the root menu");
             EndCard();
 
             BeginCard("Contact Types");
-            DrawTagRow("Attack", "Weak / Average / Strong / Critical", "Weapon or projectile hit volumes");
-            DrawTagRow("Spell", "8-bit Contact Bus → SoY_SpellType", "Twelve Magick schools with stable IDs, caster alignment, and category tags");
+            DrawTagRow("Attack", "Weak / Average / Strong / Critical", "Weapon contacts or Direct Impact Raycast contacts");
+            DrawTagRow("Spell", "8-bit Contact Bus → SoY_SpellType", "Stable spell IDs with Ally/Enemy caster alignment");
             DrawTagRow("Blocking", TagBlockable + " → " + TagHitBlocked, "Shield face or guarded weapon volume");
-            DrawTagRow("Debuff", string.Join(", ", DebuffTags), "Spell, projectile, aura, or effect volume");
+            DrawTagRow("Debuff", string.Join(", ", DebuffTags), "Spell, raycast impact, aura, or effect volume");
             DrawTagRow("Incoming", "SoY_Hit* / SoY_Debuff*", "Avatar body receiver volume for Sam.py synchronization");
+            EndCard();
+
+            BeginCard("Accessibility");
+            EditorGUILayout.LabelField(
+                "Open Maintenance → Display for Normal, Large, and Extra Large text; larger controls; high-contrast and color-vision-friendly palettes; short VRChat labels; and purpose-first spell navigation.",
+                wrappedLabel);
             EndCard();
 
             DrawUpdaterCard();
@@ -1722,10 +5571,19 @@ namespace StoriesOfYggdrasil.OSC
         {
             BeginCard("Unity Tool Updater");
             EditorGUILayout.LabelField("Repository", GitHubRepository);
-            EditorGUILayout.LabelField("Current Version", Version);
+            EditorGUILayout.LabelField("Current Version", Version + " — " + BuildLabel);
             EditorGUILayout.LabelField("Status", updateStatus, wrappedLabel);
+            EditorGUILayout.LabelField("Last checked", updateLastChecked, wrappedLabel);
+            EditorGUI.BeginChangeCheck();
+            updateChannel = (UpdateChannel)EditorGUILayout.EnumPopup("Update Channel", updateChannel);
+            autoCheckUpdates = EditorGUILayout.ToggleLeft("Automatically check GitHub Releases every 6 hours while this window is open", autoCheckUpdates);
+            if (EditorGUI.EndChangeCheck())
+            {
+                SaveEditorPreferences();
+                nextBackgroundUpdateCheckAt = EditorApplication.timeSinceStartup + 0.1d;
+            }
             EditorGUILayout.BeginHorizontal();
-            using (new EditorGUI.DisabledScope(updateRequest != null || updateDownloadRequest != null))
+            using (new EditorGUI.DisabledScope(updateRequest != null || updateDownloadRequest != null || updateChecksumRequest != null))
             {
                 if (GUILayout.Button("Check For Updates", GUILayout.Height(30f)))
                     CheckForUpdates(true);
@@ -1736,27 +5594,35 @@ namespace StoriesOfYggdrasil.OSC
                 PromptForUpdate();
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.HelpBox(
-                "Releases include a manual .unitypackage and a canonical .cs updater payload. Auto-updates are never silent: the tool asks permission, backs up the current script, then refreshes Unity.",
+                "Background checks are silent. Stable uses the latest published release; Test Builds may include prereleases. Installation requires confirmation, verifies the release SHA256 asset, backs up the current script, and refreshes Unity.",
                 MessageType.Info);
             EndCard();
         }
 
-        private void AutoCheckForUpdates()
+        private void LoadCachedUpdateState()
         {
-            var sessionKey = "StoriesOSC.UnityTool.UpdateChecked." + Version;
-            if (SessionState.GetBool(sessionKey, false))
-                return;
-            SessionState.SetBool(sessionKey, true);
-            CheckForUpdates(false);
+            updateStatus = EditorPrefs.GetString("StoriesOSC.v058.TB5.UpdateStatus", "Waiting for background check");
+            updateLastChecked = EditorPrefs.GetString("StoriesOSC.v058.TB5.UpdateLastChecked", "Never");
+            updateAvailable = EditorPrefs.GetBool("StoriesOSC.v058.TB5.UpdateAvailable", false);
+        }
+
+        private void SaveCachedUpdateState()
+        {
+            EditorPrefs.SetString("StoriesOSC.v058.TB5.UpdateStatus", updateStatus ?? string.Empty);
+            EditorPrefs.SetString("StoriesOSC.v058.TB5.UpdateLastChecked", updateLastChecked ?? "Never");
+            EditorPrefs.SetBool("StoriesOSC.v058.TB5.UpdateAvailable", updateAvailable);
         }
 
         private void CheckForUpdates(bool manual)
         {
-            if (updateRequest != null || updateDownloadRequest != null)
+            if (updateRequest != null || updateDownloadRequest != null || updateChecksumRequest != null)
                 return;
             updateCheckWasManual = manual;
             updateStatus = "Checking GitHub Releases...";
-            updateRequest = UnityWebRequest.Get(GitHubLatestReleaseApi);
+            var apiUrl = updateChannel == UpdateChannel.Stable
+                ? GitHubLatestReleaseApi
+                : "https://api.github.com/repos/" + GitHubRepository + "/releases?per_page=10";
+            updateRequest = UnityWebRequest.Get(apiUrl);
             updateRequest.SetRequestHeader("Accept", "application/vnd.github+json");
             updateRequest.SetRequestHeader("User-Agent", "Stories-Of-Yggdrasil-OSC-Unity-Tool/" + Version);
             updateRequest.SetRequestHeader("X-GitHub-Api-Version", "2022-11-28");
@@ -1791,21 +5657,33 @@ namespace StoriesOfYggdrasil.OSC
                     return;
                 }
 
-                latestRelease = JsonUtility.FromJson<GitHubReleaseInfo>(request.downloadHandler.text);
-                if (latestRelease == null || string.IsNullOrWhiteSpace(latestRelease.tag_name) || latestRelease.draft || latestRelease.prerelease)
+                if (updateChannel == UpdateChannel.Stable)
                 {
-                    updateStatus = "No stable release information was returned.";
+                    latestRelease = JsonUtility.FromJson<GitHubReleaseInfo>(request.downloadHandler.text);
+                }
+                else
+                {
+                    var wrapper = JsonUtility.FromJson<GitHubReleaseList>("{\"items\":" + request.downloadHandler.text + "}");
+                    latestRelease = wrapper != null && wrapper.items != null
+                        ? wrapper.items.FirstOrDefault(item => item != null && !item.draft)
+                        : null;
+                }
+                if (latestRelease == null || string.IsNullOrWhiteSpace(latestRelease.tag_name) || latestRelease.draft || (updateChannel == UpdateChannel.Stable && latestRelease.prerelease))
+                {
+                    updateStatus = "No compatible release information was returned.";
                     return;
                 }
 
                 var latestVersion = latestRelease.tag_name.Trim().TrimStart('v', 'V');
-                updateAvailable = CompareVersions(latestVersion, Version) > 0;
+                updateAvailable = updateChannel == UpdateChannel.Stable
+                    ? CompareVersions(latestVersion, Version) > 0
+                    : CompareReleaseTags(latestRelease.tag_name, "v" + Version + "-" + BuildNumber) > 0;
                 updateStatus = updateAvailable
-                    ? "Version " + latestVersion + " is available."
+                    ? "Update available — version " + latestVersion + "."
                     : "Up to date — latest release is " + latestVersion + ".";
-                if (updateAvailable)
-                    PromptForUpdate();
-                else if (updateCheckWasManual)
+                updateLastChecked = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                SaveCachedUpdateState();
+                if (updateCheckWasManual)
                     EditorUtility.DisplayDialog("Stories OSC Updater", updateStatus, "OK");
             }
             catch (Exception exception)
@@ -1816,6 +5694,9 @@ namespace StoriesOfYggdrasil.OSC
             }
             finally
             {
+                if (updateLastChecked == "Never")
+                    updateLastChecked = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                SaveCachedUpdateState();
                 request.Dispose();
                 Repaint();
             }
@@ -1845,7 +5726,7 @@ namespace StoriesOfYggdrasil.OSC
 
         private void BeginUpdateDownload()
         {
-            if (latestRelease == null || latestRelease.assets == null || updateDownloadRequest != null)
+            if (latestRelease == null || latestRelease.assets == null || updateDownloadRequest != null || updateChecksumRequest != null)
             {
                 EditorUtility.DisplayDialog(
                     "Stories OSC Updater",
@@ -1874,6 +5755,7 @@ namespace StoriesOfYggdrasil.OSC
             }
 
             updateStatus = "Downloading " + asset.name + "...";
+            updateDownloadAssetName = asset.name;
             updateDownloadRequest = UnityWebRequest.Get(asset.browser_download_url);
             updateDownloadRequest.SetRequestHeader("User-Agent", "Stories-Of-Yggdrasil-OSC-Unity-Tool/" + Version);
             updateDownloadRequest.SendWebRequest();
@@ -1893,12 +5775,62 @@ namespace StoriesOfYggdrasil.OSC
             {
                 if (request.result != UnityWebRequest.Result.Success)
                     throw new InvalidOperationException(request.error);
-                var sourceBytes = ExtractUpdatedScript(request.downloadHandler.data);
-                InstallUpdatedScript(sourceBytes);
+                updatePendingSourceBytes = ExtractUpdatedScript(request.downloadHandler.data);
+                if (updatePendingSourceBytes == null || updatePendingSourceBytes.Length == 0)
+                    throw new InvalidDataException("The updater downloaded an empty source payload.");
+                var checksumAsset = latestRelease != null && latestRelease.assets != null
+                    ? latestRelease.assets.FirstOrDefault(item => item != null && item.name != null &&
+                        (item.name.Equals(updateDownloadAssetName + ".sha256", StringComparison.OrdinalIgnoreCase) ||
+                         (item.name.StartsWith(Path.GetFileNameWithoutExtension(updateDownloadAssetName), StringComparison.OrdinalIgnoreCase) &&
+                          item.name.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase))))
+                    : null;
+                if (checksumAsset == null || string.IsNullOrWhiteSpace(checksumAsset.browser_download_url))
+                    throw new InvalidDataException("The release does not contain the required SHA256 asset for " + updateDownloadAssetName + ".");
+                updateStatus = "Verifying SHA256...";
+                updateChecksumRequest = UnityWebRequest.Get(checksumAsset.browser_download_url);
+                updateChecksumRequest.SetRequestHeader("User-Agent", "Stories-Of-Yggdrasil-OSC-Unity-Tool/" + Version + "-" + BuildNumber);
+                updateChecksumRequest.SendWebRequest();
+                EditorApplication.update -= PollUpdateChecksum;
+                EditorApplication.update += PollUpdateChecksum;
             }
             catch (Exception exception)
             {
                 updateStatus = "Update failed: " + exception.Message;
+                EditorUtility.DisplayDialog("Stories OSC Updater", updateStatus, "OK");
+            }
+            finally
+            {
+                request.Dispose();
+                Repaint();
+            }
+        }
+
+        private void PollUpdateChecksum()
+        {
+            if (updateChecksumRequest == null || !updateChecksumRequest.isDone)
+                return;
+            EditorApplication.update -= PollUpdateChecksum;
+            var request = updateChecksumRequest;
+            updateChecksumRequest = null;
+            try
+            {
+                if (request.result != UnityWebRequest.Result.Success)
+                    throw new InvalidOperationException(request.error);
+                var checksumText = request.downloadHandler.text ?? string.Empty;
+                var checksumMatch = System.Text.RegularExpressions.Regex.Match(checksumText, @"[A-Fa-f0-9]{64}");
+                var expected = checksumMatch.Success ? checksumMatch.Value.ToLowerInvariant() : string.Empty;
+                var actual = ComputeSha256(updatePendingSourceBytes).ToLowerInvariant();
+                if (expected.Length != 64 || !string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("SHA256 mismatch. Expected " + expected + " but received " + actual + ".");
+                Log("Updater SHA256 verified: " + actual);
+                var bytes = updatePendingSourceBytes;
+                updatePendingSourceBytes = null;
+                InstallUpdatedScript(bytes);
+            }
+            catch (Exception exception)
+            {
+                updatePendingSourceBytes = null;
+                updateStatus = "Update verification failed: " + exception.Message;
                 EditorUtility.DisplayDialog("Stories OSC Updater", updateStatus, "OK");
             }
             finally
@@ -1947,9 +5879,9 @@ namespace StoriesOfYggdrasil.OSC
             if (string.IsNullOrWhiteSpace(currentAssetPath))
                 throw new InvalidOperationException("Unity could not locate the current tool script.");
 
-            EnsureAssetFolder(BackupRoot);
+            EnsureAssetFolder(CurrentAvatarGeneratedFolder("Backups/Unity Tool"));
             var backupPath = AssetDatabase.GenerateUniqueAssetPath(
-                BackupRoot + "/StoriesOfYggdrasilOSCContactSystem_v" + Version + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt");
+                CurrentAvatarGeneratedFolder("Backups/Unity Tool") + "/StoriesOfYggdrasilOSCContactSystem_v" + Version + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".txt");
             File.WriteAllBytes(Path.GetFullPath(backupPath), File.ReadAllBytes(Path.GetFullPath(currentAssetPath)));
             File.WriteAllBytes(Path.GetFullPath(currentAssetPath), sourceBytes);
             updateStatus = "Update installed. Unity is recompiling the tool.";
@@ -1970,6 +5902,24 @@ namespace StoriesOfYggdrasil.OSC
                     return a.CompareTo(b);
             }
             return 0;
+        }
+
+        private static int CompareReleaseTags(string left, string right)
+        {
+            var versionCompare = CompareVersions(left, right);
+            if (versionCompare != 0)
+                return versionCompare;
+            return TestBuildNumber(left).CompareTo(TestBuildNumber(right));
+        }
+
+        private static int TestBuildNumber(string value)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                value ?? string.Empty,
+                @"(?:TB|Test[ _-]*Build)[._ -]*(\d+)",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            int number;
+            return match.Success && int.TryParse(match.Groups[1].Value, out number) ? number : 0;
         }
 
         private static int[] ParseVersion(string value)
@@ -2004,7 +5954,7 @@ namespace StoriesOfYggdrasil.OSC
                 EditorGUILayout.LabelField("Total Contacts", (senderCount + receiverCount).ToString());
                 var legacySpellReceivers = avatarRoot.GetComponentsInChildren(receiverType, true).Cast<Component>()
                     .Count(component => ReadStringMember(component, "parameter", "Parameter") == "SoY_SpellType" &&
-                        ReadCollisionTags(component).Any(tag => tag.StartsWith(LegacySpellTagPrefix, StringComparison.Ordinal)));
+                        ReadCollisionTags(component).Any(IsLegacySpellReceiverTag));
                 var spellBusReceivers = avatarRoot.GetComponentsInChildren(receiverType, true).Cast<Component>()
                     .Count(component => ReadStringMember(component, "parameter", "Parameter") == SpellActiveParameter ||
                         ReadStringMember(component, "parameter", "Parameter").StartsWith(SpellBitParameterPrefix, StringComparison.Ordinal));
@@ -2015,9 +5965,9 @@ namespace StoriesOfYggdrasil.OSC
                 var itemBusReceivers = avatarRoot.GetComponentsInChildren(receiverType, true).Cast<Component>()
                     .Count(component => ReadStringMember(component, "parameter", "Parameter") == ItemActiveParameter ||
                         ReadStringMember(component, "parameter", "Parameter").StartsWith(ItemBitParameterPrefix, StringComparison.Ordinal));
-                EditorGUILayout.LabelField("v0.5.3 spell bus receivers", spellBusReceivers + " / 9");
-                EditorGUILayout.LabelField("v0.5.6 Technick bus receivers", technickBusReceivers + " / 10");
-                EditorGUILayout.LabelField("v0.5.6 Item bus receivers", itemBusReceivers + " / 10");
+                EditorGUILayout.LabelField("Spell bus receivers", spellBusReceivers + " / 9");
+                EditorGUILayout.LabelField("Technick bus receivers", technickBusReceivers + " / 10");
+                EditorGUILayout.LabelField("Item bus receivers", itemBusReceivers + " / 10");
             }
             EditorGUILayout.HelpBox(
                 "VRChat custom collision tags are case-sensitive. This tool uses the exact spacing/capitalization requested and keeps every generated contact below the 16-tag limit.",
@@ -2093,9 +6043,21 @@ namespace StoriesOfYggdrasil.OSC
 
         private void DrawTagRow(string left, string middle, string right)
         {
+            var status = middle ?? string.Empty;
+            var lower = status.ToLowerInvariant();
+            if (!status.StartsWith("✓") && !status.StartsWith("!") && !status.StartsWith("✕"))
+            {
+                if (lower.Contains("ready") || lower.Contains("active") || lower.Contains("available") || lower.Contains("up to date"))
+                    status = "✓ " + status;
+                else if (lower.Contains("missing") || lower.Contains("not found") || lower.Contains("blocked") || lower.Contains("error"))
+                    status = "✕ " + status;
+                else if (lower.Contains("pending") || lower.Contains("warning") || lower.Contains("caution"))
+                    status = "! " + status;
+            }
+
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField(left, GUILayout.Width(72f));
-            EditorGUILayout.SelectableLabel(middle, EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight), GUILayout.Width(260f));
+            EditorGUILayout.LabelField(left, GUILayout.Width(AccessibilityScale > 1f ? 105f : 82f));
+            EditorGUILayout.SelectableLabel(status, EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight * AccessibilityScale), GUILayout.Width(AccessibilityScale > 1f ? 300f : 260f));
             EditorGUILayout.LabelField(right, wrappedLabel);
             EditorGUILayout.EndHorizontal();
         }
@@ -2477,7 +6439,7 @@ namespace StoriesOfYggdrasil.OSC
             if (controller == null)
                 return false;
             var path = AssetDatabase.GetAssetPath(controller).Replace('\\', '/');
-            return path.StartsWith(FxCopyRoot + "/", StringComparison.OrdinalIgnoreCase);
+            return path.StartsWith(LegacyFxCopyRoot + "/", StringComparison.OrdinalIgnoreCase) || IsNewAvatarFxPath(path);
         }
 
         private bool EnsureSafeFxCopy(bool notify)
@@ -2518,11 +6480,12 @@ namespace StoriesOfYggdrasil.OSC
                 return false;
             }
 
-            EnsureAssetFolder(FxCopyRoot);
             var avatarName = MakeSafeAssetName(avatarDescriptor.gameObject.name);
+            var fxFolder = AvatarGeneratedFolder(avatarName, "FX");
+            EnsureAssetFolder(fxFolder);
             var controllerName = MakeSafeAssetName(fxController.name);
             var destination = AssetDatabase.GenerateUniqueAssetPath(
-                FxCopyRoot + "/" + avatarName + "_" + controllerName + "_SoY_FX.controller");
+                fxFolder + "/" + controllerName + "_SoY_FX.controller");
 
             if (!AssetDatabase.CopyAsset(sourcePath, destination))
             {
@@ -2580,6 +6543,28 @@ namespace StoriesOfYggdrasil.OSC
                     "OK");
             }
             return true;
+        }
+
+        private static string AvatarGeneratedFolder(string avatarName, string category)
+        {
+            var root = GeneratedAssetRoot + "/" + MakeSafeAssetName(avatarName);
+            return string.IsNullOrWhiteSpace(category) ? root : root + "/" + category.Trim('/');
+        }
+
+        private string CurrentAvatarGeneratedFolder(string category)
+        {
+            var avatarName = avatarDescriptor != null
+                ? avatarDescriptor.gameObject.name
+                : avatarRoot != null ? avatarRoot.name : "Avatar";
+            return AvatarGeneratedFolder(avatarName, category);
+        }
+
+        private static bool IsNewAvatarFxPath(string path)
+        {
+            var normalized = (path ?? string.Empty).Replace('\\', '/');
+            if (!normalized.StartsWith(GeneratedAssetRoot + "/", StringComparison.OrdinalIgnoreCase))
+                return false;
+            return normalized.IndexOf("/FX/", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static void EnsureAssetFolder(string folderPath)
@@ -2717,11 +6702,9 @@ namespace StoriesOfYggdrasil.OSC
 
         private void CreateSpellSenders()
         {
-            var spells = GetSpellsForSchool(spellSchool);
-            if (spells.Length == 0)
+            SpellDefinition spell;
+            if (!TryGetSelectedSpell(out spell))
                 return;
-            spellSelectionIndex = Mathf.Clamp(spellSelectionIndex, 0, spells.Length - 1);
-            var spell = spells[spellSelectionIndex];
 
             foreach (var target in GetTargets())
             {
@@ -2748,7 +6731,7 @@ namespace StoriesOfYggdrasil.OSC
             var senderType = FindType(SenderTypeName);
             var component = host.GetComponents(senderType).Cast<Component>()
                 .FirstOrDefault(existing => ReadCollisionTags(existing).Any(tag =>
-                    tag == SpellActiveTag || tag.StartsWith(LegacySpellTagPrefix, StringComparison.Ordinal)));
+                    tag == SpellActiveTag || IsLegacySpellReceiverTag(tag)));
             if (component == null)
                 component = EnsureContact(host, senderType, tags, null);
             if (component == null)
@@ -2761,10 +6744,9 @@ namespace StoriesOfYggdrasil.OSC
 
         private void CreateTechnickSenders()
         {
-            if (TechnickDefinitions.Length == 0)
+            ActionDefinition technick;
+            if (!TryGetSelectedTechnick(out technick))
                 return;
-            technickSelectionIndex = Mathf.Clamp(technickSelectionIndex, 0, TechnickDefinitions.Length - 1);
-            var technick = TechnickDefinitions[technickSelectionIndex];
 
             foreach (var target in GetTargets())
             {
@@ -2783,10 +6765,9 @@ namespace StoriesOfYggdrasil.OSC
 
         private void CreateItemSenders()
         {
-            if (ItemDefinitions.Length == 0)
+            ActionDefinition item;
+            if (!TryGetSelectedItem(out item))
                 return;
-            itemSelectionIndex = Mathf.Clamp(itemSelectionIndex, 0, ItemDefinitions.Length - 1);
-            var item = ItemDefinitions[itemSelectionIndex];
 
             foreach (var target in GetTargets())
             {
@@ -2973,7 +6954,453 @@ namespace StoriesOfYggdrasil.OSC
             return added;
         }
 
-        private static void ConfigureContact(
+        private Type FindParentConstraintType()
+        {
+            // TB6: VRChat SDK packages do not guarantee that every runtime assembly has
+            // already been loaded into the AppDomain merely because the component appears
+            // in Unity's Add Component menu. Prefer the documented public namespace first,
+            // then Unity's TypeCache (which can discover compiled package component types),
+            // then already-instantiated components and a resilient assembly scan.
+            foreach (var name in ParentConstraintTypeNames)
+            {
+                var found = FindType(name);
+                if (found != null && typeof(Component).IsAssignableFrom(found))
+                    return found;
+            }
+
+            try
+            {
+                var cached = TypeCache.GetTypesDerivedFrom<Component>()
+                    .FirstOrDefault(type => type != null &&
+                                            type.Name == "VRCParentConstraint" &&
+                                            (type.Namespace ?? string.Empty).StartsWith("VRC.", StringComparison.Ordinal));
+                if (cached != null)
+                    return cached;
+            }
+            catch (Exception ex)
+            {
+                Log("TB6 TypeCache lookup for VRCParentConstraint failed: " + ex.GetType().Name + ": " + ex.Message);
+            }
+
+            try
+            {
+                var existing = Resources.FindObjectsOfTypeAll<Component>()
+                    .FirstOrDefault(component => component != null &&
+                                                 component.GetType().Name == "VRCParentConstraint");
+                if (existing != null)
+                    return existing.GetType();
+            }
+            catch (Exception ex)
+            {
+                Log("TB6 live-component lookup for VRCParentConstraint failed: " + ex.GetType().Name + ": " + ex.Message);
+            }
+
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type[] types;
+                try
+                {
+                    types = assembly.GetTypes();
+                }
+                catch (ReflectionTypeLoadException ex)
+                {
+                    types = ex.Types.Where(type => type != null).ToArray();
+                }
+                catch
+                {
+                    continue;
+                }
+
+                var found = types.FirstOrDefault(type => type != null &&
+                                                        type.Name == "VRCParentConstraint" &&
+                                                        typeof(Component).IsAssignableFrom(type));
+                if (found != null)
+                    return found;
+            }
+
+            return null;
+        }
+
+        private static object CreateConstraintSourceEntry(Type sourceType, Transform source, float weight)
+        {
+            if (sourceType == null || source == null) return null;
+
+            object entry = null;
+            try
+            {
+                var ctor = sourceType.GetConstructor(new[] { typeof(Transform), typeof(float) });
+                if (ctor != null)
+                    entry = ctor.Invoke(new object[] { source, weight });
+            }
+            catch
+            {
+                entry = null;
+            }
+
+            if (entry == null)
+            {
+                try
+                {
+                    entry = Activator.CreateInstance(sourceType);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            foreach (var name in new[] { "SourceTransform", "sourceTransform", "Source", "source" })
+            {
+                var field = sourceType.GetField(name, flags);
+                if (field != null && typeof(Transform).IsAssignableFrom(field.FieldType))
+                {
+                    field.SetValue(entry, source);
+                    break;
+                }
+                var property = sourceType.GetProperty(name, flags);
+                if (property != null && property.CanWrite && typeof(Transform).IsAssignableFrom(property.PropertyType))
+                {
+                    property.SetValue(entry, source, null);
+                    break;
+                }
+            }
+
+            foreach (var name in new[] { "Weight", "weight" })
+            {
+                var field = sourceType.GetField(name, flags);
+                if (field != null && field.FieldType == typeof(float))
+                {
+                    field.SetValue(entry, weight);
+                    break;
+                }
+                var property = sourceType.GetProperty(name, flags);
+                if (property != null && property.CanWrite && property.PropertyType == typeof(float))
+                {
+                    property.SetValue(entry, weight, null);
+                    break;
+                }
+            }
+
+            return entry;
+        }
+
+        private bool TryAssignParentConstraintSourceViaPublicApi(Component component, Transform source, float weight)
+        {
+            if (component == null || source == null) return false;
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            var type = component.GetType();
+            var property = type.GetProperty("Sources", flags) ?? type.GetProperty("sources", flags);
+            if (property == null || !property.CanRead)
+                return false;
+
+            try
+            {
+                if (property.PropertyType.IsArray)
+                {
+                    var elementType = property.PropertyType.GetElementType();
+                    var entry = CreateConstraintSourceEntry(elementType, source, weight);
+                    if (entry == null || !property.CanWrite) return false;
+                    var array = Array.CreateInstance(elementType, 1);
+                    array.SetValue(entry, 0);
+                    property.SetValue(component, array, null);
+                    return true;
+                }
+
+                var sourcesObject = property.GetValue(component, null);
+                if (sourcesObject == null && property.CanWrite)
+                {
+                    try
+                    {
+                        sourcesObject = Activator.CreateInstance(property.PropertyType);
+                        property.SetValue(component, sourcesObject, null);
+                    }
+                    catch
+                    {
+                        sourcesObject = null;
+                    }
+                }
+                if (sourcesObject == null) return false;
+
+                var listType = sourcesObject.GetType();
+                var clear = listType.GetMethod("Clear", flags, null, Type.EmptyTypes, null);
+                var add = listType.GetMethods(flags)
+                    .FirstOrDefault(method => method.Name == "Add" && method.GetParameters().Length == 1);
+                if (add == null) return false;
+
+                var sourceType = add.GetParameters()[0].ParameterType;
+                var sourceEntry = CreateConstraintSourceEntry(sourceType, source, weight);
+                if (sourceEntry == null) return false;
+
+                clear?.Invoke(sourcesObject, null);
+                add.Invoke(sourcesObject, new[] { sourceEntry });
+
+                // Some SDK revisions expose a mutable keyable-list object; others use a
+                // settable wrapper. Reassign when possible so both forms are covered.
+                if (property.CanWrite)
+                    property.SetValue(component, sourcesObject, null);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log("TB6 public Sources API configuration failed on " + type.FullName + ": " + ex.GetType().Name + ": " + ex.Message);
+                return false;
+            }
+        }
+
+        private bool TryAssignParentConstraintSourceSerialized(Component component, Transform source, float weight)
+        {
+            if (component == null || source == null) return false;
+            try
+            {
+                var serialized = new SerializedObject(component);
+                serialized.Update();
+                SerializedProperty sources = null;
+                var iterator = serialized.GetIterator();
+                var enterChildren = true;
+                while (iterator.NextVisible(enterChildren))
+                {
+                    enterChildren = false;
+                    if (iterator.isArray && iterator.propertyType != SerializedPropertyType.String &&
+                        iterator.name.IndexOf("source", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        sources = iterator.Copy();
+                        break;
+                    }
+                }
+
+                if (sources == null) return false;
+                sources.arraySize = 1;
+                var element = sources.GetArrayElementAtIndex(0);
+                var assigned = false;
+                if (element.propertyType == SerializedPropertyType.ObjectReference)
+                {
+                    element.objectReferenceValue = source;
+                    assigned = true;
+                }
+                else
+                {
+                    var cursor = element.Copy();
+                    var end = cursor.GetEndProperty();
+                    var descend = true;
+                    while (cursor.NextVisible(descend) && !SerializedProperty.EqualContents(cursor, end))
+                    {
+                        descend = false;
+                        if (cursor.propertyType == SerializedPropertyType.ObjectReference &&
+                            (cursor.name.IndexOf("source", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                             cursor.displayName.IndexOf("source", StringComparison.OrdinalIgnoreCase) >= 0))
+                        {
+                            cursor.objectReferenceValue = source;
+                            assigned = true;
+                        }
+                        else if (cursor.propertyType == SerializedPropertyType.Float &&
+                                 cursor.name.IndexOf("weight", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            cursor.floatValue = weight;
+                        }
+                    }
+                }
+
+                serialized.ApplyModifiedProperties();
+                return assigned;
+            }
+            catch (Exception ex)
+            {
+                Log("TB6 serialized Sources fallback failed: " + ex.GetType().Name + ": " + ex.Message);
+                return false;
+            }
+        }
+
+        private bool ConfigureParentConstraintCommon(Component component, Transform source, float weight, bool maintainOffset, bool worldDrop)
+        {
+            if (component == null || source == null) return false;
+            Undo.RecordObject(component, worldDrop ? "Configure Stories Spell World Drop Constraint" : "Configure Stories VRC Parent Constraint");
+
+            var sourceAssigned = TryAssignParentConstraintSourceViaPublicApi(component, source, weight);
+            if (!sourceAssigned)
+                sourceAssigned = TryAssignParentConstraintSourceSerialized(component, source, weight);
+            if (!sourceAssigned)
+                return false;
+
+            SetFloatMember(component, weight, "GlobalWeight", "globalWeight", "Weight", "weight");
+            SetBoolMember(component, true, "IsActive", "isActive", "Active", "active");
+            SetBoolMember(component, maintainOffset, "Locked", "locked", "IsLocked", "isLocked");
+            SetBoolMember(component, false, "SolveInLocalSpace", "solveInLocalSpace");
+
+            // Freeze To World only affects axes the constraint itself is configured to
+            // evaluate. Explicitly enable all parent position/rotation axes for a full
+            // world drop rather than trusting SDK defaults.
+            if (worldDrop)
+            {
+                foreach (var member in new[]
+                {
+                    "AffectsPositionX", "AffectsPositionY", "AffectsPositionZ",
+                    "AffectsRotationX", "AffectsRotationY", "AffectsRotationZ"
+                })
+                    SetBoolMember(component, true, member, char.ToLowerInvariant(member[0]) + member.Substring(1));
+
+                SetBoolMember(component, false, "FreezeToWorld", "freezeToWorld");
+                SetBoolMember(component, false, "RebakeOffsetsWhenUnfrozen", "rebakeOffsetsWhenUnfrozen");
+            }
+
+            InvokeNoArg(component, "ApplyConfigurationChanges");
+            if (maintainOffset)
+                InvokeNoArg(component, "ActivateConstraint");
+            else
+                InvokeNoArg(component, "ZeroConstraint");
+            InvokeNoArg(component, "ApplyConfigurationChanges");
+
+            EditorUtility.SetDirty(component);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(component);
+            return true;
+        }
+
+        private void ApplyRaycastOriginAttachment(GameObject origin)
+        {
+            if (origin == null || weaponAttachmentTarget == null || contactAttachmentMode == ContactAttachmentMode.ContactObject)
+                return;
+            if (contactAttachmentMode == ContactAttachmentMode.WeaponRootTransform)
+            {
+                Undo.SetTransformParent(origin.transform, weaponAttachmentTarget.transform, "Attach Stories Raycast Origin To Weapon");
+                if (!constraintMaintainOffset)
+                {
+                    Undo.RecordObject(origin.transform, "Reset Stories Raycast Origin Offset");
+                    origin.transform.localPosition = Vector3.zero;
+                    origin.transform.localRotation = Quaternion.identity;
+                }
+            }
+            else
+            {
+                ConfigureVRCParentConstraint(origin, weaponAttachmentTarget.transform);
+            }
+        }
+
+        private bool ConfigureParentConstraintViaDocumentedSdkApi(
+            VRCParentConstraint component,
+            Transform source,
+            float weight,
+            bool maintainOffset,
+            bool worldDrop)
+        {
+            if (component == null || source == null) return false;
+            Undo.RecordObject(component, worldDrop ? "Configure Stories Spell World Drop Constraint" : "Configure Stories VRC Parent Constraint");
+
+            try
+            {
+                // TB8: use the exact public API documented by VRChat and preserve the original zero offset on unfreeze instead of rebaking the dropped world offset.
+                // Sources is mutable even though the property itself is not settable.
+                while (component.Sources.Count > 0)
+                    component.Sources.RemoveAt(component.Sources.Count - 1);
+
+                var sourceEntry = new VRCConstraintSource(source, Mathf.Clamp01(weight));
+                component.Sources.Add(sourceEntry);
+
+                component.GlobalWeight = Mathf.Clamp01(weight);
+                component.IsActive = true;
+                component.SolveInLocalSpace = false;
+
+                if (worldDrop)
+                {
+                    component.FreezeToWorld = false;
+                    component.RebakeOffsetsWhenUnfrozen = false;
+                    // IMPORTANT: keep this false. VRChat rebakes the current dropped offset when unfreezing if true, which makes later following remain displaced. False restores the original zero offset and snaps the carrier back onto the live ground-result source.
+
+                    // FreezeToWorld only locks the axes affected by the constraint.
+                    // Keep reflection here only for the six axis toggles because SDK
+                    // revisions have renamed those editor-facing members before; the
+                    // critical component/source API above is now strongly typed.
+                    foreach (var member in new[]
+                    {
+                        "AffectsPositionX", "AffectsPositionY", "AffectsPositionZ",
+                        "AffectsRotationX", "AffectsRotationY", "AffectsRotationZ"
+                    })
+                        SetBoolMember(component, true, member, char.ToLowerInvariant(member[0]) + member.Substring(1));
+                }
+
+                component.ApplyConfigurationChanges();
+                if (maintainOffset)
+                    component.ActivateConstraint();
+                else
+                    component.ZeroConstraint();
+                component.ApplyConfigurationChanges();
+
+                if (component.Sources.Count != 1)
+                {
+                    Log("TB8 direct SDK Sources API returned " + component.Sources.Count + " source(s) after adding exactly one source.");
+                    return false;
+                }
+
+                var configuredSource = component.Sources[0];
+                if (configuredSource.SourceTransform != source)
+                {
+                    Log("TB8 direct SDK Sources API added a source entry, but SourceTransform did not match '" + source.name + "'.");
+                    return false;
+                }
+
+                EditorUtility.SetDirty(component);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(component);
+                Log("TB8 direct SDK Sources API configured " + component.GetType().FullName +
+                    " with source '" + source.name + "' (weight " + configuredSource.Weight.ToString("0.###") + ").");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log("ERROR: TB8 direct SDK Parent Constraint configuration failed on " + component.GetType().FullName +
+                    ": " + ex.GetType().Name + ": " + ex.Message);
+                return false;
+            }
+        }
+
+        private Component ConfigureWorldDropParentConstraint(GameObject host, Transform source)
+        {
+            if (host == null || source == null) return null;
+
+            VRCParentConstraint component = host.GetComponent<VRCParentConstraint>();
+            if (component == null)
+                component = Undo.AddComponent<VRCParentConstraint>(host);
+
+            if (component == null)
+            {
+                Log("ERROR: TB8 Unity refused to add VRCParentConstraint to '" + host.name + "'.");
+                return null;
+            }
+
+            Log("TB8 using documented VRCParentConstraint API: " + component.GetType().AssemblyQualifiedName);
+            if (!ConfigureParentConstraintViaDocumentedSdkApi(component, source, 1f, false, true))
+            {
+                Log("ERROR: TB8 created VRCParentConstraint but could not configure Sources via the documented SDK API for '" + source.name + "'. The incomplete component was removed to avoid a source-less world lock.");
+                Undo.DestroyObjectImmediate(component);
+                return null;
+            }
+
+            Log("World Drop constraint ready on '" + host.name + "' with source '" + source.name + "'. Freeze To World is driven by the Spell selector while cast is active.");
+            return component;
+        }
+
+        private bool ConfigureVRCParentConstraint(GameObject host, Transform source)
+        {
+            if (host == null || source == null) return false;
+
+            VRCParentConstraint component = host.GetComponent<VRCParentConstraint>();
+            if (component == null)
+                component = Undo.AddComponent<VRCParentConstraint>(host);
+            if (component == null) return false;
+
+            var ok = ConfigureParentConstraintViaDocumentedSdkApi(
+                component,
+                source,
+                Mathf.Clamp01(constraintWeight),
+                constraintMaintainOffset,
+                false);
+            if (!ok)
+            {
+                Log("TB8 VRC Parent Constraint was added, but the documented Sources API could not configure source '" + source.name + "'.");
+                Undo.DestroyObjectImmediate(component);
+            }
+            return ok;
+        }
+
+        private void ConfigureContact(
             Component component,
             ContactShape shape,
             float radius,
@@ -2984,7 +7411,15 @@ namespace StoriesOfYggdrasil.OSC
             IEnumerable<string> tags)
         {
             Undo.RecordObject(component, "Configure Stories Of Yggdrasil Contact");
-            SetTransformMember(component, component.transform, "rootTransform", "RootTransform");
+            var contactRoot = component.transform;
+            if (!suppressContactAttachment && weaponAttachmentTarget != null)
+            {
+                if (contactAttachmentMode == ContactAttachmentMode.WeaponRootTransform)
+                    contactRoot = weaponAttachmentTarget.transform;
+                else if (contactAttachmentMode == ContactAttachmentMode.VRCParentConstraint)
+                    ConfigureVRCParentConstraint(component.gameObject, weaponAttachmentTarget.transform);
+            }
+            SetTransformMember(component, contactRoot, "rootTransform", "RootTransform");
             SetEnumMember(component, shape.ToString(), "shapeType", "ShapeType");
             SetFloatMember(component, Mathf.Clamp(radius, 0.001f, 3f), "radius", "Radius");
             SetFloatMember(component, Mathf.Clamp(height, 0.002f, 6f), "height", "Height");
@@ -3245,7 +7680,7 @@ namespace StoriesOfYggdrasil.OSC
                 AddMissingAnimatorParameters(fxController);
             if (expressionParameters != null)
             {
-                Undo.RecordObject(expressionParameters, "Add v0.5.3 Spell Bus Parameters");
+                Undo.RecordObject(expressionParameters, "Add Spell Bus Parameters");
                 AddMissingExpressionParameters(expressionParameters);
                 EditorUtility.SetDirty(expressionParameters);
             }
@@ -3288,7 +7723,7 @@ namespace StoriesOfYggdrasil.OSC
                     var parameter = ReadStringMember(receiver, "parameter", "Parameter");
                     if (parameter == "SoY_SpellType" ||
                         parameter == "SoY_HealingSourceEnemy" ||
-                        tags.Any(tag => tag.StartsWith(LegacySpellTagPrefix, StringComparison.Ordinal)))
+                        tags.Any(IsLegacySpellReceiverTag))
                     {
                         Undo.DestroyObjectImmediate(receiver);
                         removedReceivers++;
@@ -3371,12 +7806,13 @@ namespace StoriesOfYggdrasil.OSC
             if (hosts.Count == 0)
                 return;
 
-            EnsureAssetFolder(AnimationRoot);
             var avatarName = MakeSafeAssetName(avatarRoot.name);
+            var animationFolder = AvatarGeneratedFolder(avatarName, "Animations/System");
+            EnsureAssetFolder(animationFolder);
             var readyClip = CreateOrReplaceActiveClip(
-                AnimationRoot + "/" + avatarName + "_SoY_IFrames_Ready.anim", hosts, true, 1f / 60f);
+                animationFolder + "/SoY_IFrames_Ready.anim", hosts, true, 1f / 60f);
             var cooldownClip = CreateOrReplaceActiveClip(
-                AnimationRoot + "/" + avatarName + "_SoY_IFrames_1s.anim", hosts, false, HitIFrameSeconds);
+                animationFolder + "/SoY_IFrames_1s.anim", hosts, false, HitIFrameSeconds);
 
             RemoveLayerByName(fxController, IFrameLayer);
             var layer = CreateHookLayer(fxController, IFrameLayer);
@@ -3501,26 +7937,87 @@ namespace StoriesOfYggdrasil.OSC
             if (allyHosts.Count == 0 && enemyHosts.Count == 0)
                 return;
 
-            EnsureAssetFolder(AnimationRoot);
             var avatarName = MakeSafeAssetName(avatarRoot.name);
+            var animationFolder = AvatarGeneratedFolder(avatarName, "Animations/System");
+            EnsureAssetFolder(animationFolder);
             var allyClip = CreateOrReplaceAlignmentClip(
-                AnimationRoot + "/" + avatarName + "_SoY_Action_Ally.anim", allyHosts, enemyHosts, false);
+                animationFolder + "/SoY_Action_Ally.anim", allyHosts, enemyHosts, false);
             var enemyClip = CreateOrReplaceAlignmentClip(
-                AnimationRoot + "/" + avatarName + "_SoY_Action_Enemy.anim", allyHosts, enemyHosts, true);
+                animationFolder + "/SoY_Action_Enemy.anim", allyHosts, enemyHosts, true);
+            var koClip = CreateOrReplaceActiveClip(
+                animationFolder + "/SoY_Action_KO_Lock.anim", allyHosts.Concat(enemyHosts), false, 1f / 60f);
 
             RemoveLayerByName(fxController, SpellAlignmentLayer);
             var layer = CreateHookLayer(fxController, SpellAlignmentLayer);
             var ally = AddHookState(layer.stateMachine, "Ally Caster", new Vector3(220f, 120f));
             var enemy = AddHookState(layer.stateMachine, "Enemy Caster", new Vector3(520f, 120f));
+            var koLocked = AddHookState(layer.stateMachine, "KO — Outgoing Contacts Disabled", new Vector3(370f, 300f));
             ally.motion = allyClip;
             enemy.motion = enemyClip;
+            koLocked.motion = koClip;
             layer.stateMachine.defaultState = ally;
             AddBoolTransition(ally, enemy, "SoY_IsEnemy", true);
             AddBoolTransition(enemy, ally, "SoY_IsEnemy", false);
+            AddBoolTransition(ally, koLocked, "SoY_KO", true);
+            AddBoolTransition(enemy, koLocked, "SoY_KO", true);
+
+            var reviveToAlly = koLocked.AddTransition(ally);
+            reviveToAlly.hasExitTime = false; reviveToAlly.duration = 0f;
+            reviveToAlly.AddCondition(AnimatorConditionMode.IfNot, 0f, "SoY_KO");
+            reviveToAlly.AddCondition(AnimatorConditionMode.IfNot, 0f, "SoY_IsEnemy");
+            var reviveToEnemy = koLocked.AddTransition(enemy);
+            reviveToEnemy.hasExitTime = false; reviveToEnemy.duration = 0f;
+            reviveToEnemy.AddCondition(AnimatorConditionMode.IfNot, 0f, "SoY_KO");
+            reviveToEnemy.AddCondition(AnimatorConditionMode.If, 0f, "SoY_IsEnemy");
             fxController.AddLayer(layer);
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
-            Log("Rebuilt action alignment layer for " + allyHosts.Count + " Ally/Enemy sender object(s).");
+            Log("Rebuilt action alignment + KO lock layer for " + allyHosts.Count + " Ally/Enemy sender object(s).");
+        }
+
+        private AnimationClip CreateOrReplaceWorldDropClip(
+            string path,
+            GameObject actionHost,
+            Component worldDropConstraint,
+            bool actionActive,
+            bool freezeToWorld,
+            float length)
+        {
+            var clip = LoadOrCreateClip(path);
+            clip.ClearCurves();
+            var endTime = Mathf.Max(1f / 60f, length);
+
+            if (actionHost != null)
+            {
+                var actionPath = GetRelativePath(avatarRoot.transform, actionHost.transform);
+                if (actionPath != null)
+                {
+                    var activeBinding = EditorCurveBinding.FloatCurve(actionPath, typeof(GameObject), "m_IsActive");
+                    AnimationUtility.SetEditorCurve(clip, activeBinding, new AnimationCurve(
+                        new Keyframe(0f, actionActive ? 1f : 0f),
+                        new Keyframe(endTime, actionActive ? 1f : 0f)));
+                }
+            }
+
+            if (worldDropConstraint != null)
+            {
+                var constraintPath = GetRelativePath(avatarRoot.transform, worldDropConstraint.transform);
+                if (constraintPath != null)
+                {
+                    // VRChat exposes this exact animatable property name on its constraints.
+                    // VRCFury also detects world-constrained animation bindings by FreezeToWorld.
+                    var freezeBinding = EditorCurveBinding.FloatCurve(
+                        constraintPath,
+                        worldDropConstraint.GetType(),
+                        "FreezeToWorld");
+                    AnimationUtility.SetEditorCurve(clip, freezeBinding, new AnimationCurve(
+                        new Keyframe(0f, freezeToWorld ? 1f : 0f),
+                        new Keyframe(endTime, freezeToWorld ? 1f : 0f)));
+                }
+            }
+
+            EditorUtility.SetDirty(clip);
+            return clip;
         }
 
         private AnimationClip CreateOrReplaceActiveClip(string path, IEnumerable<GameObject> objects, bool active, float length)
@@ -3718,7 +8215,7 @@ namespace StoriesOfYggdrasil.OSC
 
                     // Repair flags from older installer versions.
                     // SoY_CombatEnabled and SoY_IsEnemy remain saved/synced.
-                    // v0.5.7 also repairs the three action selector Ints to Synced so
+                    // The installer also repairs the three action selector Ints to Synced so
                     // remote avatar instances can enter the same cast/action FX states.
                     var repaired = false;
                     if (!Mathf.Approximately(existing.defaultValue, spec.DefaultValue))
@@ -3751,11 +8248,16 @@ namespace StoriesOfYggdrasil.OSC
                     continue;
                 }
 
-                if (spec.NetworkSynced && SyncedExpressionCost(list) + ExpressionParameterCost(spec.ExpressionType) > 256)
+                var canSync = !spec.NetworkSynced ||
+                    SyncedExpressionCost(list) + ExpressionParameterCost(spec.ExpressionType) <= 256;
+                if (spec.NetworkSynced && !canSync)
                 {
+                    // Never skip a required Stories parameter entirely. A local/unsynced selector
+                    // still keeps local menus, OSC, and Raycast gating functional. Remote cosmetics
+                    // may not mirror until the user frees parameter budget and reruns Repair.
                     operationLog.Insert(0,
-                        "Skipped Expression parameter '" + spec.Name + "': adding it would exceed VRChat's 256-bit parameter budget.");
-                    continue;
+                        "Added Expression parameter '" + spec.Name +
+                        "' as LOCAL ONLY because synchronizing it would exceed VRChat's 256-bit parameter budget.");
                 }
 
                 list.Add(new VRCExpressionParameters.Parameter
@@ -3764,7 +8266,7 @@ namespace StoriesOfYggdrasil.OSC
                     valueType = spec.ExpressionType,
                     defaultValue = spec.DefaultValue,
                     saved = spec.Saved,
-                    networkSynced = spec.NetworkSynced
+                    networkSynced = spec.NetworkSynced && canSync
                 });
                 added++;
             }
@@ -3853,46 +8355,81 @@ namespace StoriesOfYggdrasil.OSC
             if (menu == null)
                 return 0;
 
-            EnsureAssetFolder(MenuRoot);
             var avatarName = MakeSafeAssetName(avatarDescriptor != null ? avatarDescriptor.gameObject.name : "Avatar");
-            var mainPath = MenuRoot + "/" + avatarName + "_Stories_RP_Menu.asset";
-            var statusPath = MenuRoot + "/" + avatarName + "_Stories_Status_Menu.asset";
-            var spellsPath = MenuRoot + "/" + avatarName + "_Stories_Spells_Menu.asset";
-            var coreSchoolsPath = MenuRoot + "/" + avatarName + "_Stories_Core_Schools.asset";
-            var specializedSchoolsPath = MenuRoot + "/" + avatarName + "_Stories_Specialized_Schools.asset";
-            var forbiddenSchoolsPath = MenuRoot + "/" + avatarName + "_Stories_Forbidden_Schools.asset";
+            var menuFolder = AvatarGeneratedFolder(avatarName, "Menus");
+            EnsureAssetFolder(menuFolder);
+            var mainPath = menuFolder + "/Stories_RP_Menu.asset";
+            var combatPath = menuFolder + "/Stories_Combat_Menu.asset";
+            var targetingPath = menuFolder + "/Stories_Targeting_Menu.asset";
+            var statusPath = menuFolder + "/Stories_Status_Menu.asset";
+            var spellsPath = menuFolder + "/Stories_Spells_Menu.asset";
+            var coreSchoolsPath = menuFolder + "/Stories_Core_Schools.asset";
+            var specializedSchoolsPath = menuFolder + "/Stories_Specialized_Schools.asset";
+            var forbiddenSchoolsPath = menuFolder + "/Stories_Forbidden_Schools.asset";
+            var schoolBrowsePath = menuFolder + "/Stories_Browse_By_School.asset";
+            var purposePath = menuFolder + "/Stories_By_Purpose.asset";
+            var quickPath = menuFolder + "/Stories_Quick_Access.asset";
 
             var storiesMenu = LoadOrCreateMenu(mainPath);
+            var combatMenu = LoadOrCreateMenu(combatPath);
+            var targetingMenu = LoadOrCreateMenu(targetingPath);
             var statusMenu = LoadOrCreateMenu(statusPath);
             var spellsMenu = LoadOrCreateMenu(spellsPath);
-            var technicksMenu = BuildActionMenuPages(avatarName, "Technicks", "SoY_TechnickType", TechnickDefinitions);
-            var itemsMenu = BuildActionMenuPages(avatarName, "Items", "SoY_ItemType", ItemDefinitions);
+            var installedSpells = GetInstalledSpellDefinitions();
+            var installedTechnicks = GetInstalledTechnickDefinitions();
+            var installedItems = GetInstalledItemDefinitions();
+            var technicksMenu = BuildActionMenuPages(avatarName, "Technicks", "SoY_TechnickType", installedTechnicks);
+            var itemsMenu = BuildActionMenuPages(avatarName, "Items", "SoY_ItemType", installedItems);
             var coreSchoolsMenu = LoadOrCreateMenu(coreSchoolsPath);
             var specializedSchoolsMenu = LoadOrCreateMenu(specializedSchoolsPath);
             var forbiddenSchoolsMenu = LoadOrCreateMenu(forbiddenSchoolsPath);
+            var schoolBrowseMenu = LoadOrCreateMenu(schoolBrowsePath);
+            var purposeMenu = LoadOrCreateMenu(purposePath);
+            var quickMenu = LoadOrCreateMenu(quickPath);
 
             var schoolPages = Enum.GetValues(typeof(SpellSchool))
                 .Cast<SpellSchool>()
                 .ToDictionary(school => school, school => BuildSpellMenuPages(avatarName, school));
+            var purposePages = Enum.GetValues(typeof(SpellCategory))
+                .Cast<SpellCategory>()
+                .ToDictionary(category => category, category => BuildSpellCategoryMenuPages(avatarName, category));
 
-            Undo.RecordObject(storiesMenu, "Build Stories RP Menu");
-            storiesMenu.controls = new List<VRCExpressionsMenu.Control>
+            BuildQuickAccessMenu(quickMenu);
+
+            var actionsMenu = LoadOrCreateMenu(menuFolder + "/Stories_Actions.asset");
+            Undo.RecordObject(actionsMenu, "Build Stories Action Menu");
+            actionsMenu.controls = new List<VRCExpressionsMenu.Control>();
+            if (technicksMenu != null && technicksMenu.controls != null && technicksMenu.controls.Count > 0)
+                actionsMenu.controls.Add(CreateSubMenuControl("Technicks", technicksMenu));
+            if (itemsMenu != null && itemsMenu.controls != null && itemsMenu.controls.Count > 0)
+                actionsMenu.controls.Add(CreateSubMenuControl("Items", itemsMenu));
+            EditorUtility.SetDirty(actionsMenu);
+
+            Undo.RecordObject(combatMenu, "Build Stories Combat Menu");
+            combatMenu.controls = new List<VRCExpressionsMenu.Control>();
+            if (HasExpressionParameter("SoY_CombatEnabled"))
+                combatMenu.controls.Add(CreateToggleControl("RP Combat", "SoY_CombatEnabled"));
+            if (HasExpressionParameter("SoY_IsEnemy"))
+                combatMenu.controls.Add(CreateToggleControl("Enemy Mode", "SoY_IsEnemy"));
+            EditorUtility.SetDirty(combatMenu);
+
+            Undo.RecordObject(targetingMenu, "Build Stories Targeting Menu");
+            targetingMenu.controls = new List<VRCExpressionsMenu.Control>();
+            if (HasInstalledManagedRaycast())
             {
-                CreateToggleControl("RP Combat", "SoY_CombatEnabled"),
-                CreateToggleControl("Enemy Mode", "SoY_IsEnemy"),
-                CreateSubMenuControl("Spells", spellsMenu),
-                CreateSubMenuControl("Technicks", technicksMenu),
-                CreateSubMenuControl("Items", itemsMenu),
-                CreateSubMenuControl("Status Gauges", statusMenu)
-            };
-            EditorUtility.SetDirty(storiesMenu);
+                EnsureLocalRaycastTargetingExpressionParameter();
+                targetingMenu.controls.Add(CreateToggleControl("Targeting Crosshair", RaycastTargetingParameter));
+            }
+            if (HasManualRaycastFireAction() && HasExpressionParameter(RaycastFireParameter))
+                targetingMenu.controls.Add(CreateButtonControl("Projectile Fire", RaycastFireParameter, 1f));
+            EditorUtility.SetDirty(targetingMenu);
 
             Undo.RecordObject(statusMenu, "Build Stories Status Menu");
-            statusMenu.controls = new List<VRCExpressionsMenu.Control>
-            {
-                CreateRadialControl("Mist Charge", "SoY_MistPercent"),
-                CreateRadialControl("Curse Of Diablos", "SoY_DiablosPercent")
-            };
+            statusMenu.controls = new List<VRCExpressionsMenu.Control>();
+            if (HasExpressionParameter("SoY_MistPercent"))
+                statusMenu.controls.Add(CreateRadialControl("Mist Charge", "SoY_MistPercent"));
+            if (HasExpressionParameter("SoY_DiablosPercent"))
+                statusMenu.controls.Add(CreateRadialControl("Curse Of Diablos", "SoY_DiablosPercent"));
             EditorUtility.SetDirty(statusMenu);
 
             BuildSchoolGroupMenu(
@@ -3931,14 +8468,61 @@ namespace StoriesOfYggdrasil.OSC
                     SpellSchool.YggdrasilLightMagick
                 });
 
-            Undo.RecordObject(spellsMenu, "Build Stories Spell Menu");
-            spellsMenu.controls = new List<VRCExpressionsMenu.Control>
+            Undo.RecordObject(schoolBrowseMenu, "Build Stories School Browser");
+            schoolBrowseMenu.controls = new List<VRCExpressionsMenu.Control>();
+            if (coreSchoolsMenu.controls.Count > 0) schoolBrowseMenu.controls.Add(CreateSubMenuControl("Core Magick", coreSchoolsMenu));
+            if (specializedSchoolsMenu.controls.Count > 0) schoolBrowseMenu.controls.Add(CreateSubMenuControl("Specialized", specializedSchoolsMenu));
+            if (forbiddenSchoolsMenu.controls.Count > 0) schoolBrowseMenu.controls.Add(CreateSubMenuControl("Forbidden & Custom", forbiddenSchoolsMenu));
+            EditorUtility.SetDirty(schoolBrowseMenu);
+
+            Undo.RecordObject(purposeMenu, "Build Stories Purpose Browser");
+            purposeMenu.controls = new List<VRCExpressionsMenu.Control>();
+            foreach (var category in Enum.GetValues(typeof(SpellCategory)).Cast<SpellCategory>())
             {
-                CreateSubMenuControl("Core Magick", coreSchoolsMenu),
-                CreateSubMenuControl("Specialized Magick", specializedSchoolsMenu),
-                CreateSubMenuControl("Forbidden & Custom", forbiddenSchoolsMenu)
-            };
+                VRCExpressionsMenu categoryPage;
+                if (purposePages.TryGetValue(category, out categoryPage) && categoryPage != null)
+                    purposeMenu.controls.Add(CreateSubMenuControl(GetSpellCategoryDisplayName(category), categoryPage));
+            }
+            EditorUtility.SetDirty(purposeMenu);
+
+            Undo.RecordObject(spellsMenu, "Build Stories Spell Menu");
+            spellsMenu.controls = new List<VRCExpressionsMenu.Control>();
+            if (menuNavigationMode == MenuNavigationMode.PurposeFirst)
+            {
+                if (purposeMenu.controls.Count > 0) spellsMenu.controls.Add(CreateSubMenuControl("By Purpose", purposeMenu));
+                if (schoolBrowseMenu.controls.Count > 0) spellsMenu.controls.Add(CreateSubMenuControl("By School", schoolBrowseMenu));
+            }
+            else if (menuNavigationMode == MenuNavigationMode.SchoolFirst)
+            {
+                if (coreSchoolsMenu.controls.Count > 0) spellsMenu.controls.Add(CreateSubMenuControl("Core Magick", coreSchoolsMenu));
+                if (specializedSchoolsMenu.controls.Count > 0) spellsMenu.controls.Add(CreateSubMenuControl("Specialized", specializedSchoolsMenu));
+                if (forbiddenSchoolsMenu.controls.Count > 0) spellsMenu.controls.Add(CreateSubMenuControl("Forbidden & Custom", forbiddenSchoolsMenu));
+            }
+            else
+            {
+                if (purposeMenu.controls.Count > 0) spellsMenu.controls.Add(CreateSubMenuControl("By Purpose", purposeMenu));
+                if (coreSchoolsMenu.controls.Count > 0) spellsMenu.controls.Add(CreateSubMenuControl("Core Magick", coreSchoolsMenu));
+                if (specializedSchoolsMenu.controls.Count > 0) spellsMenu.controls.Add(CreateSubMenuControl("Specialized", specializedSchoolsMenu));
+                if (forbiddenSchoolsMenu.controls.Count > 0) spellsMenu.controls.Add(CreateSubMenuControl("Forbidden & Custom", forbiddenSchoolsMenu));
+            }
             EditorUtility.SetDirty(spellsMenu);
+
+            // Build the root last so installed-only child menus have their final contents.
+            Undo.RecordObject(storiesMenu, "Build Stories RP Menu");
+            storiesMenu.controls = new List<VRCExpressionsMenu.Control>();
+            if (combatMenu.controls != null && combatMenu.controls.Count > 0)
+                storiesMenu.controls.Add(CreateSubMenuControl("Combat", combatMenu));
+            if (spellsMenu.controls != null && spellsMenu.controls.Count > 0)
+                storiesMenu.controls.Add(CreateSubMenuControl("Spells", spellsMenu));
+            if (actionsMenu.controls != null && actionsMenu.controls.Count > 0)
+                storiesMenu.controls.Add(CreateSubMenuControl("Actions", actionsMenu));
+            if (targetingMenu.controls != null && targetingMenu.controls.Count > 0)
+                storiesMenu.controls.Add(CreateSubMenuControl("Targeting", targetingMenu));
+            if (statusMenu.controls != null && statusMenu.controls.Count > 0)
+                storiesMenu.controls.Add(CreateSubMenuControl("Status", statusMenu));
+            if (quickMenu.controls.Count > 0 && storiesMenu.controls.Count < 8)
+                storiesMenu.controls.Add(CreateSubMenuControl("Quick Access", quickMenu));
+            EditorUtility.SetDirty(storiesMenu);
 
             Undo.RecordObject(menu, "Add Stories RP Sub-Menu");
             if (menu.controls == null)
@@ -3970,7 +8554,8 @@ namespace StoriesOfYggdrasil.OSC
 
             EditorUtility.SetDirty(menu);
             AssetDatabase.SaveAssets();
-            operationLog.Insert(0, "Stories RP sub-menu created at " + mainPath + ".");
+            operationLog.Insert(0, "Stories RP sub-menu created at " + mainPath + " using installed Contacts only: " +
+                installedSpells.Length + " spell(s), " + installedTechnicks.Length + " technick(s), " + installedItems.Length + " item(s).");
             return 1;
         }
 
@@ -3996,16 +8581,34 @@ namespace StoriesOfYggdrasil.OSC
 
         private VRCExpressionsMenu BuildSpellMenuPages(string avatarName, SpellSchool school)
         {
-            var spells = GetSpellsForSchool(school);
-            if (spells.Length == 0)
+            var installedIds = new HashSet<int>(GetInstalledSpellDefinitions().Select(spell => spell.Id));
+            var spells = GetSpellsForSchool(school).Where(spell => installedIds.Contains(spell.Id)).ToArray();
+            return BuildSpellDefinitionPages(avatarName, GetSpellSchoolAssetLabel(school), spells);
+        }
+
+        private VRCExpressionsMenu BuildSpellCategoryMenuPages(string avatarName, SpellCategory category)
+        {
+            var installedIds = new HashSet<int>(GetInstalledSpellDefinitions().Select(spell => spell.Id));
+            var spells = SpellDefinitions
+                .Where(spell => spell.Category == category && installedIds.Contains(spell.Id))
+                .GroupBy(spell => spell.Id)
+                .Select(group => group.First())
+                .OrderBy(spell => spell.Id)
+                .ToArray();
+            return BuildSpellDefinitionPages(avatarName, "Purpose_" + category, spells);
+        }
+
+        private VRCExpressionsMenu BuildSpellDefinitionPages(string avatarName, string assetLabel, SpellDefinition[] spells)
+        {
+            if (spells == null || spells.Length == 0)
                 return null;
 
-            var pageCount = Mathf.CeilToInt(spells.Length / 7f);
+            var pageSize = spells.Length > 8 ? 6 : 8;
+            var pageCount = Mathf.CeilToInt(spells.Length / (float)pageSize);
             var pages = new List<VRCExpressionsMenu>();
-            var schoolLabel = GetSpellSchoolAssetLabel(school);
             for (var page = 0; page < pageCount; page++)
             {
-                var path = MenuRoot + "/" + avatarName + "_" + schoolLabel + "_Page_" + (page + 1) + ".asset";
+                var path = AvatarGeneratedFolder(avatarName, "Menus") + "/" + assetLabel + "_Page_" + (page + 1) + ".asset";
                 pages.Add(LoadOrCreateMenu(path));
             }
 
@@ -4014,18 +8617,20 @@ namespace StoriesOfYggdrasil.OSC
                 var targetMenu = pages[page];
                 Undo.RecordObject(targetMenu, "Build Stories Spell Page");
                 targetMenu.controls = new List<VRCExpressionsMenu.Control>();
-                foreach (var spell in spells.Skip(page * 7).Take(7))
+                if (page > 0)
+                    targetMenu.controls.Add(CreateSubMenuControl("◀ Prev " + page + "/" + pageCount, pages[page - 1]));
+                foreach (var spell in spells.Skip(page * pageSize).Take(pageSize))
                 {
                     targetMenu.controls.Add(new VRCExpressionsMenu.Control
                     {
-                        name = spell.Name,
+                        name = BuildSpellMenuLabel(spell),
                         type = VRCExpressionsMenu.Control.ControlType.Button,
                         parameter = new VRCExpressionsMenu.Control.Parameter { name = "SoY_SpellType" },
                         value = spell.Id
                     });
                 }
                 if (page + 1 < pages.Count)
-                    targetMenu.controls.Add(CreateSubMenuControl("Next Page", pages[page + 1]));
+                    targetMenu.controls.Add(CreateSubMenuControl("Next " + (page + 2) + "/" + pageCount + " ▶", pages[page + 1]));
                 EditorUtility.SetDirty(targetMenu);
             }
 
@@ -4042,11 +8647,12 @@ namespace StoriesOfYggdrasil.OSC
                 return null;
 
             var safeLabel = MakeSafeAssetName(actionLabel);
-            var pageCount = Mathf.CeilToInt(definitions.Length / 7f);
+            var pageSize = definitions.Length > 8 ? 6 : 8;
+            var pageCount = Mathf.CeilToInt(definitions.Length / (float)pageSize);
             var pages = new List<VRCExpressionsMenu>();
             for (var page = 0; page < pageCount; page++)
             {
-                var path = MenuRoot + "/" + avatarName + "_Stories_" + safeLabel + "_Page_" + (page + 1) + ".asset";
+                var path = AvatarGeneratedFolder(avatarName, "Menus") + "/Stories_" + safeLabel + "_Page_" + (page + 1) + ".asset";
                 pages.Add(LoadOrCreateMenu(path));
             }
 
@@ -4055,18 +8661,20 @@ namespace StoriesOfYggdrasil.OSC
                 var targetMenu = pages[page];
                 Undo.RecordObject(targetMenu, "Build Stories " + actionLabel + " Page");
                 targetMenu.controls = new List<VRCExpressionsMenu.Control>();
-                foreach (var definition in definitions.Skip(page * 7).Take(7))
+                if (page > 0)
+                    targetMenu.controls.Add(CreateSubMenuControl("◀ Prev " + page + "/" + pageCount, pages[page - 1]));
+                foreach (var definition in definitions.Skip(page * pageSize).Take(pageSize))
                 {
                     targetMenu.controls.Add(new VRCExpressionsMenu.Control
                     {
-                        name = definition.Name,
+                        name = BuildActionMenuLabel(definition.Name),
                         type = VRCExpressionsMenu.Control.ControlType.Button,
                         parameter = new VRCExpressionsMenu.Control.Parameter { name = parameterName },
                         value = definition.Id
                     });
                 }
                 if (page + 1 < pages.Count)
-                    targetMenu.controls.Add(CreateSubMenuControl("Next Page", pages[page + 1]));
+                    targetMenu.controls.Add(CreateSubMenuControl("Next " + (page + 2) + "/" + pageCount + " ▶", pages[page + 1]));
                 EditorUtility.SetDirty(targetMenu);
             }
             return pages[0];
@@ -4081,6 +8689,17 @@ namespace StoriesOfYggdrasil.OSC
             menu.controls = new List<VRCExpressionsMenu.Control>();
             AssetDatabase.CreateAsset(menu, AssetDatabase.GenerateUniqueAssetPath(path));
             return menu;
+        }
+
+        private static VRCExpressionsMenu.Control CreateButtonControl(string label, string parameter, float value)
+        {
+            return new VRCExpressionsMenu.Control
+            {
+                name = label,
+                type = VRCExpressionsMenu.Control.ControlType.Button,
+                parameter = new VRCExpressionsMenu.Control.Parameter { name = parameter },
+                value = value
+            };
         }
 
         private static VRCExpressionsMenu.Control CreateToggleControl(string name, string parameter)
@@ -4129,10 +8748,16 @@ namespace StoriesOfYggdrasil.OSC
                 AddCombatLayer(target);
                 added++;
             }
-            if (!target.layers.Any(layer => layer.name == VitalLayer))
+            var existingVital = target.layers.FirstOrDefault(layer => layer.name == VitalLayer);
+            var vitalNeedsUpgrade = existingVital == null || existingVital.stateMachine == null ||
+                !existingVital.stateMachine.states.Any(child => child.state != null && child.state.name == "Full Health") ||
+                !existingVital.stateMachine.states.Any(child => child.state != null && child.state.name == "Half Health");
+            if (vitalNeedsUpgrade)
             {
+                RemoveLayerByName(target, VitalLayer);
                 AddVitalLayer(target);
                 added++;
+                operationLog.Insert(0, "Installed or upgraded the managed Full / Half / Critical / KO health-state layer.");
             }
             if (!target.layers.Any(layer => layer.name == ReactionLayer))
             {
@@ -4185,18 +8810,35 @@ namespace StoriesOfYggdrasil.OSC
         private static void AddVitalLayer(AnimatorController target)
         {
             var layer = CreateHookLayer(target, VitalLayer);
-            var normal = AddHookState(layer.stateMachine, "Normal", new Vector3(220f, 120f));
-            var critical = AddHookState(layer.stateMachine, "Critical HP", new Vector3(500f, 70f));
-            var ko = AddHookState(layer.stateMachine, "KO", new Vector3(500f, 220f));
-            layer.stateMachine.defaultState = normal;
+            var full = AddHookState(layer.stateMachine, "Full Health", new Vector3(220f, 80f));
+            var half = AddHookState(layer.stateMachine, "Half Health", new Vector3(500f, 80f));
+            var critical = AddHookState(layer.stateMachine, "Critical HP", new Vector3(500f, 220f));
+            var ko = AddHookState(layer.stateMachine, "KO", new Vector3(500f, 360f));
+            layer.stateMachine.defaultState = full;
 
-            AddBoolTransition(normal, critical, "SoY_CriticalHP", true);
-            AddBoolTransition(normal, ko, "SoY_KO", true);
-            AddBoolTransition(critical, normal, "SoY_CriticalHP", false);
-            AddBoolTransition(critical, ko, "SoY_KO", true);
-            AddBoolTransition(ko, critical, "SoY_KO", false, "SoY_CriticalHP", true);
-            AddBoolTransition(ko, normal, "SoY_KO", false, "SoY_CriticalHP", false);
+            AddAnyVitalTransition(layer.stateMachine, ko, true, null, null);
+            AddAnyVitalTransition(layer.stateMachine, critical, false, null, 0.15f);
+            AddAnyVitalTransition(layer.stateMachine, half, false, 0.1499f, 0.501f);
+            AddAnyVitalTransition(layer.stateMachine, full, false, 0.499f, null);
             target.AddLayer(layer);
+        }
+
+        private static void AddAnyVitalTransition(
+            AnimatorStateMachine machine,
+            AnimatorState destination,
+            bool ko,
+            float? greaterThan,
+            float? lessThan)
+        {
+            var transition = machine.AddAnyStateTransition(destination);
+            transition.hasExitTime = false;
+            transition.duration = 0f;
+            transition.canTransitionToSelf = false;
+            transition.AddCondition(ko ? AnimatorConditionMode.If : AnimatorConditionMode.IfNot, 0f, "SoY_KO");
+            if (greaterThan.HasValue)
+                transition.AddCondition(AnimatorConditionMode.Greater, greaterThan.Value, "SoY_HPPercent");
+            if (lessThan.HasValue)
+                transition.AddCondition(AnimatorConditionMode.Less, lessThan.Value, "SoY_HPPercent");
         }
 
         private static void AddReactionLayer(AnimatorController target)
@@ -4452,6 +9094,7 @@ namespace StoriesOfYggdrasil.OSC
         {
             if (component == null)
                 return false;
+
             var member = FindMember(component.GetType(), names);
             try
             {
@@ -4468,7 +9111,161 @@ namespace StoriesOfYggdrasil.OSC
             }
             catch (Exception exception)
             {
-                Debug.LogWarning("[Stories Of Yggdrasil OSC Contact System] Could not set member on " + component.GetType().Name + ": " + exception.Message);
+                Debug.LogWarning("[Stories Of Yggdrasil OSC Contact System] Reflection write failed on " + component.GetType().Name + ": " + exception.Message + ". Trying Unity serialization fallback.");
+            }
+
+            // VRChat has changed some SDK component internals between releases. The Inspector
+            // can still serialize those values even when a public/private C# member was renamed.
+            // Falling back to SerializedObject keeps Raycast configuration resilient without
+            // compile-time binding to one specific SDK layout.
+            return WriteSerializedMember(component, value, names);
+        }
+
+        private static string NormalizeSerializedMemberName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+            return new string(value.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+        }
+
+        private static bool SerializedPropertyMatches(SerializedProperty property, IEnumerable<string> names)
+        {
+            if (property == null)
+                return false;
+            var propertyName = NormalizeSerializedMemberName(property.name);
+            var displayName = NormalizeSerializedMemberName(property.displayName);
+            foreach (var candidate in names ?? Enumerable.Empty<string>())
+            {
+                var normalized = NormalizeSerializedMemberName(candidate);
+                if (normalized.Length == 0)
+                    continue;
+                if (propertyName == normalized ||
+                    propertyName == "m" + normalized ||
+                    displayName == normalized)
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool WriteSerializedMember(Component component, object value, params string[] names)
+        {
+            if (component == null || names == null || names.Length == 0)
+                return false;
+
+            try
+            {
+                var serialized = new SerializedObject(component);
+                serialized.Update();
+                var iterator = serialized.GetIterator();
+                var enterChildren = true;
+                while (iterator.NextVisible(enterChildren))
+                {
+                    enterChildren = false;
+                    if (!SerializedPropertyMatches(iterator, names))
+                        continue;
+
+                    var applied = false;
+                    switch (iterator.propertyType)
+                    {
+                        case SerializedPropertyType.Boolean:
+                            iterator.boolValue = Convert.ToBoolean(value);
+                            applied = true;
+                            break;
+                        case SerializedPropertyType.Integer:
+                        case SerializedPropertyType.LayerMask:
+                            iterator.intValue = Convert.ToInt32(value);
+                            applied = true;
+                            break;
+                        case SerializedPropertyType.Float:
+                            iterator.floatValue = Convert.ToSingle(value);
+                            applied = true;
+                            break;
+                        case SerializedPropertyType.String:
+                            iterator.stringValue = value != null ? value.ToString() : string.Empty;
+                            applied = true;
+                            break;
+                        case SerializedPropertyType.Vector3:
+                            if (value is Vector3 vector)
+                            {
+                                iterator.vector3Value = vector;
+                                applied = true;
+                            }
+                            break;
+                        case SerializedPropertyType.Quaternion:
+                            if (value is Quaternion quaternion)
+                            {
+                                iterator.quaternionValue = quaternion;
+                                applied = true;
+                            }
+                            break;
+                        case SerializedPropertyType.ObjectReference:
+                            if (value == null || value is UnityEngine.Object)
+                            {
+                                iterator.objectReferenceValue = value as UnityEngine.Object;
+                                applied = true;
+                            }
+                            break;
+                    }
+
+                    if (!applied)
+                        return false;
+
+                    serialized.ApplyModifiedProperties();
+                    EditorUtility.SetDirty(component);
+                    return true;
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning("[Stories Of Yggdrasil OSC Contact System] Unity serialization fallback failed on " + component.GetType().Name + ": " + exception.Message);
+            }
+            return false;
+        }
+
+        private static bool SetSerializedEnumMemberByKeywords(Component component, string[] keywords, params string[] names)
+        {
+            if (component == null || keywords == null || keywords.Length == 0)
+                return false;
+            try
+            {
+                var serialized = new SerializedObject(component);
+                serialized.Update();
+                var iterator = serialized.GetIterator();
+                var enterChildren = true;
+                while (iterator.NextVisible(enterChildren))
+                {
+                    enterChildren = false;
+                    if (!SerializedPropertyMatches(iterator, names) || iterator.propertyType != SerializedPropertyType.Enum)
+                        continue;
+
+                    var options = iterator.enumNames ?? Array.Empty<string>();
+                    var match = options
+                        .Select((name, index) => new { name, index })
+                        .Where(entry => keywords.All(keyword => entry.name.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0))
+                        .OrderBy(entry => entry.name.Length)
+                        .FirstOrDefault();
+
+                    if (match == null)
+                    {
+                        match = options
+                            .Select((name, index) => new { name, index })
+                            .Where(entry => entry.name.IndexOf(keywords[0], StringComparison.OrdinalIgnoreCase) >= 0)
+                            .OrderBy(entry => entry.name.Length)
+                            .FirstOrDefault();
+                    }
+
+                    if (match == null)
+                        return false;
+
+                    iterator.enumValueIndex = match.index;
+                    serialized.ApplyModifiedProperties();
+                    EditorUtility.SetDirty(component);
+                    return true;
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning("[Stories Of Yggdrasil OSC Contact System] Could not set serialized enum on " + component.GetType().Name + ": " + exception.Message);
             }
             return false;
         }
@@ -4558,6 +9355,38 @@ namespace StoriesOfYggdrasil.OSC
         private static string ReadStringMember(Component component, params string[] names)
         {
             return ReadMember(component, names)?.ToString() ?? string.Empty;
+        }
+
+        private static bool SetLayerMaskMember(Component component, int mask, params string[] names)
+        {
+            if (component == null)
+                return false;
+            var member = FindMember(component.GetType(), names);
+            try
+            {
+                if (member is FieldInfo field)
+                {
+                    if (field.FieldType == typeof(LayerMask))
+                        field.SetValue(component, (LayerMask)mask);
+                    else
+                        field.SetValue(component, Convert.ChangeType(mask, field.FieldType));
+                    return true;
+                }
+                if (member is PropertyInfo property && property.CanWrite)
+                {
+                    if (property.PropertyType == typeof(LayerMask))
+                        property.SetValue(component, (LayerMask)mask, null);
+                    else
+                        property.SetValue(component, Convert.ChangeType(mask, property.PropertyType), null);
+                    return true;
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning("[Stories Of Yggdrasil OSC Contact System] Reflection layer-mask write failed: " + exception.Message + ". Trying Unity serialization fallback.");
+            }
+
+            return WriteSerializedMember(component, mask, names);
         }
 
         private static void SetBoolMember(Component component, bool value, params string[] names) => WriteMember(component, value, names);

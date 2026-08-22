@@ -1,0 +1,39 @@
+{
+  "source_file": "StoriesOfYggdrasilOSCContactSystem.cs",
+  "source_sha256": "25ff7a68ccb4f5afcb11281b0efe6a0e5081babf4299140a063bba65fa9deaf8",
+  "source_bytes": 458557,
+  "source_lines": 8711,
+  "version": "0.5.10",
+  "build_number": "TB1",
+  "build_label": "Test Build 1 — Raycast Spell Placement & Workspace Cleanup",
+  "tag": "v0.5.10-TB1",
+  "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
+  "checks": {
+    "unity_editor_guard": true,
+    "lexical_braces": true,
+    "canonical_class_present": true,
+    "one_second_iframes": true,
+    "spell_ground_raycast": true,
+    "remote_player_custom_layer": true,
+    "custom_layer_fallback": true,
+    "local_target_icon": true,
+    "downward_fx_holder": true,
+    "per_avatar_workspace": true,
+    "legacy_asset_paths_preserved": true,
+    "parameter_budget_local_fallback": true,
+    "sha256_updater": true,
+    "managed_repair": true,
+    "serialized_property_fallback": true,
+    "raycast_budget_diagnostic": true,
+    "legacy_tb3_raycast_guard": true,
+    "origin_hierarchy_guard": true,
+    "direct_result_parent_active": true,
+    "canonical_and_assets_copy_identical": true,
+    "sdk_member_reflection_then_serialized_fallback": true,
+    "single_shared_spell_aim_origin": true
+  },
+  "limitations": [
+    "Unity Editor and VRChat SDK assemblies are not available in this environment for a full compile.",
+    "Raycast runtime behavior must still be validated with VRChat SDK Build & Test before stable release."
+  ]
+}

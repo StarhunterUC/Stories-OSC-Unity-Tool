@@ -1,4 +1,4 @@
-# GitHub release setup
+# GitHub release setup — v0.5.10 TB8
 
 Repository:
 
@@ -6,34 +6,35 @@ Repository:
 https://github.com/StarhunterUC/Stories-OSC-Unity-Tool
 ```
 
-Copy this overlay into the local `Stories-OSC-Unity-Tool-Repo` clone, then run:
+TB8 fixes VRChat Parent Constraint discovery/source configuration on current SDK builds while retaining TB5 World Drop behavior.
+
+## Review first
+
+```powershell
+python tools/verify_repo.py --repo-root .
+python tools/build_release.py --repo-root .
+```
+
+## Commit and tag
 
 ```powershell
 git status
 git add .
-git commit -m "Stories OSC Unity Tool v0.5.7"
+git commit -m "Stories OSC Unity Tool v0.5.10 TB8"
 git push origin main
 
-git tag -a v0.5.7 -m "Stories OSC Unity Tool v0.5.7"
-git push origin v0.5.7
+git tag -a v0.5.10-TB8 -m "Stories OSC Unity Tool v0.5.10 TB8"
+git push origin v0.5.10-TB8
 ```
 
-The tag workflow validates that all three versions agree:
-
-```text
-Git tag
-StoriesOfYggdrasilOSCContactSystem.cs
-version.json
-```
-
-It then publishes:
+Expected release assets:
 
 ```text
 StoriesOfYggdrasilOSCContactSystem.cs
-Stories_Of_Yggdrasil_OSC_Contact_System_v0.5.7.unitypackage
-Stories_Of_Yggdrasil_OSC_Contact_System_v0.5.7.unitypackage.sha256
-Stories_Of_Yggdrasil_OSC_Contact_System_v0.5.7.zip
-Stories_Of_Yggdrasil_OSC_Contact_System_v0.5.7.zip.sha256
+StoriesOfYggdrasilOSCContactSystem.cs.sha256
+Stories-OSC-Unity-Tool-v0.5.10-TB8.unitypackage
+Stories-OSC-Unity-Tool-v0.5.10-TB8.unitypackage.sha256
+Stories-OSC-Unity-Tool-v0.5.10-TB8.zip
+Stories-OSC-Unity-Tool-v0.5.10-TB8.zip.sha256
+SHA256SUMS.txt
 ```
-
-The `.unitypackage` is for normal installation. The standalone `.cs` file is deliberately retained as the auto-updater payload.

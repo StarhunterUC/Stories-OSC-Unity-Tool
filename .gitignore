@@ -20,3 +20,9 @@ UserSettings/
 *.VC.db
 .DS_Store
 Thumbs.db
+
+# Generated release/test artifacts
+dist/
+__pycache__/
+tools/__pycache__/
+.pytest_cache/

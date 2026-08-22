@@ -139,6 +139,8 @@ def main() -> int:
             "README.md",
             "CHANGELOG.md",
             f"RELEASE_NOTES_{tag}.md",
+            f"RAYCAST_GUIDE_{tag}.md",
+            f"SOURCE_AUDIT_{tag}.json",
             "version.json",
         ):
             path = root / relative

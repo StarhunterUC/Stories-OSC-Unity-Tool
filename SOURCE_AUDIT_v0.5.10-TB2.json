@@ -1,0 +1,25 @@
+{
+  "product": "Stories Of Yggdrasil OSC Contact System",
+  "version": "0.5.10",
+  "build_number": "TB2",
+  "build_label": "Test Build 2 \u2014 Filtered Action Mapping Hotfix",
+  "tag": "v0.5.10-TB2",
+  "source_sha256": "12aa3c94adfbf4b34db656bcf50f4a8e217ab558c444b9641602ce5ad132aac8",
+  "hotfix": "Filtered action selection consistency",
+  "live_report_reproduction": {
+    "search": "Regen",
+    "raycast_gate_before": "SoY_SpellType = 8",
+    "generated_contacts_before": "Spell ID 1 Cure",
+    "generated_contacts_after": "Spell ID 8 Regen"
+  },
+  "fixed_paths": [
+    "Spell",
+    "Technick",
+    "Item"
+  ],
+  "unity_compile_performed": false,
+  "managed_repair": {
+    "stale_filtered_raycast_action_children_removed_with_undo": true,
+    "scope": "Only direct children with Stories Spell/Technick/Item managed prefixes inside the managed Raycast action host."
+  }
+}
