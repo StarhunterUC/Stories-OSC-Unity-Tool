@@ -2,20 +2,20 @@
   "product": "Stories Of Yggdrasil OSC Contact System",
   "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
   "version": "0.5.10",
-  "build_number": "TB8",
-  "build_label": "Test Build 8 \u2014 World Drop Zero-Offset Reset",
-  "tag": "v0.5.10-TB8",
+  "build_number": "TB12",
+  "build_label": "Test Build 12 — External Contact Compatibility",
+  "tag": "v0.5.10-TB12",
   "channel": "test",
   "prerelease": true,
   "canonical_source_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
   "unity_asset_path": "Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs",
-  "source_sha256": "ef8d51e71170929bb715f4a4e74399d6ffe236ca8fa345f52fe9a308ae0f29a0",
+  "source_sha256": "c635be9b2f1d59beb2ce73a2ab4cbc00c4abf98fc5963ca1b0cf4000f9dc589f",
   "minimum_vrchat_avatars_sdk": "3.10.3",
+  "recommended_tested_sdk_line": "3.10.5-beta.1",
   "registries": {
-    "spell_rows": 151,
-    "unique_spell_ids": 144,
-    "technicks": 99,
-    "items": 61
+    "spell_registry": "registries/SPELL_ID_REGISTRY_v2.json",
+    "technick_registry": "registries/TECHNICK_ID_REGISTRY_v1.json",
+    "item_registry": "registries/ITEM_ID_REGISTRY_v1.json"
   },
-  "display_version": "Stories OSC Unity Tool v0.5.10 TB8"
+  "display_version": "Stories OSC Unity Tool v0.5.10 TB12"
 }

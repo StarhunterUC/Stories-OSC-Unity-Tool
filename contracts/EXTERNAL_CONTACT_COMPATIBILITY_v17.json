@@ -1,0 +1,41 @@
+{
+  "name": "Stories OSC External Contact Compatibility",
+  "revision": 17,
+  "unity_tool": "0.5.10-TB12",
+  "exact_case_sensitive_tags": true,
+  "sender_aliases": [
+    {
+      "sender_tag": "Sword",
+      "stories_tier": "Average",
+      "animator_parameter": "SoY_HitAverage",
+      "external_alignment": "SoY_DamageSourceEnemy"
+    },
+    {
+      "sender_tag": "Weapon",
+      "stories_tier": "Average",
+      "animator_parameter": "SoY_HitAverage",
+      "external_alignment": "SoY_DamageSourceEnemy"
+    },
+    {
+      "sender_tag": "Hands",
+      "stories_tier": "Weak",
+      "animator_parameter": "SoY_HitWeak",
+      "external_alignment": "SoY_DamageSourceEnemy"
+    },
+    {
+      "sender_tag": "Blockable",
+      "stories_role": "block_or_parry_compatible"
+    },
+    {
+      "sender_tag": "Hit Blocked",
+      "stories_role": "block_or_parry_compatible"
+    },
+    {
+      "sender_tag": "Parry_Detect",
+      "stories_role": "block_or_parry_compatible"
+    }
+  ],
+  "transport_change_required": false,
+  "sam_py_change_required": false,
+  "desktop_change_required": false
+}

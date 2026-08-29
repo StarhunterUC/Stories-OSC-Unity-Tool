@@ -5,6 +5,7 @@ from pathlib import Path
 import argparse
 import hashlib
 import json
+import re
 
 
 def sha256(path: Path) -> str:
@@ -13,178 +14,115 @@ def sha256(path: Path) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--repo-root", default=".")
+    parser.add_argument('--repo-root', default='.')
     args = parser.parse_args()
 
     root = Path(args.repo_root).resolve()
-    version = json.loads((root / "version.json").read_text(encoding="utf-8"))
-    source = root / version["canonical_source_asset"]
-    unity_source = root / version["unity_asset_path"]
-    text = source.read_text(encoding="utf-8-sig")
+    version_path = root / 'version.json'
+    if not version_path.is_file():
+        raise SystemExit('Verification failed: missing version.json')
 
-    contract = root / "contracts" / f'UNITY_TOOL_CONTRACT_{version["tag"]}.json'
-    release_notes = root / f'RELEASE_NOTES_{version["tag"]}.md'
-    raycast_guide = root / f'RAYCAST_GUIDE_{version["tag"]}.md'
+    version = json.loads(version_path.read_text(encoding='utf-8'))
+    source = root / version['canonical_source_asset']
+    unity_source = root / version['unity_asset_path']
+    contract = root / 'contracts' / 'UNITY_TOOL_CONTRACT_v0.5.10-TB12.json'
+    external_contract = root / 'contracts' / 'EXTERNAL_CONTACT_COMPATIBILITY_v17.json'
+    release_notes = root / 'RELEASE_NOTES_v0.5.10-TB12.md'
+    raycast_guide = root / 'RAYCAST_GUIDE_v0.5.10-TB12.md'
+    source_audit = root / 'SOURCE_AUDIT_v0.5.10-TB12.json'
+
+    required = [source, unity_source, contract, external_contract, release_notes, raycast_guide, source_audit]
+    missing = [str(p.relative_to(root)) for p in required if not p.is_file()]
+    if missing:
+        raise SystemExit('Verification failed: missing ' + ', '.join(missing))
+
+    text = source.read_text(encoding='utf-8-sig')
 
     checks = {
-        "version": f'Version = "{version["version"]}"' in text,
-        "build": f'BuildNumber = "{version["build_number"]}"' in text,
-        "repository": version["repository"] in text,
-        "class": "class StoriesOfYggdrasilOSCContactSystem" in text,
-        "editor_guard": text.count("#if UNITY_EDITOR") == 1 and text.count("#endif") == 1,
-        "spell_bus_fix": "int.TryParse(suffix, out spellId)" in text,
-        "current_spell_bus": "tag == SpellActiveTag" in text and "SpellBitTagPrefix" in text,
-        "sha256_updater": 'EndsWith(".sha256"' in text,
-        "managed_repair": "Managed-System Repair Center" in text,
+        'version': version.get('version') == '0.5.10',
+        'build_number': version.get('build_number') == 'TB12',
+        'tag': version.get('tag') == 'v0.5.10-TB12',
+        'source_header_version': 'private const string Version = "0.5.10";' in text,
+        'source_header_build': 'private const string BuildNumber = "TB12";' in text,
+        'source_header_label': 'External Contact Compatibility' in text,
+        'canonical_and_unity_source_identical': source.read_bytes() == unity_source.read_bytes(),
 
-        # TB2 filtered-selection consistency hotfix (retained in TB3).
-        "filtered_selection_helpers": "GetVisibleSpellDefinitions" in text and
-                                      "GetVisibleTechnickDefinitions" in text and
-                                      "GetVisibleItemDefinitions" in text and
-                                      "TryGetSelectedSpell" in text and
-                                      "TryGetSelectedTechnick" in text and
-                                      "TryGetSelectedItem" in text,
-        "filtered_creation_paths": "if (!TryGetSelectedSpell(out spell))" in text and
-                                   "if (!TryGetSelectedTechnick(out technick))" in text and
-                                   "if (!TryGetSelectedItem(out item))" in text,
-        "no_unfiltered_spell_creation": "var spells = GetSpellsForSchool(spellSchool);\n            if (spells.Length == 0)" not in text,
-        "no_unfiltered_action_creation": "TechnickDefinitions[technickSelectionIndex]" not in text and
-                                         "ItemDefinitions[itemSelectionIndex]" not in text,
+        # TB12 aliases.
+        'external_sword': 'TagExternalSword = "Sword"' in text,
+        'external_weapon': 'TagExternalWeapon = "Weapon"' in text,
+        'external_hands': 'TagExternalHands = "Hands"' in text,
+        'external_parry': 'TagExternalParryDetect = "Parry_Detect"' in text,
+        'grouped_weak_receiver': 'IncomingWeakContactTags' in text and 'TagExternalHands' in text,
+        'grouped_average_receiver': 'IncomingAverageContactTags' in text and 'TagExternalSword' in text and 'TagExternalWeapon' in text,
+        'external_damage_alignment': 'ExternalDamageContactTags' in text and 'SoY_DamageSourceEnemy' in text,
+        'compatible_block_group': 'CompatibleBlockContactTags' in text and 'TagHitBlocked' in text and 'TagExternalParryDetect' in text,
+        'canonical_mapping_weak': 'set.Contains(TagWeak) || set.Contains(TagExternalHands)' in text,
+        'canonical_mapping_average': 'set.Contains(TagAverage) || set.Contains(TagExternalSword) || set.Contains(TagExternalWeapon)' in text,
+        'managed_upgrade_path': 'Repair Stories External Contact Compatibility' in text,
 
-        "filtered_raycast_repair_cleanup": "RemoveMismatchedManagedRaycastActionChildren" in text and
-                                           "Undo.DestroyObjectImmediate(child)" in text and
-                                           "selectedSpell.Id != spellId" in text,
+        # Existing v0.5.10 systems retained.
+        'raycast_direct': 'CreateDirectRaycastDelivery' in text,
+        'raycast_spell_world': 'CreateSpellGroundPlacementRaycastDelivery' in text,
+        'raycast_technick_world': 'CreateTechnickGroundPlacementRaycastDelivery' in text,
+        'raycast_downward_probe': 'Vector3.down' in text and 'SpellGroundPrefix' in text,
+        'native_parent_constraint': 'VRCParentConstraint' in text and 'new VRCConstraintSource' in text,
+        'world_drop_zero_offset_release': 'RebakeOffsetsWhenUnfrozen = false' in text,
+        'targeting_toggle': 'SoY_RaycastTargeting' in text,
+        'installed_only_menus': 'GetInstalledManagedActionIds' in text,
+        'flat_unique_raycast_animations': 'Animations/Raycasts' in text and 'SOY_Raycast_' in text and 'RaycastAnimationClipPath' in text,
+        'mist_gauge': 'SoY_MistPercent' in text,
+        'diablos_gauge': 'SoY_DiablosPercent' in text,
+        'arousal_gauge': 'SoY_ArousalPercent' in text,
 
-        # v0.5.10 TB3 Raycast/menu contract.
-        "raycast_direct_mode": "CreateDirectRaycastDelivery" in text,
-        "raycast_spell_ground_mode": "CreateSpellGroundPlacementRaycastDelivery" in text,
-        "raycast_ground_is_down": "Vector3.down" in text and "SpellGroundPrefix" in text,
-        "raycast_surface_rotation": "alignmentAxis" in text and "FX — Faces Down (Place Particle Here)" in text,
-        "remote_player_layer_9": "1 << 9" in text and "PlayerLocal (10)" in text,
-        "custom_layer_safe_fallback": "Fell back to Hit Players" in text,
-        "serialized_sdk_fallback": "WriteSerializedMember" in text and "SetSerializedEnumMemberByKeywords" in text,
-        "raycast_budget_diagnostic": "CountRaycastComponents" in text and '" / 80"' in text,
-        "local_targeting": '"IsLocal"' in text and "[LOCAL ONLY] Spell Targeting Icon" in text,
-        "shared_spell_rays": "SpellTargetPrefix" in text and "SpellGroundPrefix" in text,
-        "single_shared_spell_aim_origin": "GetOrCreateSharedSpellAimOrigin" in text and
-                                          "Disable Duplicate Stories Spell Aim Origin" in text,
-        "legacy_tb3_raycast_guard": "DisableLegacyRaycastDelivery" in text and
-                                     "LegacyRaycastOriginPrefix" in text and
-                                     "LegacyRaycastResultPrefix" in text,
-        "raycast_origin_hierarchy_guard": "ValidateRaycastOrigin" in text and
-                                           "IsInsideManagedRaycastHierarchy" in text,
-
-        # Organization / safety.
-        "avatar_workspace": 'AvatarGeneratedFolder(avatarName, "FX")' in text and
-                            'AvatarGeneratedFolder(avatarName, "Menus")' in text and
-                            'AvatarGeneratedFolder(avatarName, "Animations/' in text,
-        "legacy_paths_preserved": "LegacyFxCopyRoot" in text and "LegacyManifestRoot" in text,
-        "parameter_budget_fallback": "as LOCAL ONLY because synchronizing it would exceed" in text,
-        "menu_cleanup": 'CreateSubMenuControl("Combat", combatMenu)' in text and
-                        'CreateSubMenuControl("Targeting", targetingMenu)' in text,
-
-        # TB3 installed-only menu and Raycast trigger UX.
-        "installed_contact_menu_filtering": "GetInstalledManagedActionIds" in text and
-                                             "GetInstalledSpellDefinitions" in text and
-                                             "GetInstalledTechnickDefinitions" in text and
-                                             "GetInstalledItemDefinitions" in text and
-                                             'GetInstalledManagedActionIds("Stories Spell - ")' in text,
-        "installed_action_page_filtering": 'BuildActionMenuPages(avatarName, "Technicks", "SoY_TechnickType", installedTechnicks)' in text and
-                                           'BuildActionMenuPages(avatarName, "Items", "SoY_ItemType", installedItems)' in text and
-                                           "installedIds.Contains(spell.Id)" in text,
-        "empty_menu_categories_omitted": 'if (spellsMenu.controls != null && spellsMenu.controls.Count > 0)' in text and
-                                         'if (actionsMenu.controls != null && actionsMenu.controls.Count > 0)' in text and
-                                         'if (targetingMenu.controls != null && targetingMenu.controls.Count > 0)' in text,
-        "quick_access_installed_only": "installedSpellIds.Contains(favorite.id)" in text and
-                                       "installedTechnickIds.Contains(favorite.id)" in text and
-                                       "installedItemIds.Contains(favorite.id)" in text,
-        "targeting_toggle_parameter": 'RaycastTargetingParameter = "SoY_RaycastTargeting"' in text and
-                                      "EnsureLocalRaycastTargetingExpressionParameter" in text and
-                                      'CreateToggleControl("Targeting Crosshair", RaycastTargetingParameter)' in text,
-        "targeting_toggle_is_local": "networkSynced = false" in text and
-                                     "show.AddCondition(AnimatorConditionMode.If, 0f, RaycastTargetingParameter)" in text and
-                                     "targetingDisabled.AddCondition(AnimatorConditionMode.IfNot, 0f, RaycastTargetingParameter)" in text,
-        "manual_fire_only_when_needed": "HasManualRaycastFireAction" in text and
-                                        'CreateButtonControl("Projectile Fire", RaycastFireParameter, 1f)' in text,
-        "selector_raycast_animation_binding": "EnsureRaycastSelectorAnimationBinding" in text and
-                                              "RebuildSpellCastAnimationLayer" in text and
-                                              "RebuildActionAnimationLayer(ActionAnimationKind.Technick" in text and
-                                              "RebuildActionAnimationLayer(ActionAnimationKind.Item" in text,
-        "hierarchy_raycast_animation_assets": "RaycastHierarchyAnimationFolder" in text and
-                                              '"Animations/Raycasts"' in text and
-                                              '"Cast_" + actionId + "_" + actionName' in text and
-                                              '/Contact_Ready.anim' in text and
-                                              '/Contact_Pulse.anim' in text and
-                                              '/Crosshair_Visible.anim' in text,
-
-        # TB4 two-stage spell placement reliability.
-        "latched_raycast_gate": "Armed / Waiting For Raycast" in text and
-                                "RaycastActionArmSeconds = 1.25f" in text and
-                                "RaycastActionPulseSeconds = 0.85f" in text and
-                                "Contact_Armed.anim" in text and
-                                "Contact_Pulse.anim" in text,
-        "spell_ground_ready_targeting": "RebuildRaycastTargetingLayer(" in text and
-                                         "SpellGroundPrefix);" in text and
-                                         "additionalRequiredHitPrefix + \"_Hit\"" in text,
-        "spell_gate_does_not_require_same_frame_selector_and_hit": "var arm = ready.AddTransition(armed);" in text and
-                                                                    "var confirm = armed.AddTransition(on);" in text,
-
-        # TB5 native World Drop spell placement.
-        "native_world_drop_constraint": "ConfigureWorldDropParentConstraint" in text and
-                                        'SpellWorldDropPrefix = "[SoY Spell World Drop] "' in text and
-                                        "VRCParentConstraint" in text,
-        "world_drop_freeze_to_world": '"FreezeToWorld"' in text and
-                                      "CreateOrReplaceWorldDropClip" in text and
-                                      'WorldDrop_Placed.anim' in text,
-        "world_drop_real_source_required": "ConfigureWorldDropParentConstraint(worldDropCarrier, groundResult.transform)" in text and
-                                           "component.Sources.Add(sourceEntry)" in text and
-                                           "configuredSource.SourceTransform != source" in text,
-        "world_drop_returns_to_live_raycast_on_release": "component.RebakeOffsetsWhenUnfrozen = false;" in text and
-                                                       'SetBoolMember(component, false, "RebakeOffsetsWhenUnfrozen", "rebakeOffsetsWhenUnfrozen")' in text,
-        "world_drop_holds_until_action_release": "worldDropReleased = on.AddTransition(waitForRelease)" in text and
-                                                 "worldDropConstraint == null" in text and
-                                                 "future action uses a Toggle" in text,
-        "world_drop_migrates_tb4_payload": "Migrate Stories Spell Placement To World Drop" in text and
-                                           "without replacing its children" in text,
-        "world_drop_is_spell_only": "RebuildRaycastGateLayer(" in text and
-                                    "ConfigureWorldDropParentConstraint(worldDropCarrier, groundResult.transform)" in text and
-                                    "worldDropConstraint);" in text,
-
-        # TB7/TB8 current VRChat Constraint API compatibility + zero-offset release reset.
-        "tb8_direct_constraint_api": "using VRC.SDK3.Dynamics.Constraint.Components;" in text and
-                                     "using VRC.Dynamics;" in text and
-                                     "new VRCConstraintSource(source, Mathf.Clamp01(weight))" in text,
-        "tb8_public_sources_api": "component.Sources.Add(sourceEntry)" in text and
-                                  "component.ApplyConfigurationChanges()" in text and
-                                  "configuredSource.SourceTransform != source" in text,
-        "tb8_constraint_axes": "AffectsPositionX" in text and "AffectsRotationZ" in text and
-                               "FreezeToWorld" in text,
-
-        # Repository payload.
-        "unity_source_exists": unity_source.is_file(),
-        "canonical_and_unity_source_identical": unity_source.is_file() and source.read_bytes() == unity_source.read_bytes(),
-        "contract_exists": contract.is_file(),
-        "release_notes_exist": release_notes.is_file(),
-        "raycast_guide_exists": raycast_guide.is_file(),
+        # Repo cleanliness/current-head policy.
+        'no_committed_dist': not (root / 'dist').exists(),
+        'no_git_database_in_payload': not (root / '.git').exists(),
+        'no_python_cache': not any(p.name == '__pycache__' for p in root.rglob('__pycache__')),
+        'single_current_release_notes': len(list(root.glob('RELEASE_NOTES_*.md'))) == 1,
+        'single_current_raycast_guide': len(list(root.glob('RAYCAST_GUIDE_*.md'))) == 1,
+        'single_current_source_audit': len(list(root.glob('SOURCE_AUDIT_*.json'))) == 1,
+        'current_contract_only': len(list((root / 'contracts').glob('UNITY_TOOL_CONTRACT_*.json'))) == 1,
+        'no_legacy_root_osc_contracts': len(list(root.glob('OSC_CONTRACT_v*.json'))) == 0,
+        'no_duplicate_root_registries': not any((root / name).exists() for name in [
+            'SPELL_ID_REGISTRY_v1.json','SPELL_ID_REGISTRY_v2.json','TECHNICK_ID_REGISTRY_v1.json','ITEM_ID_REGISTRY_v1.json'
+        ]),
+        'current_registry_set': all((root / 'registries' / name).is_file() for name in [
+            'SPELL_ID_REGISTRY_v2.json','TECHNICK_ID_REGISTRY_v1.json','ITEM_ID_REGISTRY_v1.json'
+        ]),
     }
 
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
-        raise SystemExit("Verification failed: " + ", ".join(failed))
+        raise SystemExit('Verification failed: ' + ', '.join(failed))
 
     actual = sha256(source)
-    expected = version["source_sha256"]
+    expected = version['source_sha256']
     if actual != expected:
-        raise SystemExit(
-            f"Source SHA mismatch: expected {expected}, received {actual}"
-        )
+        raise SystemExit(f'Source SHA mismatch: expected {expected}, received {actual}')
 
-    print("VERIFY PASSED")
+    # Only the canonical root source and Unity Assets copy should define the EditorWindow script.
+    copies = []
+    for path in root.rglob('*.cs'):
+        try:
+            t = path.read_text(encoding='utf-8-sig')
+        except UnicodeDecodeError:
+            continue
+        if 'class StoriesOfYggdrasilOSCContactSystem' in t:
+            copies.append(path.relative_to(root).as_posix())
+    expected_copies = sorted([
+        version['canonical_source_asset'],
+        version['unity_asset_path'],
+    ])
+    if sorted(copies) != expected_copies:
+        raise SystemExit('Verification failed: unexpected Unity Tool script copies: ' + ', '.join(copies))
+
+    print('VERIFY PASSED')
     for name in checks:
-        print(f" - {name}: OK")
-    print(f" - source_sha256: {actual}")
+        print(f' - {name}: OK')
+    print(f' - source_sha256: {actual}')
+    print(' - tool_script_copies: ' + ', '.join(copies))
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     raise SystemExit(main())

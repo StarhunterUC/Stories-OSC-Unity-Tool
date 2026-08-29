@@ -1,0 +1,125 @@
+{
+  "contract": "Stories Of Yggdrasil Unity Tool Contact Contract",
+  "version": "0.5.10",
+  "build_number": "TB12",
+  "tag": "v0.5.10-TB12",
+  "contact_contract_revision": 17,
+  "canonical_contact_names": {
+    "blocked": "Hit Blocked",
+    "blockable": "Blockable",
+    "weak": "Hit By Weak Attack",
+    "average": "Hit By Average Attack",
+    "strong": "Hit By Strong Attack",
+    "critical": "Hit By Critical Attack",
+    "debuffs": [
+      "Burn",
+      "Silence",
+      "Freeze",
+      "Bind",
+      "Bleed"
+    ]
+  },
+  "external_contact_compatibility": {
+    "exact_case_sensitive": true,
+    "damage_aliases": {
+      "Sword": {
+        "tier": "Average",
+        "parameter": "SoY_HitAverage",
+        "alignment": "hostile_or_unknown"
+      },
+      "Weapon": {
+        "tier": "Average",
+        "parameter": "SoY_HitAverage",
+        "alignment": "hostile_or_unknown"
+      },
+      "Hands": {
+        "tier": "Weak",
+        "parameter": "SoY_HitWeak",
+        "alignment": "hostile_or_unknown",
+        "warning": "Broad/default VRChat hand tag; passive touching may register as Weak while incoming combat receivers are active."
+      }
+    },
+    "block_aliases": [
+      "Blockable",
+      "Hit Blocked",
+      "Parry_Detect"
+    ],
+    "block_outputs": [
+      "Hit Blocked",
+      "SoY_HitBlocked"
+    ],
+    "authority": "Aliases normalize into the existing Unity/Desktop OSC inputs. Sam.py remains authoritative and the DM Gate is not bypassed."
+  },
+  "attack_rules": {
+    "weak": [
+      "Hit By Weak Attack",
+      "Blockable"
+    ],
+    "average": [
+      "Hit By Average Attack",
+      "Blockable"
+    ],
+    "strong": [
+      "Hit By Strong Attack",
+      "Blockable"
+    ],
+    "critical": [
+      "Hit By Critical Attack"
+    ],
+    "critical_is_blockable": false
+  },
+  "incoming_hit_iframes_seconds": 1.0,
+  "action_transport": {
+    "spell": {
+      "selector": "SoY_SpellType",
+      "active": "SoY_SpellActive",
+      "bit_prefix": "SoY_SpellBit",
+      "bit_count": 8
+    },
+    "technick": {
+      "selector": "SoY_TechnickType",
+      "active": "SoY_TechnickActive",
+      "bit_prefix": "SoY_TechnickBit",
+      "bit_count": 8
+    },
+    "item": {
+      "selector": "SoY_ItemType",
+      "active": "SoY_ItemActive",
+      "bit_prefix": "SoY_ItemBit",
+      "bit_count": 8
+    }
+  },
+  "raycast": {
+    "direct_impact": true,
+    "spell_world_ground_placement": true,
+    "technick_world_ground_placement": true,
+    "world_drop_vrc_parent_constraint": true,
+    "world_drop_rebake_offsets_when_unfrozen": false,
+    "local_targeting_parameter": "SoY_RaycastTargeting",
+    "generated_animation_layout": "Assets/Stories Of Yggdrasil/<Avatar>/Animations/Raycasts/"
+  },
+  "status_gauges": [
+    "SoY_MistCharge",
+    "SoY_MistMax",
+    "SoY_MistPercent",
+    "SoY_DiablosApplicable",
+    "SoY_DiablosPercent",
+    "SoY_ArousalApplicable",
+    "SoY_ArousalPercent",
+    "SoY_ArousalDischargeReady"
+  ],
+  "safety": {
+    "existing_health_animator_replacement_allowed": false,
+    "safe_fx_copy_required_for_managed_changes": true,
+    "managed_repair_preserves_transform_and_constraints": true,
+    "foreign_components_are_not_modified": true,
+    "parameter_budget_local_fallback": true
+  },
+  "updater": {
+    "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
+    "test_build_tag": "v0.5.10-TB12",
+    "preferred_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
+    "required_checksum_asset": "StoriesOfYggdrasilOSCContactSystem.cs.sha256",
+    "zip_fallback_supported": true
+  }
+}

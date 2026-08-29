@@ -1,40 +1,63 @@
-# GitHub release setup — v0.5.10 TB8
+# GitHub Release Setup — v0.5.10 TB12
 
-Repository:
+The repository is intentionally clean: `dist/` is generated locally or by GitHub Actions and is not committed.
+
+## Verify and build locally
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+Set-Location "$HOME\OneDrive\Desktop\Github Stories of Yggdrasil\Stories-OSC-Unity-Tool-Repo"
+python .\tools\verify_repo.py --repo-root .
+python .\tools\build_release.py --repo-root .
+```
+
+The release assets will be created under:
 
 ```text
-https://github.com/StarhunterUC/Stories-OSC-Unity-Tool
+dist/v0.5.10-TB12/
 ```
 
-TB8 fixes VRChat Parent Constraint discovery/source configuration on current SDK builds while retaining TB5 World Drop behavior.
-
-## Review first
+## Commit, push, tag, and publish
 
 ```powershell
-python tools/verify_repo.py --repo-root .
-python tools/build_release.py --repo-root .
-```
+$Repo = "$HOME\OneDrive\Desktop\Github Stories of Yggdrasil\Stories-OSC-Unity-Tool-Repo"
+$Tag = "v0.5.10-TB12"
+$Title = "Stories OSC Unity Tool v0.5.10 TB12"
+$GitHubRepo = "StarhunterUC/Stories-OSC-Unity-Tool"
 
-## Commit and tag
+Set-Location $Repo
+python .\tools\verify_repo.py --repo-root .
+if ($LASTEXITCODE -ne 0) { throw "Repository verification failed." }
 
-```powershell
-git status
-git add .
-git commit -m "Stories OSC Unity Tool v0.5.10 TB8"
+python .\tools\build_release.py --repo-root .
+if ($LASTEXITCODE -ne 0) { throw "Release build failed." }
+
+git status --short
+git add -A
+git commit -m "Release Unity Tool v0.5.10 TB12"
 git push origin main
 
-git tag -a v0.5.10-TB8 -m "Stories OSC Unity Tool v0.5.10 TB8"
-git push origin v0.5.10-TB8
+git tag -a $Tag -m $Title
+git push origin $Tag
+
+$Dist = ".\dist\$Tag"
+$Notes = ".\RELEASE_NOTES_$Tag.md"
+
+gh release create $Tag `
+  "$Dist\StoriesOfYggdrasilOSCContactSystem.cs" `
+  "$Dist\StoriesOfYggdrasilOSCContactSystem.cs.sha256" `
+  "$Dist\Stories-OSC-Unity-Tool-$Tag.unitypackage" `
+  "$Dist\Stories-OSC-Unity-Tool-$Tag.unitypackage.sha256" `
+  "$Dist\Stories-OSC-Unity-Tool-$Tag.zip" `
+  "$Dist\Stories-OSC-Unity-Tool-$Tag.zip.sha256" `
+  "$Dist\SHA256SUMS.txt" `
+  --repo $GitHubRepo `
+  --title $Title `
+  --notes-file $Notes `
+  --prerelease `
+  --verify-tag
+
+gh release view $Tag --repo $GitHubRepo
 ```
 
-Expected release assets:
-
-```text
-StoriesOfYggdrasilOSCContactSystem.cs
-StoriesOfYggdrasilOSCContactSystem.cs.sha256
-Stories-OSC-Unity-Tool-v0.5.10-TB8.unitypackage
-Stories-OSC-Unity-Tool-v0.5.10-TB8.unitypackage.sha256
-Stories-OSC-Unity-Tool-v0.5.10-TB8.zip
-Stories-OSC-Unity-Tool-v0.5.10-TB8.zip.sha256
-SHA256SUMS.txt
-```
+Run `gh auth status` first if GitHub CLI authentication has not already been confirmed.
