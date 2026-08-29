@@ -6,11 +6,47 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
+
+
+def git_tracked_paths(root: Path, pathspec: str) -> list[str]:
+    """Return tracked files matching pathspec when root is a Git worktree."""
+    git_dir = root / '.git'
+    if not git_dir.exists():
+        return []
+    try:
+        proc = subprocess.run(
+            ['git', '-C', str(root), 'ls-files', '--', pathspec],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return []
+    if proc.returncode != 0:
+        return []
+    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+
+
+def git_is_ignored(root: Path, pathspec: str) -> bool:
+    """Return True when Git ignores pathspec; False outside a Git worktree."""
+    if not (root / '.git').exists():
+        return False
+    try:
+        proc = subprocess.run(
+            ['git', '-C', str(root), 'check-ignore', '-q', pathspec],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return False
+    return proc.returncode == 0
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -75,9 +111,19 @@ def main() -> int:
         'arousal_gauge': 'SoY_ArousalPercent' in text,
 
         # Repo cleanliness/current-head policy.
-        'no_committed_dist': not (root / 'dist').exists(),
-        'no_git_database_in_payload': not (root / '.git').exists(),
-        'no_python_cache': not any(p.name == '__pycache__' for p in root.rglob('__pycache__')),
+        #
+        # A real working clone is expected to contain .git and may contain a
+        # locally generated dist/ after build_release.py runs. What matters is
+        # that generated build/cache output is not committed.
+        'no_tracked_dist': len(git_tracked_paths(root, 'dist')) == 0
+            if (root / '.git').exists() else not (root / 'dist').exists(),
+        'dist_ignored_in_git_clone': git_is_ignored(root, 'dist')
+            if (root / '.git').exists() else True,
+        'no_tracked_python_cache': (
+            len(git_tracked_paths(root, 'tools/__pycache__')) == 0 and
+            len(git_tracked_paths(root, '**/__pycache__')) == 0
+        ) if (root / '.git').exists()
+          else not any(p.name == '__pycache__' for p in root.rglob('__pycache__')),
         'single_current_release_notes': len(list(root.glob('RELEASE_NOTES_*.md'))) == 1,
         'single_current_raycast_guide': len(list(root.glob('RAYCAST_GUIDE_*.md'))) == 1,
         'single_current_source_audit': len(list(root.glob('SOURCE_AUDIT_*.json'))) == 1,
@@ -101,14 +147,19 @@ def main() -> int:
         raise SystemExit(f'Source SHA mismatch: expected {expected}, received {actual}')
 
     # Only the canonical root source and Unity Assets copy should define the EditorWindow script.
+    # Ignore generated release/build/cache output such as dist/, .git/, and Python caches.
     copies = []
+    excluded_top_level = {'dist', '.git', '.pytest_cache'}
     for path in root.rglob('*.cs'):
+        relative = path.relative_to(root)
+        if any(part in excluded_top_level or part == '__pycache__' for part in relative.parts):
+            continue
         try:
             t = path.read_text(encoding='utf-8-sig')
         except UnicodeDecodeError:
             continue
         if 'class StoriesOfYggdrasilOSCContactSystem' in t:
-            copies.append(path.relative_to(root).as_posix())
+            copies.append(relative.as_posix())
     expected_copies = sorted([
         version['canonical_source_asset'],
         version['unity_asset_path'],
