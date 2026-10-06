@@ -1,4 +1,4 @@
-# External Contact Compatibility — TB12
+# External Contact Compatibility — Revision 17 (retained in TB16)
 
 All tags are exact and case-sensitive.
 
@@ -23,3 +23,5 @@ The canonical Stories sender names remain unchanged:
 - `Hit Blocked`
 
 `Hands` may be present during non-combat avatar interaction. If passive touching should not count as damage, keep the incoming combat receiver gated off outside combat.
+
+TB16 keeps this external Contact alias revision unchanged. OSC protocol 19 and the Unity Tool authoring marker are documented separately in `OSC_PROTOCOL_v19.md`.

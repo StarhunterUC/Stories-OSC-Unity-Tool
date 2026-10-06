@@ -13,19 +13,11 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-
 def git_tracked_paths(root: Path, pathspec: str) -> list[str]:
-    """Return tracked files matching pathspec when root is a Git worktree."""
-    git_dir = root / '.git'
-    if not git_dir.exists():
+    if not (root / '.git').exists():
         return []
     try:
-        proc = subprocess.run(
-            ['git', '-C', str(root), 'ls-files', '--', pathspec],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        proc = subprocess.run(['git', '-C', str(root), 'ls-files', '--', pathspec], check=False, capture_output=True, text=True)
     except OSError:
         return []
     if proc.returncode != 0:
@@ -34,19 +26,14 @@ def git_tracked_paths(root: Path, pathspec: str) -> list[str]:
 
 
 def git_is_ignored(root: Path, pathspec: str) -> bool:
-    """Return True when Git ignores pathspec; False outside a Git worktree."""
     if not (root / '.git').exists():
         return False
     try:
-        proc = subprocess.run(
-            ['git', '-C', str(root), 'check-ignore', '-q', pathspec],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        proc = subprocess.run(['git', '-C', str(root), 'check-ignore', '-q', pathspec], check=False, capture_output=True, text=True)
     except OSError:
         return False
     return proc.returncode == 0
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -59,82 +46,86 @@ def main() -> int:
         raise SystemExit('Verification failed: missing version.json')
 
     version = json.loads(version_path.read_text(encoding='utf-8'))
+    tag = version['tag']
     source = root / version['canonical_source_asset']
     unity_source = root / version['unity_asset_path']
-    contract = root / 'contracts' / 'UNITY_TOOL_CONTRACT_v0.5.10-TB12.json'
+    contract = root / 'contracts' / f'UNITY_TOOL_CONTRACT_{tag}.json'
     external_contract = root / 'contracts' / 'EXTERNAL_CONTACT_COMPATIBILITY_v17.json'
-    release_notes = root / 'RELEASE_NOTES_v0.5.10-TB12.md'
-    raycast_guide = root / 'RAYCAST_GUIDE_v0.5.10-TB12.md'
-    source_audit = root / 'SOURCE_AUDIT_v0.5.10-TB12.json'
+    release_notes = root / f'RELEASE_NOTES_{tag}.md'
+    raycast_guide = root / f'RAYCAST_GUIDE_{tag}.md'
+    source_audit = root / f'SOURCE_AUDIT_{tag}.json'
+    test_plan = root / f'TEST_PLAN_{tag}.md'
+    protocol_doc = root / 'OSC_PROTOCOL_v19.md'
 
-    required = [source, unity_source, contract, external_contract, release_notes, raycast_guide, source_audit]
+    required = [source, unity_source, contract, external_contract, release_notes, raycast_guide, source_audit, test_plan, protocol_doc]
     missing = [str(p.relative_to(root)) for p in required if not p.is_file()]
     if missing:
         raise SystemExit('Verification failed: missing ' + ', '.join(missing))
 
     text = source.read_text(encoding='utf-8-sig')
-
     checks = {
         'version': version.get('version') == '0.5.10',
-        'build_number': version.get('build_number') == 'TB12',
-        'tag': version.get('tag') == 'v0.5.10-TB12',
+        'build_number': version.get('build_number') == 'TB16',
+        'tag': tag == 'v0.5.10-TB16',
+        'protocol_metadata': version.get('osc_protocol_version') == 19,
+        'desktop_metadata': version.get('minimum_desktop_version') == '0.8.21',
         'source_header_version': 'private const string Version = "0.5.10";' in text,
-        'source_header_build': 'private const string BuildNumber = "TB12";' in text,
-        'source_header_label': 'External Contact Compatibility' in text,
+        'source_header_build': 'private const string BuildNumber = "TB16";' in text,
+        'source_header_label': 'Evasion & Protocol Compatibility' in text,
+        'source_protocol': 'private const int OscProtocolVersion = 19;' in text,
         'canonical_and_unity_source_identical': source.read_bytes() == unity_source.read_bytes(),
 
-        # TB12 aliases.
+        # Protocol 19 marker.
+        'marker_layer': 'Stories Of Yggdrasil | Unity Tool Marker' in text,
+        'marker_present': 'SoY_UnityToolPresent' in text,
+        'marker_version_fields': all(x in text for x in ('SoY_UnityToolMajor','SoY_UnityToolMinor','SoY_UnityToolPatch','SoY_UnityToolTB','SoY_UnityToolTBRevision')),
+        'marker_protocol': 'SoY_ProtocolVersion' in text,
+        'marker_schema': 'SoY_UnitySchemaValid' in text,
+        'migration_ui': 'MIGRATE / VALIDATE AVATAR FOR PROTOCOL ' in text,
+        'schema_validation': 'CurrentSchemaIsValid()' in text and 'RebuildUnityToolMarkerLayer' in text,
+
+        # TB15 action gates retained.
+        'spell_approved': 'SoY_SpellApproved' in text,
+        'technick_approved': 'SoY_TechnickApproved' in text,
+        'item_approved': 'SoY_ItemApproved' in text,
+        'raycast_approved': 'SoY_RaycastApproved' in text,
+        'recovery_defaults': all(x in text for x in ('DefaultSpellRecoverySeconds = 8f','DefaultTechnickRecoverySeconds = 15f','DefaultItemRecoverySeconds = 5f','DefaultRaycastRecoverySeconds = 1f')),
+
+        # TB16 evasion.
+        'evasion_layer': 'Stories Of Yggdrasil | Evasion Animations' in text,
+        'evade_selector': 'SoY_EvadeType' in text,
+        'evading_flag': 'SoY_Evading' in text,
+        'evasion_builder': 'DrawEvasionAnimationBuilder' in text and 'RebuildEvasionAnimationLayer' in text,
+        'generic_evade': 'Generic Evade' in text,
+
+        # Resource FX / external contact compatibility retained.
+        'resource_hp': 'SoY_HPPercent' in text,
+        'resource_mp': 'SoY_MPPercent' in text,
+        'resource_blendtree': 'BlendTreeType.Simple1D' in text,
         'external_sword': 'TagExternalSword = "Sword"' in text,
         'external_weapon': 'TagExternalWeapon = "Weapon"' in text,
         'external_hands': 'TagExternalHands = "Hands"' in text,
         'external_parry': 'TagExternalParryDetect = "Parry_Detect"' in text,
-        'grouped_weak_receiver': 'IncomingWeakContactTags' in text and 'TagExternalHands' in text,
-        'grouped_average_receiver': 'IncomingAverageContactTags' in text and 'TagExternalSword' in text and 'TagExternalWeapon' in text,
-        'external_damage_alignment': 'ExternalDamageContactTags' in text and 'SoY_DamageSourceEnemy' in text,
-        'compatible_block_group': 'CompatibleBlockContactTags' in text and 'TagHitBlocked' in text and 'TagExternalParryDetect' in text,
-        'canonical_mapping_weak': 'set.Contains(TagWeak) || set.Contains(TagExternalHands)' in text,
-        'canonical_mapping_average': 'set.Contains(TagAverage) || set.Contains(TagExternalSword) || set.Contains(TagExternalWeapon)' in text,
-        'managed_upgrade_path': 'Repair Stories External Contact Compatibility' in text,
+        'native_world_drop': 'FreezeToWorld' in text,
 
-        # Existing v0.5.10 systems retained.
-        'raycast_direct': 'CreateDirectRaycastDelivery' in text,
-        'raycast_spell_world': 'CreateSpellGroundPlacementRaycastDelivery' in text,
-        'raycast_technick_world': 'CreateTechnickGroundPlacementRaycastDelivery' in text,
-        'raycast_downward_probe': 'Vector3.down' in text and 'SpellGroundPrefix' in text,
-        'native_parent_constraint': 'VRCParentConstraint' in text and 'new VRCConstraintSource' in text,
-        'world_drop_zero_offset_release': 'RebakeOffsetsWhenUnfrozen = false' in text,
-        'targeting_toggle': 'SoY_RaycastTargeting' in text,
-        'installed_only_menus': 'GetInstalledManagedActionIds' in text,
-        'flat_unique_raycast_animations': 'Animations/Raycasts' in text and 'SOY_Raycast_' in text and 'RaycastAnimationClipPath' in text,
-        'mist_gauge': 'SoY_MistPercent' in text,
-        'diablos_gauge': 'SoY_DiablosPercent' in text,
-        'arousal_gauge': 'SoY_ArousalPercent' in text,
+        # Current registries.
+        'registries': all((root / p).is_file() for p in (
+            'registries/SPELL_ID_REGISTRY_v2.json',
+            'registries/TECHNICK_ID_REGISTRY_v1.json',
+            'registries/ITEM_ID_REGISTRY_v1.json',
+        )),
 
-        # Repo cleanliness/current-head policy.
-        #
-        # A real working clone is expected to contain .git and may contain a
-        # locally generated dist/ after build_release.py runs. What matters is
-        # that generated build/cache output is not committed.
-        'no_tracked_dist': len(git_tracked_paths(root, 'dist')) == 0
-            if (root / '.git').exists() else not (root / 'dist').exists(),
-        'dist_ignored_in_git_clone': git_is_ignored(root, 'dist')
-            if (root / '.git').exists() else True,
-        'no_tracked_python_cache': (
-            len(git_tracked_paths(root, 'tools/__pycache__')) == 0 and
-            len(git_tracked_paths(root, '**/__pycache__')) == 0
-        ) if (root / '.git').exists()
-          else not any(p.name == '__pycache__' for p in root.rglob('__pycache__')),
+        # Repository current-head hygiene.
+        'no_tracked_dist': len(git_tracked_paths(root, 'dist')) == 0 if (root / '.git').exists() else not (root / 'dist').exists(),
+        'dist_ignored_in_git_clone': git_is_ignored(root, 'dist') if (root / '.git').exists() else True,
+        'no_tracked_python_cache': (len(git_tracked_paths(root, 'tools/__pycache__')) == 0 and len(git_tracked_paths(root, '**/__pycache__')) == 0) if (root / '.git').exists() else not any(x.name == '__pycache__' for x in root.rglob('__pycache__')),
         'single_current_release_notes': len(list(root.glob('RELEASE_NOTES_*.md'))) == 1,
         'single_current_raycast_guide': len(list(root.glob('RAYCAST_GUIDE_*.md'))) == 1,
         'single_current_source_audit': len(list(root.glob('SOURCE_AUDIT_*.json'))) == 1,
+        'single_current_test_plan': len(list(root.glob('TEST_PLAN_*.md'))) == 1,
         'current_contract_only': len(list((root / 'contracts').glob('UNITY_TOOL_CONTRACT_*.json'))) == 1,
         'no_legacy_root_osc_contracts': len(list(root.glob('OSC_CONTRACT_v*.json'))) == 0,
-        'no_duplicate_root_registries': not any((root / name).exists() for name in [
-            'SPELL_ID_REGISTRY_v1.json','SPELL_ID_REGISTRY_v2.json','TECHNICK_ID_REGISTRY_v1.json','ITEM_ID_REGISTRY_v1.json'
-        ]),
-        'current_registry_set': all((root / 'registries' / name).is_file() for name in [
-            'SPELL_ID_REGISTRY_v2.json','TECHNICK_ID_REGISTRY_v1.json','ITEM_ID_REGISTRY_v1.json'
-        ]),
+        'no_duplicate_root_registries': not any((root / name).exists() for name in ('SPELL_ID_REGISTRY_v1.json','SPELL_ID_REGISTRY_v2.json','TECHNICK_ID_REGISTRY_v1.json','ITEM_ID_REGISTRY_v1.json')),
     }
 
     failed = [name for name, passed in checks.items() if not passed]
@@ -146,8 +137,15 @@ def main() -> int:
     if actual != expected:
         raise SystemExit(f'Source SHA mismatch: expected {expected}, received {actual}')
 
+    contract_data = json.loads(contract.read_text(encoding='utf-8'))
+    if contract_data.get('osc_protocol_version') != 19 or contract_data.get('build_number') != 'TB16':
+        raise SystemExit('Verification failed: current Unity contract metadata mismatch')
+
+    audit_data = json.loads(source_audit.read_text(encoding='utf-8'))
+    if audit_data.get('source_sha256') != actual:
+        raise SystemExit('Verification failed: source audit SHA mismatch')
+
     # Only the canonical root source and Unity Assets copy should define the EditorWindow script.
-    # Ignore generated release/build/cache output such as dist/, .git/, and Python caches.
     copies = []
     excluded_top_level = {'dist', '.git', '.pytest_cache'}
     for path in root.rglob('*.cs'):
@@ -160,10 +158,7 @@ def main() -> int:
             continue
         if 'class StoriesOfYggdrasilOSCContactSystem' in t:
             copies.append(relative.as_posix())
-    expected_copies = sorted([
-        version['canonical_source_asset'],
-        version['unity_asset_path'],
-    ])
+    expected_copies = sorted([version['canonical_source_asset'], version['unity_asset_path']])
     if sorted(copies) != expected_copies:
         raise SystemExit('Verification failed: unexpected Unity Tool script copies: ' + ', '.join(copies))
 

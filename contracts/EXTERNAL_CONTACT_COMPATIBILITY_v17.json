@@ -1,7 +1,7 @@
 {
   "name": "Stories OSC External Contact Compatibility",
   "revision": 17,
-  "unity_tool": "0.5.10-TB12",
+  "unity_tool": "0.5.10-TB16",
   "exact_case_sensitive_tags": true,
   "sender_aliases": [
     {
@@ -37,5 +37,6 @@
   ],
   "transport_change_required": false,
   "sam_py_change_required": false,
-  "desktop_change_required": false
+  "desktop_change_required": false,
+  "notes": "External alias contract remains revision 17. TB16 adds protocol 19 marker enforcement separately."
 }
