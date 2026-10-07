@@ -9972,6 +9972,345 @@ namespace StoriesOfYggdrasil.OSC
             RebuildSpellAlignmentLayer();
         }
 
+        private void ConfigureHelpfulItemReceiver(
+            GameObject host,
+            string parameter,
+            bool allowSelf,
+            bool allowOthers)
+        {
+            if (host == null)
+                return;
+            var receiver = EnsureReceiverForTagsAndParameter(
+                host,
+                FindType(ReceiverTypeName),
+                new[] { "Head" },
+                parameter);
+            if (receiver == null)
+                return;
+            ConfigureContact(
+                receiver,
+                ContactShape.Sphere,
+                0.11f,
+                0.22f,
+                Vector3.one * 0.22f,
+                Vector3.zero,
+                Vector3.zero,
+                new[] { "Head" });
+            SetBoolMember(receiver, allowSelf, "allowSelf", "AllowSelf");
+            SetBoolMember(receiver, allowOthers, "allowOthers", "AllowOthers");
+            SetBoolMember(receiver, true, "localOnly", "LocalOnly");
+            SetStringMember(receiver, parameter, "parameter", "Parameter");
+            SetEnumMember(receiver, "OnEnter", "receiverType", "ReceiverType");
+            SetFloatMember(receiver, 1f, "value", "Value");
+            SetFloatMember(receiver, 0f, "minVelocity", "MinVelocity");
+            FinishContact(receiver);
+        }
+
+        private void ConfigureHelpfulItemBusSender(GameObject host, int itemId)
+        {
+            if (host == null)
+                return;
+            var tags = GetActionBusTags(itemId, HelpfulItemActiveTag, HelpfulItemBitTagPrefix).ToArray();
+            var sender = EnsureContact(host, FindType(SenderTypeName), tags, null);
+            if (sender == null)
+                return;
+            ConfigureContact(
+                sender,
+                ContactShape.Sphere,
+                0.11f,
+                0.22f,
+                Vector3.one * 0.22f,
+                Vector3.zero,
+                Vector3.zero,
+                tags);
+            SetBoolMember(sender, false, "localOnly", "LocalOnly");
+            FinishContact(sender);
+        }
+
+        private bool EnsureHelpfulItemHeadReceiverBus()
+        {
+            if (avatarRoot == null)
+                return false;
+            var animator = avatarRoot.GetComponent<Animator>() ?? avatarRoot.GetComponentInChildren<Animator>();
+            if (animator == null || !animator.isHuman)
+            {
+                EditorUtility.DisplayDialog(
+                    "Helpful Item Head Receiver",
+                    "TB18 requires a Humanoid Animator with a mapped Head bone for physical helpful-item targeting.",
+                    "OK");
+                return false;
+            }
+
+            var head = animator.GetBoneTransform(HumanBodyBones.Head);
+            if (head == null)
+            {
+                EditorUtility.DisplayDialog(
+                    "Helpful Item Head Receiver",
+                    "The Humanoid avatar has no mapped Head bone.",
+                    "OK");
+                return false;
+            }
+
+            var host = CreateContactChild(head.gameObject, HelpfulItemHeadReceiverHost, true);
+            var mappings = new List<ReceiverMapping>
+            {
+                new ReceiverMapping(HelpfulItemActiveTag, HelpfulItemActiveParameter)
+            };
+            for (var bit = 0; bit < ActionBitCount; bit++)
+                mappings.Add(new ReceiverMapping(
+                    HelpfulItemBitTagPrefix + bit,
+                    HelpfulItemBitParameterPrefix + bit));
+
+            var oldSuppress = suppressContactAttachment;
+            suppressContactAttachment = true;
+            try
+            {
+                foreach (var mapping in mappings)
+                {
+                    var tags = mapping.CollisionTags.Distinct(StringComparer.Ordinal).Take(16).ToArray();
+                    var receiver = EnsureReceiverForTagsAndParameter(
+                        host,
+                        FindType(ReceiverTypeName),
+                        tags,
+                        mapping.Parameter);
+                    if (receiver == null)
+                        continue;
+                    ConfigureContact(
+                        receiver,
+                        ContactShape.Sphere,
+                        0.16f,
+                        0.32f,
+                        Vector3.one * 0.32f,
+                        Vector3.zero,
+                        Vector3.zero,
+                        tags);
+                    SetBoolMember(receiver, false, "allowSelf", "AllowSelf");
+                    SetBoolMember(receiver, true, "allowOthers", "AllowOthers");
+                    SetBoolMember(receiver, true, "localOnly", "LocalOnly");
+                    SetStringMember(receiver, mapping.Parameter, "parameter", "Parameter");
+                    SetEnumMember(receiver, "Constant", "receiverType", "ReceiverType");
+                    SetFloatMember(receiver, 1f, "value", "Value");
+                    SetFloatMember(receiver, 0f, "minVelocity", "MinVelocity");
+                    FinishContact(receiver);
+                }
+            }
+            finally
+            {
+                suppressContactAttachment = oldSuppress;
+            }
+
+            return true;
+        }
+
+        private static void AddHelpfulExitTransitions(
+            AnimatorState from,
+            AnimatorState hidden,
+            int itemId)
+        {
+            if (from == null || hidden == null)
+                return;
+
+            var deselect = from.AddTransition(hidden);
+            deselect.hasExitTime = false;
+            deselect.duration = 0f;
+            deselect.AddCondition(AnimatorConditionMode.NotEqual, itemId, "SoY_ItemType");
+
+            var ko = from.AddTransition(hidden);
+            ko.hasExitTime = false;
+            ko.duration = 0f;
+            ko.AddCondition(AnimatorConditionMode.If, 0f, "SoY_KO");
+        }
+
+        private static void AddHelpfulResultTransitions(
+            AnimatorState from,
+            AnimatorState success,
+            AnimatorState failure)
+        {
+            if (from == null)
+                return;
+            var ok = from.AddTransition(success);
+            ok.hasExitTime = false;
+            ok.duration = 0f;
+            ok.AddCondition(AnimatorConditionMode.Equals, 1f, HelpfulItemUseResultParameter);
+
+            for (var result = 2; result <= 6; result++)
+            {
+                var fail = from.AddTransition(failure);
+                fail.hasExitTime = false;
+                fail.duration = 0f;
+                fail.AddCondition(AnimatorConditionMode.Equals, result, HelpfulItemUseResultParameter);
+            }
+        }
+
+        private void RebuildAllHelpfulItemInteractions()
+        {
+            if (animationProfile == null || animationProfile.itemAnimations == null)
+                return;
+            foreach (var binding in animationProfile.itemAnimations
+                .Where(binding => binding != null && binding.physicalHelpful && IsHelpfulPhysicalItem(binding.id))
+                .OrderBy(binding => binding.id)
+                .ToArray())
+            {
+                RebuildHelpfulItemInteraction(binding, false);
+            }
+        }
+
+        private void RebuildHelpfulItemInteraction(ActionAnimationBinding binding, bool showErrors = true)
+        {
+            if (binding == null || !binding.physicalHelpful || !IsHelpfulPhysicalItem(binding.id))
+                return;
+            if (avatarRoot == null || fxController == null || !EnsureSafeFxCopy(showErrors))
+                return;
+
+            var prop = FindAvatarObjectByRelativePath(binding.physicalPropPath);
+            if (prop == null)
+            {
+                if (showErrors)
+                    EditorUtility.DisplayDialog("Physical Helpful Item", "Assign an Item Object / Prop under the avatar first.", "OK");
+                return;
+            }
+            if (binding.grabGesture == binding.useGesture)
+            {
+                if (showErrors)
+                    EditorUtility.DisplayDialog(
+                        "Physical Helpful Item",
+                        "Grab / Toggle Gesture and Use Gesture must be different so the toggle latch and use window cannot fight each other.",
+                        "OK");
+                return;
+            }
+            if (!binding.helpfulAllowSelf && !binding.helpfulAllowOthers)
+                return;
+            if (!EnsureHelpfulItemHeadReceiverBus())
+                return;
+
+            EnsureAnimatorParameter(fxController, "SoY_ItemType", AnimatorControllerParameterType.Int);
+            EnsureAnimatorParameter(fxController, "SoY_KO", AnimatorControllerParameterType.Bool);
+            EnsureAnimatorParameter(fxController, HelpfulItemUseResultParameter, AnimatorControllerParameterType.Int);
+            EnsureAnimatorParameter(fxController, HelpfulItemReceiveResultParameter, AnimatorControllerParameterType.Int);
+            EnsureAnimatorParameter(fxController, "GestureLeft", AnimatorControllerParameterType.Int);
+            EnsureAnimatorParameter(fxController, "GestureRight", AnimatorControllerParameterType.Int);
+
+            var interactionRoot = CreateContactChild(
+                prop,
+                "[SoY Helpful Item Interaction] " + binding.id + " " + binding.name,
+                false);
+            var selfHost = CreateContactChild(interactionRoot, "[SoY Helpful Self Head Detect]", binding.helpfulAllowSelf);
+            var otherHost = CreateContactChild(interactionRoot, "[SoY Helpful Other Head Detect]", binding.helpfulAllowOthers);
+            var senderHost = CreateContactChild(interactionRoot, "[SoY Helpful Item Bus]", binding.helpfulAllowOthers);
+
+            var oldSuppress = suppressContactAttachment;
+            suppressContactAttachment = true;
+            try
+            {
+                if (binding.helpfulAllowSelf)
+                    ConfigureHelpfulItemReceiver(selfHost, HelpfulItemSelfTouchParameter, true, false);
+                if (binding.helpfulAllowOthers)
+                {
+                    ConfigureHelpfulItemReceiver(otherHost, HelpfulItemOtherTouchParameter, false, true);
+                    ConfigureHelpfulItemBusSender(senderHost, binding.id);
+                }
+            }
+            finally
+            {
+                suppressContactAttachment = oldSuppress;
+            }
+
+            var layerName = HelpfulItemLayerPrefix + binding.id + " " + binding.name;
+            RemoveLayerByName(fxController, layerName);
+            var layer = CreateHookLayer(fxController, layerName);
+            var folder = CurrentAvatarGeneratedFolder("Animations/Helpful Items/" + binding.id + "_" + MakeSafeAssetName(binding.name));
+            EnsureAssetFolder(folder);
+
+            var controlled = new[] { prop, interactionRoot };
+            var hidden = AddHookState(layer.stateMachine, "Hidden", new Vector3(100f, 160f));
+            var grabLatch = AddHookState(layer.stateMachine, "Grab Toggle On — Wait Release", new Vector3(400f, 80f));
+            var held = AddHookState(layer.stateMachine, "Held / Ready", new Vector3(700f, 160f));
+            var use = AddHookState(layer.stateMachine, "Use — Head Contacts Active", new Vector3(1000f, 80f));
+            var hideLatch = AddHookState(layer.stateMachine, "Grab Toggle Off — Wait Release", new Vector3(700f, 360f));
+            var success = AddHookState(layer.stateMachine, "Server Result — Success", new Vector3(1000f, 260f));
+            var failure = AddHookState(layer.stateMachine, "Server Result — Failure / Empty", new Vector3(1000f, 430f));
+            var resultWait = AddHookState(layer.stateMachine, "Wait For Result Reset", new Vector3(700f, 520f));
+
+            hidden.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Hidden.anim", controlled, Array.Empty<GameObject>(), 1f / 60f);
+            grabLatch.motion = CreateOrReplaceSelectiveActiveClip(folder + "/GrabLatch.anim", controlled, new[] { prop }, 1f / 60f);
+            held.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Held.anim", controlled, new[] { prop }, 1f / 60f);
+            use.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Use.anim", controlled, new[] { prop, interactionRoot }, 1f / 60f);
+            hideLatch.motion = CreateOrReplaceSelectiveActiveClip(folder + "/HideLatch.anim", controlled, new[] { prop }, 1f / 60f);
+            success.motion = LoadClipFromPath(binding.helpfulSuccessClipPath) ??
+                CreateOrReplaceTimerClip(folder + "/Success.anim", 0.45f);
+            failure.motion = LoadClipFromPath(binding.helpfulFailureClipPath) ??
+                CreateOrReplaceTimerClip(folder + "/Failure.anim", 0.65f);
+            resultWait.motion = CreateOrReplaceSelectiveActiveClip(folder + "/ResultWait.anim", controlled, new[] { prop }, 1f / 60f);
+            layer.stateMachine.defaultState = hidden;
+
+            var gestureParameter = GestureParameterForHand(binding.helpfulHand);
+            var grab = (int)binding.grabGesture;
+            var useGesture = (int)binding.useGesture;
+
+            var equip = hidden.AddTransition(grabLatch);
+            equip.hasExitTime = false;
+            equip.duration = 0f;
+            equip.AddCondition(AnimatorConditionMode.Equals, binding.id, "SoY_ItemType");
+            equip.AddCondition(AnimatorConditionMode.Equals, grab, gestureParameter);
+            equip.AddCondition(AnimatorConditionMode.IfNot, 0f, "SoY_KO");
+
+            var grabReleased = grabLatch.AddTransition(held);
+            grabReleased.hasExitTime = false;
+            grabReleased.duration = 0f;
+            grabReleased.AddCondition(AnimatorConditionMode.NotEqual, grab, gestureParameter);
+
+            var beginUse = held.AddTransition(use);
+            beginUse.hasExitTime = false;
+            beginUse.duration = 0f;
+            beginUse.AddCondition(AnimatorConditionMode.Equals, useGesture, gestureParameter);
+
+            var endUse = use.AddTransition(held);
+            endUse.hasExitTime = false;
+            endUse.duration = 0f;
+            endUse.AddCondition(AnimatorConditionMode.NotEqual, useGesture, gestureParameter);
+
+            var beginHide = held.AddTransition(hideLatch);
+            beginHide.hasExitTime = false;
+            beginHide.duration = 0f;
+            beginHide.AddCondition(AnimatorConditionMode.Equals, grab, gestureParameter);
+
+            var hideReleased = hideLatch.AddTransition(hidden);
+            hideReleased.hasExitTime = false;
+            hideReleased.duration = 0f;
+            hideReleased.AddCondition(AnimatorConditionMode.NotEqual, grab, gestureParameter);
+
+            AddHelpfulResultTransitions(held, success, failure);
+            AddHelpfulResultTransitions(use, success, failure);
+
+            var successDone = success.AddTransition(resultWait);
+            successDone.hasExitTime = true;
+            successDone.exitTime = 1f;
+            successDone.duration = 0f;
+            var failureDone = failure.AddTransition(resultWait);
+            failureDone.hasExitTime = true;
+            failureDone.exitTime = 1f;
+            failureDone.duration = 0f;
+
+            var resetDone = resultWait.AddTransition(held);
+            resetDone.hasExitTime = false;
+            resetDone.duration = 0f;
+            resetDone.AddCondition(AnimatorConditionMode.Equals, 0f, HelpfulItemUseResultParameter);
+
+            foreach (var activeState in new[] { grabLatch, held, use, hideLatch, success, failure, resultWait })
+                AddHelpfulExitTransitions(activeState, hidden, binding.id);
+
+            fxController.AddLayer(layer);
+            EditorUtility.SetDirty(fxController);
+            EditorUtility.SetDirty(prop);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Log(
+                BuildNumber + " built physical helpful item " + binding.id + " — " + binding.name +
+                " using " + binding.helpfulHand + " hand, grab " + binding.grabGesture +
+                ", use " + binding.useGesture + ", Self=" + binding.helpfulAllowSelf +
+                ", Others=" + binding.helpfulAllowOthers + ". FaceEmo assets were not modified.");
+        }
+
         private void CreateItemSenders()
         {
             ActionDefinition item;
