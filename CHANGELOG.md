@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.5.10 TB17.2 — Animator Integrity Hotfix
+
+- Added a dedicated Animator Integrity repair for TB17.1-damaged controllers.
+- Creates a full FX controller backup before orphan-transition cleanup.
+- Removes only unreachable Animator transition subassets.
+- Validates live state-machine defaults and transition destinations before saving.
+- Managed marker publication is deferred until the repair transaction passes its core audit.
+- Safe layer removal now cleans graph subassets that became unreachable from the removed Stories-managed layer.
+- Retains Protocol 20, 117/118 marker beacon, automated action authoring, Raycasts, Evasion, and Resource FX.
+- Sam.py is unchanged.
+
+
 ## v0.5.10 TB17.1 — Marker Self-Healing
 
 - Added `SoY_UnityMarkerBeacon`, an encoded local heartbeat alternating between 117/118.
