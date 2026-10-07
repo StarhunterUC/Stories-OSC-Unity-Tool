@@ -2755,7 +2755,7 @@ namespace StoriesOfYggdrasil.OSC
                 }
             }
 
-            if (fxController != null && expressionParameters != null && !HasCurrentCompatibilityMarkerLayer())
+            if (fxController != null && expressionParameters != null && !HasCurrentCompatibilityMarkerStructure())
             {
                 managedRepairFindings.Add(new ManagedRepairFinding
                 {
@@ -3338,13 +3338,9 @@ namespace StoriesOfYggdrasil.OSC
                         Undo.DestroyObjectImmediate(finding.Component);
                     break;
                 case ManagedRepairKind.UnityCompatibilityMarker:
-                    AddMissingAnimatorParameters(fxController);
-                    if (expressionParameters != null)
-                    {
-                        AddMissingExpressionParameters(expressionParameters);
-                        EditorUtility.SetDirty(expressionParameters);
-                    }
+                    var repairedMarkerParameters = RepairUnityMarkerParameterContract();
                     RebuildUnityToolMarkerLayer(false);
+                    operationLog.Insert(0, "Repaired Unity compatibility marker contract (" + repairedMarkerParameters + " parameter change(s)) and rebuilt the marker layer.");
                     break;
             }
         }
@@ -4314,7 +4310,7 @@ namespace StoriesOfYggdrasil.OSC
             RebuildSpellAlignmentLayer();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Log("TB17 automated all installed Spell/Technick/Item presentation + functional action layers. No per-action animation clip is required.");
+            Log(BuildNumber + " automated all installed Spell/Technick/Item presentation + functional action layers. No per-action animation clip is required.");
         }
 
         private void DrawSpellAnimationBuilder()
@@ -4333,7 +4329,7 @@ namespace StoriesOfYggdrasil.OSC
             if (GUILayout.Button("SYNC INSTALLED SPELLS", GUILayout.Height(largeControls ? 38f : 28f)))
             {
                 var changed = SyncInstalledActionAnimationProfile(ActionAnimationKind.Spell);
-                Log("TB17 spell automation sync updated " + changed + " profile field(s).");
+                Log(BuildNumber + " spell automation sync updated " + changed + " profile field(s).");
             }
             using (new EditorGUI.DisabledScope(fxController == null || installed.Length == 0))
             {
@@ -4857,7 +4853,7 @@ namespace StoriesOfYggdrasil.OSC
                 created++;
             }
             if (created > 0)
-                Log("TB17 created " + created + " managed " + kind + " visual holder(s). Place optional action VFX under these holders; the generated functional gate toggles their parent action automatically.");
+                Log(BuildNumber + " created " + created + " managed " + kind + " visual holder(s). Place optional action VFX under these holders; the generated functional gate toggles their parent action automatically.");
             return created;
         }
 
@@ -5031,7 +5027,7 @@ namespace StoriesOfYggdrasil.OSC
             fxController.AddLayer(layer);
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
-            Log("TB17 rebuilt " + kind + " contact gate for " + hostsById.Count + " action ID(s). Managed action Contacts now default hidden and open only during approved windows.");
+            Log(BuildNumber + " rebuilt " + kind + " contact gate for " + hostsById.Count + " action ID(s). Managed action Contacts now default hidden and open only during approved windows.");
         }
 
         private void RebuildSpellCastAnimationLayer()
@@ -5108,7 +5104,7 @@ namespace StoriesOfYggdrasil.OSC
             RebuildManagedActionContactGate(ActionAnimationKind.Spell);
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
-            Log("TB17 built automated Spell presentation for " + bindings.Count + " installed spell(s). Functional approval remains owned by Contact/Raycast gates; no per-spell clip is required.");
+            Log(BuildNumber + " built automated Spell presentation for " + bindings.Count + " installed spell(s). Functional approval remains owned by Contact/Raycast gates; no per-spell clip is required.");
         }
 
         private static void RemoveManagedResourceLayer(AnimatorController controller, ResourceGaugeKind kind)
@@ -5560,7 +5556,7 @@ namespace StoriesOfYggdrasil.OSC
             if (GUILayout.Button("SYNC INSTALLED", GUILayout.Height(largeControls ? 38f : 28f)))
             {
                 var changed = SyncInstalledActionAnimationProfile(kind);
-                Log("TB17 " + kind + " automation sync updated " + changed + " profile field(s).");
+                Log(BuildNumber + " " + kind + " automation sync updated " + changed + " profile field(s).");
             }
             using (new EditorGUI.DisabledScope(fxController == null || installed.Length == 0))
             {
@@ -5717,7 +5713,7 @@ namespace StoriesOfYggdrasil.OSC
             RebuildManagedActionContactGate(kind);
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
-            Log("TB17 built automated " + kind + " presentation for " + bindings.Count + " installed action(s). Functional approval remains owned by the Contact/Raycast gate.");
+            Log(BuildNumber + " built automated " + kind + " presentation for " + bindings.Count + " installed action(s). Functional approval remains owned by the Contact/Raycast gate.");
         }
 
         private void DrawMenuBuilder()
@@ -7709,7 +7705,7 @@ namespace StoriesOfYggdrasil.OSC
             fxController.AddLayer(layer);
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
-            Log("TB17 rebuilt raycast gate '" + layerKey + "' with " + recoverySeconds.ToString("0.##") + "s local recovery and approved-action pulse.");
+            Log(BuildNumber + " rebuilt raycast gate '" + layerKey + "' with " + recoverySeconds.ToString("0.##") + "s local recovery and approved-action pulse.");
         }
 
         private void RebuildRaycastTargetingLayer(
@@ -11277,6 +11273,138 @@ namespace StoriesOfYggdrasil.OSC
             return ManagedSchemaCoreIsValid() && HasCurrentCompatibilityMarkerLayer();
         }
 
+        private static bool IsUnityMarkerParameterName(string name)
+        {
+            return name == UnityToolPresentParameter ||
+                   name == UnityToolMajorParameter ||
+                   name == UnityToolMinorParameter ||
+                   name == UnityToolPatchParameter ||
+                   name == UnityToolTbParameter ||
+                   name == UnityToolTbRevisionParameter ||
+                   name == ProtocolVersionParameter ||
+                   name == UnitySchemaValidParameter ||
+                   name == UnityMarkerBeaconParameter;
+        }
+
+        private int RepairUnityMarkerParameterContract()
+        {
+            var repaired = 0;
+            var markerSpecs = BridgeParameters.Where(spec => IsUnityMarkerParameterName(spec.Name)).ToArray();
+
+            if (fxController != null)
+            {
+                Undo.RecordObject(fxController, "Repair Stories Unity Marker Parameters");
+                var parameters = fxController.parameters.ToList();
+                foreach (var spec in markerSpecs)
+                {
+                    var matches = parameters.Select((parameter, index) => new { parameter, index })
+                        .Where(entry => entry.parameter.name == spec.Name).ToList();
+                    var keepIndex = matches.Where(entry => entry.parameter.type == spec.AnimatorType)
+                        .Select(entry => entry.index).DefaultIfEmpty(-1).First();
+                    for (var index = matches.Count - 1; index >= 0; index--)
+                    {
+                        var entry = matches[index];
+                        if (entry.index == keepIndex) continue;
+                        parameters.RemoveAt(entry.index);
+                        repaired++;
+                        if (entry.index < keepIndex) keepIndex--;
+                    }
+                    if (keepIndex < 0)
+                    {
+                        parameters.Add(new AnimatorControllerParameter
+                        {
+                            name = spec.Name,
+                            type = spec.AnimatorType,
+                            defaultBool = spec.DefaultValue > 0.5f,
+                            defaultFloat = spec.DefaultValue,
+                            defaultInt = Mathf.RoundToInt(spec.DefaultValue)
+                        });
+                        repaired++;
+                    }
+                }
+                fxController.parameters = parameters.ToArray();
+                EditorUtility.SetDirty(fxController);
+            }
+
+            if (expressionParameters != null)
+            {
+                Undo.RecordObject(expressionParameters, "Repair Stories Unity Marker Expression Parameters");
+                var parameters = (expressionParameters.parameters ?? Array.Empty<VRCExpressionParameters.Parameter>())
+                    .Where(parameter => parameter != null).ToList();
+                foreach (var spec in markerSpecs)
+                {
+                    var matches = parameters.Select((parameter, index) => new { parameter, index })
+                        .Where(entry => entry.parameter.name == spec.Name).ToList();
+                    var keepIndex = matches.Where(entry => entry.parameter.valueType == spec.ExpressionType)
+                        .Select(entry => entry.index).DefaultIfEmpty(-1).First();
+                    for (var index = matches.Count - 1; index >= 0; index--)
+                    {
+                        var entry = matches[index];
+                        if (entry.index == keepIndex) continue;
+                        parameters.RemoveAt(entry.index);
+                        repaired++;
+                        if (entry.index < keepIndex) keepIndex--;
+                    }
+                    if (keepIndex < 0)
+                    {
+                        parameters.Add(new VRCExpressionParameters.Parameter
+                        {
+                            name = spec.Name,
+                            valueType = spec.ExpressionType,
+                            defaultValue = spec.DefaultValue,
+                            saved = spec.Saved,
+                            networkSynced = false
+                        });
+                        repaired++;
+                    }
+                    else
+                    {
+                        var parameter = parameters[keepIndex];
+                        if (!Mathf.Approximately(parameter.defaultValue, spec.DefaultValue))
+                        { parameter.defaultValue = spec.DefaultValue; repaired++; }
+                        if (parameter.saved != spec.Saved)
+                        { parameter.saved = spec.Saved; repaired++; }
+                        if (parameter.networkSynced)
+                        { parameter.networkSynced = false; repaired++; }
+                    }
+                }
+                expressionParameters.parameters = parameters.ToArray();
+                EditorUtility.SetDirty(expressionParameters);
+            }
+
+            return repaired;
+        }
+
+        private bool HasCurrentCompatibilityMarkerStructure()
+        {
+            if (fxController == null || expressionParameters == null)
+                return false;
+
+            var layers = fxController.layers.Where(layer => layer.name == UnityMarkerLayer).ToArray();
+            if (layers.Length != 1 || layers[0].stateMachine == null)
+                return false;
+
+            var animatorBeacon = fxController.parameters.Any(parameter =>
+                parameter.name == UnityMarkerBeaconParameter &&
+                parameter.type == AnimatorControllerParameterType.Int);
+            var expressionBeacon = (expressionParameters.parameters ?? Array.Empty<VRCExpressionParameters.Parameter>())
+                .Any(parameter => parameter != null &&
+                    parameter.name == UnityMarkerBeaconParameter &&
+                    parameter.valueType == VRCExpressionParameters.ValueType.Int);
+
+            var states = layers[0].stateMachine.states.Select(child => child.state)
+                .Where(state => state != null).ToArray();
+            var hasCurrentBuild = states.Any(state =>
+                state.name.IndexOf(BuildNumber, StringComparison.Ordinal) >= 0 &&
+                state.name.IndexOf("Protocol " + OscProtocolVersion, StringComparison.Ordinal) >= 0);
+            var hasBeaconA = states.Any(state => state.name.IndexOf("Beacon A", StringComparison.Ordinal) >= 0);
+            var hasBeaconB = states.Any(state => state.name.IndexOf("Beacon B", StringComparison.Ordinal) >= 0);
+            var hasInvalidState = states.Any(state => state.name.IndexOf("/ INVALID", StringComparison.Ordinal) >= 0);
+
+            return animatorBeacon && expressionBeacon && hasCurrentBuild &&
+                   ((hasBeaconA && hasBeaconB) || hasInvalidState);
+        }
+
         private bool HasCurrentCompatibilityMarkerLayer()
         {
             if (fxController == null || expressionParameters == null)
@@ -11430,6 +11558,7 @@ namespace StoriesOfYggdrasil.OSC
                 return;
 
             Undo.RecordObject(fxController, "Install Stories Of Yggdrasil OSC Hooks");
+            var markerParameterRepairs = RepairUnityMarkerParameterContract();
             var parameterCount = AddMissingAnimatorParameters(fxController);
             var layerCount = EnsureHookLayers(fxController);
             EditorUtility.SetDirty(fxController);
@@ -11464,7 +11593,7 @@ namespace StoriesOfYggdrasil.OSC
             AssetDatabase.Refresh();
             RefreshHealthAudit();
 
-            var summary = "Added " + parameterCount + " Animator parameter(s), " +
+            var summary = "Repaired " + markerParameterRepairs + " Unity marker parameter setting(s), added " + parameterCount + " Animator parameter(s), " +
                           layerCount + " hook layer(s), " +
                           expressionCount + " SoY Expression parameter(s), " +
                           compatibleExpressionCount + " existing OSC binding(s), and " +
