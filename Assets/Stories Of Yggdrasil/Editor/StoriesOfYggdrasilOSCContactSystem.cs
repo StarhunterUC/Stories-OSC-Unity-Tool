@@ -31,8 +31,8 @@ namespace StoriesOfYggdrasil.OSC
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
         private const string Version = "0.5.10";
-        private const string BuildNumber = "TB17";
-        private const string BuildLabel = "Test Build 17 — Automated Action Authoring";
+        private const string BuildNumber = "TB17.1";
+        private const string BuildLabel = "Test Build 17.1 — Marker Self-Healing";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
         private static readonly string[] RaycastTypeNames =
@@ -142,7 +142,8 @@ namespace StoriesOfYggdrasil.OSC
             AttackTagContract,
             IncomingReceiverMapping,
             DuplicateManagedContact,
-            MissingManagedComponent
+            MissingManagedComponent,
+            UnityCompatibilityMarker
         }
 
         private enum DeliveryMode
@@ -446,6 +447,7 @@ namespace StoriesOfYggdrasil.OSC
         private const string UnityToolTbRevisionParameter = "SoY_UnityToolTBRevision";
         private const string ProtocolVersionParameter = "SoY_ProtocolVersion";
         private const string UnitySchemaValidParameter = "SoY_UnitySchemaValid";
+        private const string UnityMarkerBeaconParameter = "SoY_UnityMarkerBeacon";
         private const string EvadeTypeParameter = "SoY_EvadeType";
         private const string EvadingParameter = "SoY_Evading";
         private const string EvasionLayer = "Stories Of Yggdrasil | Evasion Animations";
@@ -964,6 +966,7 @@ namespace StoriesOfYggdrasil.OSC
             new ParameterSpec(UnityToolTbRevisionParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
             new ParameterSpec(ProtocolVersionParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
             new ParameterSpec(UnitySchemaValidParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(UnityMarkerBeaconParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             // Evasion selector is synced for remote animation playback; the active flag is local OSC telemetry.
             new ParameterSpec(EvadeTypeParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, true),
             new ParameterSpec(EvadingParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
@@ -2752,6 +2755,19 @@ namespace StoriesOfYggdrasil.OSC
                 }
             }
 
+            if (fxController != null && expressionParameters != null && !HasCurrentCompatibilityMarkerLayer())
+            {
+                managedRepairFindings.Add(new ManagedRepairFinding
+                {
+                    Host = avatarRoot,
+                    State = ManagedRepairState.Repairable,
+                    Kind = ManagedRepairKind.UnityCompatibilityMarker,
+                    Role = "Unity Tool Compatibility Marker",
+                    Summary = "The avatar does not contain the current TB17.1 periodic Protocol 20 marker beacon, or one of its local Expression/Animator parameters is missing.",
+                    Action = "Rebuild the marker parameters/layer and install the periodic compatibility beacon so Desktop can rediscover the avatar after either program restarts."
+                });
+            }
+
             managedRepairAuditReady = true;
             var healthy = managedRepairFindings.Count(finding => finding.State == ManagedRepairState.Healthy);
             var repairable = managedRepairFindings.Count(finding => finding.CanAutoRepair);
@@ -3160,7 +3176,7 @@ namespace StoriesOfYggdrasil.OSC
                 Undo.CollapseUndoOperations(group);
                 AuditManagedSystems();
                 if (fxController != null)
-                    RebuildUnityToolMarkerLayer(CurrentSchemaIsValid());
+                    RebuildUnityToolMarkerLayer(ManagedSchemaCoreIsValid());
                 managedRepairPreview = "Repair committed successfully. Use Roll Back Last Repair to undo the complete transaction during this Unity session.";
                 Log("Managed-system repair completed: " + findings.Count + " action(s). Snapshot: " + lastRepairSnapshotPath);
             }
@@ -3320,6 +3336,15 @@ namespace StoriesOfYggdrasil.OSC
                 case ManagedRepairKind.DuplicateManagedContact:
                     if (finding.Component != null)
                         Undo.DestroyObjectImmediate(finding.Component);
+                    break;
+                case ManagedRepairKind.UnityCompatibilityMarker:
+                    AddMissingAnimatorParameters(fxController);
+                    if (expressionParameters != null)
+                    {
+                        AddMissingExpressionParameters(expressionParameters);
+                        EditorUtility.SetDirty(expressionParameters);
+                    }
+                    RebuildUnityToolMarkerLayer(false);
                     break;
             }
         }
@@ -3573,7 +3598,7 @@ namespace StoriesOfYggdrasil.OSC
             lastRepairUndoGroup = -1;
             AuditManagedSystems();
             if (fxController != null)
-                RebuildUnityToolMarkerLayer(CurrentSchemaIsValid());
+                RebuildUnityToolMarkerLayer(ManagedSchemaCoreIsValid());
             managedRepairPreview = "The most recent repair transaction was rolled back.";
             Log("Rolled back the most recent managed-system repair transaction.");
         }
@@ -11213,7 +11238,7 @@ namespace StoriesOfYggdrasil.OSC
             return new[] { tb, revision };
         }
 
-        private bool CurrentSchemaIsValid()
+        private bool ManagedSchemaCoreIsValid()
         {
             if (fxController == null || expressionParameters == null || !managedRepairAuditReady)
                 return false;
@@ -11240,15 +11265,68 @@ namespace StoriesOfYggdrasil.OSC
             }
 
             return !managedRepairFindings.Any(finding =>
-                finding.State == ManagedRepairState.Outdated ||
-                finding.State == ManagedRepairState.Repairable ||
-                finding.State == ManagedRepairState.Broken ||
-                finding.State == ManagedRepairState.Defunct);
+                finding.Kind != ManagedRepairKind.UnityCompatibilityMarker &&
+                (finding.State == ManagedRepairState.Outdated ||
+                 finding.State == ManagedRepairState.Repairable ||
+                 finding.State == ManagedRepairState.Broken ||
+                 finding.State == ManagedRepairState.Defunct));
+        }
+
+        private bool CurrentSchemaIsValid()
+        {
+            return ManagedSchemaCoreIsValid() && HasCurrentCompatibilityMarkerLayer();
         }
 
         private bool HasCurrentCompatibilityMarkerLayer()
         {
-            return fxController != null && fxController.layers.Count(layer => layer.name == UnityMarkerLayer) == 1;
+            if (fxController == null || expressionParameters == null)
+                return false;
+
+            var layers = fxController.layers.Where(layer => layer.name == UnityMarkerLayer).ToArray();
+            if (layers.Length != 1 || layers[0].stateMachine == null)
+                return false;
+
+            var animatorBeacon = fxController.parameters.Any(parameter =>
+                parameter.name == UnityMarkerBeaconParameter &&
+                parameter.type == AnimatorControllerParameterType.Bool);
+            var expressionBeacon = (expressionParameters.parameters ?? Array.Empty<VRCExpressionParameters.Parameter>())
+                .Any(parameter => parameter != null &&
+                    parameter.name == UnityMarkerBeaconParameter &&
+                    parameter.valueType == VRCExpressionParameters.ValueType.Bool);
+
+            var states = layers[0].stateMachine.states
+                .Select(child => child.state)
+                .Where(state => state != null)
+                .ToArray();
+            var hasCurrentBuild = states.Any(state =>
+                state.name.IndexOf(BuildNumber, StringComparison.Ordinal) >= 0 &&
+                state.name.IndexOf("Protocol " + OscProtocolVersion, StringComparison.Ordinal) >= 0);
+            var hasBeaconA = states.Any(state => state.name.IndexOf("Beacon A", StringComparison.Ordinal) >= 0);
+            var hasBeaconB = states.Any(state => state.name.IndexOf("Beacon B", StringComparison.Ordinal) >= 0);
+
+            return animatorBeacon && expressionBeacon && hasCurrentBuild && hasBeaconA && hasBeaconB;
+        }
+
+        private static void ConfigureUnityMarkerDriver(AnimatorState state, bool schemaValid, bool beaconValue)
+        {
+            if (state == null)
+                return;
+            var version = CurrentToolVersionParts();
+            var build = CurrentToolBuildParts();
+            var driver = state.AddStateMachineBehaviour<VRCAvatarParameterDriver>();
+            driver.localOnly = true;
+            driver.parameters = new List<VRC_AvatarParameterDriver.Parameter>
+            {
+                new VRC_AvatarParameterDriver.Parameter { name = UnityToolPresentParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = 1f },
+                new VRC_AvatarParameterDriver.Parameter { name = UnityToolMajorParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = version[0] },
+                new VRC_AvatarParameterDriver.Parameter { name = UnityToolMinorParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = version[1] },
+                new VRC_AvatarParameterDriver.Parameter { name = UnityToolPatchParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = version[2] },
+                new VRC_AvatarParameterDriver.Parameter { name = UnityToolTbParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = build[0] },
+                new VRC_AvatarParameterDriver.Parameter { name = UnityToolTbRevisionParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = build[1] },
+                new VRC_AvatarParameterDriver.Parameter { name = ProtocolVersionParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = OscProtocolVersion },
+                new VRC_AvatarParameterDriver.Parameter { name = UnitySchemaValidParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = schemaValid ? 1f : 0f },
+                new VRC_AvatarParameterDriver.Parameter { name = UnityMarkerBeaconParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = beaconValue ? 1f : 0f },
+            };
         }
 
         private void RebuildUnityToolMarkerLayer(bool schemaValid)
@@ -11264,39 +11342,50 @@ namespace StoriesOfYggdrasil.OSC
                 spec.Name == UnityToolTbParameter ||
                 spec.Name == UnityToolTbRevisionParameter ||
                 spec.Name == ProtocolVersionParameter ||
-                spec.Name == UnitySchemaValidParameter))
+                spec.Name == UnitySchemaValidParameter ||
+                spec.Name == UnityMarkerBeaconParameter))
             {
                 EnsureAnimatorParameter(fxController, spec.Name, spec.AnimatorType);
             }
 
             RemoveLayerByName(fxController, UnityMarkerLayer);
             var layer = CreateHookLayer(fxController, UnityMarkerLayer);
-            var state = AddHookState(layer.stateMachine,
-                "Publish v" + Version + " " + BuildNumber + " / Protocol " + OscProtocolVersion + (schemaValid ? " / Valid" : " / INVALID"),
-                new Vector3(260f, 120f));
-            layer.stateMachine.defaultState = state;
+            var folder = CurrentAvatarGeneratedFolder("Animations/System");
+            EnsureAssetFolder(folder);
 
-            var version = CurrentToolVersionParts();
-            var build = CurrentToolBuildParts();
-            var driver = state.AddStateMachineBehaviour<VRCAvatarParameterDriver>();
-            driver.localOnly = true;
-            driver.parameters = new List<VRC_AvatarParameterDriver.Parameter>
+            if (schemaValid)
             {
-                new VRC_AvatarParameterDriver.Parameter { name = UnityToolPresentParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = 1f },
-                new VRC_AvatarParameterDriver.Parameter { name = UnityToolMajorParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = version[0] },
-                new VRC_AvatarParameterDriver.Parameter { name = UnityToolMinorParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = version[1] },
-                new VRC_AvatarParameterDriver.Parameter { name = UnityToolPatchParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = version[2] },
-                new VRC_AvatarParameterDriver.Parameter { name = UnityToolTbParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = build[0] },
-                new VRC_AvatarParameterDriver.Parameter { name = UnityToolTbRevisionParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = build[1] },
-                new VRC_AvatarParameterDriver.Parameter { name = ProtocolVersionParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = OscProtocolVersion },
-                new VRC_AvatarParameterDriver.Parameter { name = UnitySchemaValidParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = schemaValid ? 1f : 0f },
-            };
+                var stateA = AddHookState(layer.stateMachine,
+                    "Publish v" + Version + " " + BuildNumber + " / Protocol " + OscProtocolVersion + " / Valid / Beacon A",
+                    new Vector3(220f, 100f));
+                var stateB = AddHookState(layer.stateMachine,
+                    "Publish v" + Version + " " + BuildNumber + " / Protocol " + OscProtocolVersion + " / Valid / Beacon B",
+                    new Vector3(560f, 100f));
+                stateA.motion = CreateOrReplaceTimerClip(folder + "/SOY_UnityMarker_Beacon_A.anim", 2f);
+                stateB.motion = CreateOrReplaceTimerClip(folder + "/SOY_UnityMarker_Beacon_B.anim", 2f);
+                ConfigureUnityMarkerDriver(stateA, true, false);
+                ConfigureUnityMarkerDriver(stateB, true, true);
+                layer.stateMachine.defaultState = stateA;
+
+                var toB = stateA.AddTransition(stateB);
+                toB.hasExitTime = true; toB.exitTime = 1f; toB.duration = 0f;
+                var toA = stateB.AddTransition(stateA);
+                toA.hasExitTime = true; toA.exitTime = 1f; toA.duration = 0f;
+            }
+            else
+            {
+                var state = AddHookState(layer.stateMachine,
+                    "Publish v" + Version + " " + BuildNumber + " / Protocol " + OscProtocolVersion + " / INVALID",
+                    new Vector3(260f, 120f));
+                layer.stateMachine.defaultState = state;
+                ConfigureUnityMarkerDriver(state, false, false);
+            }
 
             fxController.AddLayer(layer);
             EditorUtility.SetDirty(fxController);
             operationLog.Insert(0,
                 "Published Unity marker v" + Version + " " + BuildNumber + " / OSC protocol " + OscProtocolVersion +
-                " / schema " + (schemaValid ? "VALID" : "INVALID — migration/repair required") + ".");
+                " / schema " + (schemaValid ? "VALID with periodic marker beacon" : "INVALID — migration/repair required") + ".");
         }
 
         private void DrawProtocolCompatibilityCard()
@@ -11305,11 +11394,11 @@ namespace StoriesOfYggdrasil.OSC
             var markerPresent = HasCurrentCompatibilityMarkerLayer();
             var schemaValid = managedRepairAuditReady && CurrentSchemaIsValid();
             DrawTagRow("Unity Tool", "v" + Version + " " + BuildNumber, "Written into the avatar marker layer");
-            DrawTagRow("OSC Protocol", OscProtocolVersion.ToString(), "Desktop v0.8.21-prebuild.2 requires protocol 20 for Stories-generated gameplay Contacts");
+            DrawTagRow("OSC Protocol", OscProtocolVersion.ToString(), "Desktop v0.8.21-prebuild.4 requires protocol 20 for Stories-generated gameplay Contacts");
             DrawTagRow("Marker Layer", markerPresent ? "✓ Installed" : "✕ Missing", UnityMarkerLayer);
             DrawTagRow("Schema", markerPresent && schemaValid ? "✓ Valid" : "✕ Update Required", "Legacy/broken Stories-managed Contacts remain blocked by the Desktop runtime");
             EditorGUILayout.HelpBox(
-                "TB16 is the first fail-closed Unity schema. Older Stories Unity Tool avatars do not publish protocol 19, so Desktop v0.8.21 will report Update Required and ignore their Stories-generated combat/action OSC input until this avatar is migrated.",
+                "TB17.1 adds a periodic local compatibility beacon. Safe Repair All and Migrate / Validate now repair the marker itself, so Desktop can rediscover Protocol 20 even when the Desktop starts after the avatar.",
                 markerPresent && schemaValid ? MessageType.Info : MessageType.Warning);
             using (new EditorGUI.DisabledScope(avatarDescriptor == null))
             {
@@ -11368,7 +11457,7 @@ namespace StoriesOfYggdrasil.OSC
                 RebuildIFrameLayer();
                 RebuildSpellAlignmentLayer();
                 AuditManagedSystems();
-                RebuildUnityToolMarkerLayer(CurrentSchemaIsValid());
+                RebuildUnityToolMarkerLayer(ManagedSchemaCoreIsValid());
             }
 
             AssetDatabase.SaveAssets();
