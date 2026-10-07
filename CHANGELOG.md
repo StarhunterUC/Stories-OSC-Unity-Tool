@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.5.10 TB17.4 — Marker Convergence Hotfix
+
+- Fixed current INVALID marker states being misclassified as outdated after TB17.3.
+- Marker repair now restores missing Stories bridge Animator and Expression parameters before marker publication.
+- Added explicit core-schema failure diagnostics when the marker must remain invalid.
+- Retains TB17.3 legal Animator state names and TB17.2 controller-integrity safeguards.
+- Sam.py and OSC Protocol 20 are unchanged.
+
+
 ## v0.5.10 TB17.3 — Marker State-Name Hotfix
 
 - Fixed Unity rejecting slash-delimited Protocol 20 marker state names.
