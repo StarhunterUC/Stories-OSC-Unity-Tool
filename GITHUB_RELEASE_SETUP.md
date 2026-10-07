@@ -1,4 +1,4 @@
-# GitHub Release Setup — v0.5.10 TB16
+# GitHub Release Setup — v0.5.10 TB17
 
 The repository keeps `dist/` generated locally or by GitHub Actions; release build output is not committed.
 
@@ -14,15 +14,15 @@ python .\tools\build_release.py --repo-root .
 The release assets are created under:
 
 ```text
-dist/v0.5.10-TB16/
+dist/v0.5.10-TB17/
 ```
 
 ## Commit, push, tag, and publish
 
 ```powershell
 $Repo = "$HOME\OneDrive\Desktop\Github Stories of Yggdrasil\Stories-OSC-Unity-Tool-Repo"
-$Tag = "v0.5.10-TB16"
-$Title = "Stories OSC Unity Tool v0.5.10 TB16"
+$Tag = "v0.5.10-TB17"
+$Title = "Stories OSC Unity Tool v0.5.10 TB17"
 $GitHubRepo = "StarhunterUC/Stories-OSC-Unity-Tool"
 
 Set-Location $Repo
@@ -34,7 +34,7 @@ if ($LASTEXITCODE -ne 0) { throw "Release build failed." }
 
 git status --short
 git add -A
-git commit -m "Release Unity Tool v0.5.10 TB16"
+git commit -m "Release Unity Tool v0.5.10 TB17"
 git push origin main
 
 git tag -a $Tag -m $Title
@@ -60,4 +60,4 @@ gh release create $Tag `
 gh release view $Tag --repo $GitHubRepo
 ```
 
-TB16 is a test build/prerelease. Unity Tool users who want prerelease updates should keep the updater channel set to **Test Builds**.
+TB17 is a test build/prerelease. Unity Tool users who want prerelease updates should keep the updater channel set to **Test Builds**.

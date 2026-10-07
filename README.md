@@ -1,12 +1,12 @@
-# Stories OSC Unity Tool v0.5.10 TB16
+# Stories OSC Unity Tool v0.5.10 TB17
 
-Current prerelease: **Stories OSC Unity Tool v0.5.10 TB16 — Evasion & Protocol Compatibility**.
+Current prerelease: **Stories OSC Unity Tool v0.5.10 TB17 — Automated Action Authoring**.
 
 This repository contains the Unity Editor authoring/repair tool for the Stories Of Yggdrasil OSC Contact System used by VRChat avatars.
 
 ## Install
 
-Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB16.unitypackage`, or copy the canonical script to:
+Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB17.unitypackage`, or copy the canonical script to:
 
 ```text
 Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs
@@ -14,11 +14,11 @@ Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs
 
 Only one `StoriesOfYggdrasilOSCContactSystem` script should exist inside a Unity project's `Assets` folder.
 
-## TB16 — protocol 19 migration and authoring marker
+## TB17 — automated authoring on protocol 20
 
-TB16 is the first Unity Tool build that publishes a fail-closed Stories avatar compatibility marker for the Desktop OSC bridge.
+TB17 retains the protocol 20 fail-closed marker introduced in TB16 and adds automatic Spell/Technick/Item authoring without changing the Desktop transport contract.
 
-After **MIGRATE / VALIDATE AVATAR FOR PROTOCOL 19** succeeds, the avatar publishes these local/unsynced parameters:
+After **MIGRATE / VALIDATE AVATAR FOR PROTOCOL 20** succeeds, the avatar publishes these local/unsynced parameters:
 
 - `SoY_UnityToolPresent`
 - `SoY_UnityToolMajor`
@@ -29,13 +29,13 @@ After **MIGRATE / VALIDATE AVATAR FOR PROTOCOL 19** succeeds, the avatar publish
 - `SoY_ProtocolVersion`
 - `SoY_UnitySchemaValid`
 
-For this build the expected authoring marker is **v0.5.10 TB16 / Protocol 19**. `SoY_UnitySchemaValid` is only published as true after the current managed schema validates.
+For this build the expected authoring marker is **v0.5.10 TB17 / Protocol 20**. `SoY_UnitySchemaValid` is only published as true after the current managed schema validates.
 
-The matching Desktop line is **v0.8.21+**. Older, unmarked, invalid, or future protocol Stories-generated gameplay input is handled fail-closed by the Desktop runtime. Sam.py is not changed by TB16.
+The matching Desktop line is **v0.8.21+**. Older, unmarked, invalid, or future protocol Stories-generated gameplay input is handled fail-closed by the Desktop runtime. Sam.py is not changed by TB17.
 
 ## Evasion animation authoring
 
-TB16 adds a dedicated Evasion animation builder with:
+TB17 retains the dedicated Evasion animation builder and adds automatic Generic Evade fallback for any unassigned direction/roll:
 
 - Forward / Backward / Left / Right evade
 - Forward / Backward / Left / Right roll
@@ -45,16 +45,22 @@ TB16 adds a dedicated Evasion animation builder with:
 
 `SoY_Evading` is animation/OSC telemetry only. It does not grant gameplay invulnerability by itself.
 
-## Action gates retained from TB15
+## TB17 automated action authoring
 
-Spell, Technick, Item, and Raycast authoring retain the TB15 gate/recovery architecture and local approved-action outputs:
+Installed Spell, Technick, and Item actions are discovered automatically. TB17 generates the functional Contact/Raycast gates, active windows, reset clips, recovery timing, and a safe timer motion when no avatar presentation clip is assigned.
+
+Presentation is optional and separate from functional delivery. Spells can use a per-spell override, school preset, purpose/category preset, or one shared default. Technicks and Items can use a per-action override or one shared default. Blank presentation fields are valid.
+
+Managed action hosts also receive an `FX — <Kind> Visuals (Place Here)` child so optional VFX placed below the generated host follow the functional action Active window without hand-authored toggle clips. Empty TB16-generated Raycast Cast placeholders are treated as legacy placeholders; edited non-empty clips are preserved.
+
+Functional gates remain the owner of:
 
 - `SoY_SpellApproved`
 - `SoY_TechnickApproved`
 - `SoY_ItemApproved`
 - `SoY_RaycastApproved`
 
-The generated gates prevent another selector from directly replacing an active managed action. Desktop/Sam.py remain the eventual authority for gameplay timing and damage acceptance.
+The generated gates prevent another selector from directly replacing an active managed action. Desktop/Sam.py remain the eventual authority for persistent gameplay timing and damage acceptance.
 
 ## Resource FX
 
@@ -62,7 +68,7 @@ HP, MP, Mist, Curse of Diablos, and Arousal authoring use normalized Float param
 
 ## Outside Contact compatibility retained
 
-TB16 retains the exact, case-sensitive compatibility aliases introduced in TB12:
+TB17 retains the exact, case-sensitive compatibility aliases introduced in TB12:
 
 | Sender tag | Stories interpretation |
 |---|---|
@@ -87,7 +93,7 @@ These aliases remain compatibility inputs. They do not bypass the existing Deskt
 - Flat, globally unique generated Raycast animation names under `<Avatar>/Animations/Raycasts/`.
 - Menus are install-aware: only actions with matching managed Contacts are emitted.
 
-See `RAYCAST_GUIDE_v0.5.10-TB16.md`.
+See `RAYCAST_GUIDE_v0.5.10-TB17.md`.
 
 ## Repository layout
 
@@ -107,3 +113,7 @@ tools/                                Repository verification and release builde
 - Original FX controllers are not edited; managed changes use the safe FX copy workflow.
 - Unity Tool/protocol markers are local and unsynced.
 - Schema validity is only published after managed validation succeeds.
+
+### Protocol 20 damage-source separation
+
+TB17 now isolates legacy `Sword` / `Weapon` / `Hands` compatibility on `SoY_ExternalDamageSource`. `SoY_DamageSourceEnemy` is reserved for the canonical `SoY Caster Enemy` tag. Use **Safe Repair All** or **Repair Existing Action Alignment** to migrate an older mixed receiver automatically.

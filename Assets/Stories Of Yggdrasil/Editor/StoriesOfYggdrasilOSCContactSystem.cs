@@ -31,8 +31,8 @@ namespace StoriesOfYggdrasil.OSC
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
         private const string Version = "0.5.10";
-        private const string BuildNumber = "TB16";
-        private const string BuildLabel = "Test Build 16 — Evasion & Protocol Compatibility";
+        private const string BuildNumber = "TB17";
+        private const string BuildLabel = "Test Build 17 — Automated Action Authoring";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
         private static readonly string[] RaycastTypeNames =
@@ -414,6 +414,10 @@ namespace StoriesOfYggdrasil.OSC
         private const string CasterAllyTag = "SoY Caster Ally";
         private const string CasterEnemyTag = "SoY Caster Enemy";
         private const string DamageSourceEnemyParameter = "SoY_DamageSourceEnemy";
+        // Protocol 20 separates canonical Stories alignment from legacy/external aliases.
+        // Sword / Weapon / Hands must never be allowed to force a friendly Stories sender
+        // into Enemy/NPC attribution merely because the same body receiver sees both tags.
+        private const string ExternalDamageSourceParameter = "SoY_ExternalDamageSource";
         private const string TechnickActiveTag = "SoY Technick Active";
         private const string TechnickBitTagPrefix = "SoY Technick Bit ";
         private const string TechnickActiveParameter = "SoY_TechnickActive";
@@ -432,7 +436,7 @@ namespace StoriesOfYggdrasil.OSC
         // TB16 avatar/runtime compatibility contract. The Desktop OSC runtime reads these
         // local, unsynced avatar parameters and refuses Stories-generated gameplay input
         // from legacy/invalid schemas. OSC contract v19 is the first Unity-enforced marker.
-        private const int OscProtocolVersion = 19;
+        private const int OscProtocolVersion = 20;
         private const string UnityMarkerLayer = "Stories Of Yggdrasil | Unity Tool Marker";
         private const string UnityToolPresentParameter = "SoY_UnityToolPresent";
         private const string UnityToolMajorParameter = "SoY_UnityToolMajor";
@@ -1001,6 +1005,7 @@ namespace StoriesOfYggdrasil.OSC
             new ParameterSpec(ItemBitParameterPrefix + "7", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HealingSourceEnemy", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(DamageSourceEnemyParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(ExternalDamageSourceParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HealingRejected", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_MistCharge", AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
             new ParameterSpec("SoY_MistMax", AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 3f, false, false),
@@ -1213,6 +1218,13 @@ namespace StoriesOfYggdrasil.OSC
         }
 
         [Serializable]
+        private sealed class AnimationPresetBinding
+        {
+            public string key;
+            public string clipPath;
+        }
+
+        [Serializable]
         private sealed class AvatarAnimationProfile
         {
             public string avatarName;
@@ -1222,6 +1234,15 @@ namespace StoriesOfYggdrasil.OSC
             public List<ActionAnimationBinding> evasionAnimations = new List<ActionAnimationBinding>();
             public List<MenuFavorite> favorites = new List<MenuFavorite>();
             public List<ResourceGaugeProfile> resourceGauges = new List<ResourceGaugeProfile>();
+
+            // TB17 presentation presets. Functional Contacts/Raycasts are always generated
+            // independently; these clips are optional avatar-presentation motions only.
+            public string defaultSpellPresentationClipPath;
+            public string defaultTechnickPresentationClipPath;
+            public string defaultItemPresentationClipPath;
+            public bool useGenericEvadeFallback = true;
+            public List<AnimationPresetBinding> spellSchoolPresentationClips = new List<AnimationPresetBinding>();
+            public List<AnimationPresetBinding> spellCategoryPresentationClips = new List<AnimationPresetBinding>();
 
             // Legacy TB13/TB12 fields are retained for one-way profile migration.
             public List<HealthBlendPoint> healthBlendPoints = new List<HealthBlendPoint>();
@@ -1351,14 +1372,9 @@ namespace StoriesOfYggdrasil.OSC
         private string animationTechnickSearch = string.Empty;
         private string animationItemSearch = string.Empty;
         private string animationEvasionSearch = string.Empty;
-        private int animationSpellSelectionIndex;
-        private int animationTechnickSelectionIndex;
-        private int animationItemSelectionIndex;
         private int animationEvasionSelectionIndex;
-        private AnimationClip animationSpellClip;
-        private AnimationClip animationTechnickClip;
-        private AnimationClip animationItemClip;
         private AnimationClip animationEvasionClip;
+        private bool showSpellPresentationPresets;
         private AvatarAnimationProfile animationProfile = new AvatarAnimationProfile();
         private string animationProfileAssetPath = string.Empty;
         private int selectedResourceGaugeIndex;
@@ -1859,7 +1875,7 @@ namespace StoriesOfYggdrasil.OSC
             if (avatarDescriptor == null)
             {
                 EditorGUILayout.HelpBox(
-                    "Assign a VRC Avatar Descriptor or use Use Selected Avatar. TB16 retains per-avatar context across recompiles and Unity restarts.",
+                    "Assign a VRC Avatar Descriptor or use Use Selected Avatar. TB17 retains per-avatar context across recompiles and Unity restarts.",
                     MessageType.Info);
             }
             else if (fxController == null)
@@ -2321,17 +2337,17 @@ namespace StoriesOfYggdrasil.OSC
                     animationPage = AnimationPage.Resources;
                     tab = StudioTab.AnimatorSetup;
                 });
-                DrawSidebarButton("Spell Animations", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Spells, () =>
+                DrawSidebarButton("Spell Automation", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Spells, () =>
                 {
                     animationPage = AnimationPage.Spells;
                     tab = StudioTab.AnimatorSetup;
                 });
-                DrawSidebarButton("Technick Animations", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Technicks, () =>
+                DrawSidebarButton("Technick Automation", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Technicks, () =>
                 {
                     animationPage = AnimationPage.Technicks;
                     tab = StudioTab.AnimatorSetup;
                 });
-                DrawSidebarButton("Item Animations", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Items, () =>
+                DrawSidebarButton("Item Automation", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Items, () =>
                 {
                     animationPage = AnimationPage.Items;
                     tab = StudioTab.AnimatorSetup;
@@ -2795,32 +2811,57 @@ namespace StoriesOfYggdrasil.OSC
 
             var strictlyManaged = IsStrictlyStoriesManagedComponent(receiver);
 
-            // TB12 alignment compatibility: outside Sword / Weapon / Hands senders do
-            // not carry SoY Caster Enemy. The managed alignment receiver therefore
-            // listens to all four tags while still writing one canonical Bool.
+            // Protocol 20 alignment contract: canonical Stories Enemy alignment and
+            // outside Sword / Weapon / Hands compatibility MUST be separate receivers.
+            // Mixing them is the legacy bug that made friendly Stories attacks look like
+            // NPC attacks whenever an external alias was also present on the sender.
             if (string.Equals(parameter, DamageSourceEnemyParameter, StringComparison.Ordinal) &&
-                tags.Contains(CasterEnemyTag))
+                (tags.Contains(CasterEnemyTag) || tags.Any(tag => ExternalDamageContactTags.Contains(tag))))
             {
                 if (strictlyManaged)
                 {
-                    var requiredAlignmentTags = new[] { CasterEnemyTag }
-                        .Concat(ExternalDamageContactTags)
-                        .Distinct(StringComparer.Ordinal)
-                        .ToArray();
-                    var missing = requiredAlignmentTags.Except(tags, StringComparer.Ordinal).ToArray();
+                    var externalTags = tags.Where(tag => ExternalDamageContactTags.Contains(tag)).Distinct(StringComparer.Ordinal).ToArray();
+                    var unexpected = tags.Where(tag => !string.Equals(tag, CasterEnemyTag, StringComparison.Ordinal)).Distinct(StringComparer.Ordinal).ToArray();
+                    var healthy = tags.Count == 1 && tags.Contains(CasterEnemyTag);
                     managedRepairFindings.Add(new ManagedRepairFinding
                     {
                         Host = host,
                         Component = receiver,
-                        State = missing.Length == 0 ? ManagedRepairState.Healthy : ManagedRepairState.Repairable,
-                        Kind = missing.Length == 0 ? ManagedRepairKind.None : ManagedRepairKind.IncomingReceiverMapping,
-                        Role = "Incoming External/Caster Alignment",
-                        Summary = missing.Length == 0
-                            ? "Canonical enemy alignment plus outside hit aliases correctly feed " + DamageSourceEnemyParameter + "."
-                            : "External compatibility aliases are missing from the enemy-alignment receiver: " + string.Join(", ", missing) + ".",
-                        Action = missing.Length == 0
+                        State = healthy ? ManagedRepairState.Healthy : ManagedRepairState.Repairable,
+                        Kind = healthy ? ManagedRepairKind.None : ManagedRepairKind.IncomingReceiverMapping,
+                        Role = "Canonical Stories Enemy Alignment",
+                        Summary = healthy
+                            ? DamageSourceEnemyParameter + " listens only to '" + CasterEnemyTag + "'."
+                            : DamageSourceEnemyParameter + " is mixed with legacy/external tag(s): " +
+                              string.Join(", ", unexpected.Length > 0 ? unexpected : externalTags) + ". This can misclassify Friendly Player attacks as Enemy/NPC.",
+                        Action = healthy
                             ? string.Empty
-                            : "Expand the existing receiver tag list in place; preserve its GameObject, shape, transform, and parameter."
+                            : "Restrict this receiver to '" + CasterEnemyTag + "' and create/update a separate " + ExternalDamageSourceParameter + " receiver for Sword / Weapon / Hands."
+                    });
+                }
+                return;
+            }
+
+            if (string.Equals(parameter, ExternalDamageSourceParameter, StringComparison.Ordinal))
+            {
+                if (strictlyManaged)
+                {
+                    var missing = ExternalDamageContactTags.Except(tags, StringComparer.Ordinal).ToArray();
+                    var unexpected = tags.Except(ExternalDamageContactTags, StringComparer.Ordinal).ToArray();
+                    var healthy = missing.Length == 0 && unexpected.Length == 0;
+                    managedRepairFindings.Add(new ManagedRepairFinding
+                    {
+                        Host = host,
+                        Component = receiver,
+                        State = healthy ? ManagedRepairState.Healthy : ManagedRepairState.Repairable,
+                        Kind = healthy ? ManagedRepairKind.None : ManagedRepairKind.IncomingReceiverMapping,
+                        Role = "External Damage Source Compatibility",
+                        Summary = healthy
+                            ? ExternalDamageSourceParameter + " owns Sword / Weapon / Hands without changing canonical Stories alignment."
+                            : "External source receiver tags are incomplete or mixed with canonical alignment tags.",
+                        Action = healthy
+                            ? string.Empty
+                            : "Set this receiver to exactly Sword / Weapon / Hands while preserving its geometry and transform."
                     });
                 }
                 return;
@@ -3409,7 +3450,7 @@ namespace StoriesOfYggdrasil.OSC
             FinishContact(sender);
         }
 
-        private static void RepairIncomingReceiverMapping(Component receiver)
+        private void RepairIncomingReceiverMapping(Component receiver)
         {
             if (receiver == null)
                 return;
@@ -3418,18 +3459,40 @@ namespace StoriesOfYggdrasil.OSC
             var currentParameter = ReadStringMember(receiver, "parameter", "Parameter");
             var parameter = currentParameter;
 
-            // Dedicated TB12 alignment/block receivers are already writing the right
-            // parameter; their repair is a tag-list expansion, not remapping by the
-            // Sword/Weapon/Hands aliases that happen to be present.
-            var isExternalAlignment =
-                string.Equals(currentParameter, DamageSourceEnemyParameter, StringComparison.Ordinal) &&
-                tags.Contains(CasterEnemyTag);
+            // Protocol 20 migration: split the legacy mixed alignment receiver into
+            // canonical Stories Enemy alignment plus a separate external compatibility
+            // receiver. Preserve the original volume geometry on both components.
+            if (string.Equals(currentParameter, DamageSourceEnemyParameter, StringComparison.Ordinal) &&
+                (tags.Contains(CasterEnemyTag) || tags.Any(tag => ExternalDamageContactTags.Contains(tag))))
+            {
+                var geometry = CaptureContactGeometry(receiver);
+                SetStringMember(receiver, DamageSourceEnemyParameter, "parameter", "Parameter");
+                SetCollisionTags(receiver, new[] { CasterEnemyTag });
+                SetBoolMember(receiver, true, "localOnly", "LocalOnly");
+                FinishContact(receiver);
+
+                ConfigureIncomingReceiverPreservingGeometry(
+                    receiver.gameObject,
+                    new ReceiverMapping(ExternalDamageContactTags, ExternalDamageSourceParameter),
+                    geometry);
+                return;
+            }
+
+            if (string.Equals(currentParameter, ExternalDamageSourceParameter, StringComparison.Ordinal))
+            {
+                SetStringMember(receiver, ExternalDamageSourceParameter, "parameter", "Parameter");
+                SetCollisionTags(receiver, ExternalDamageContactTags);
+                SetBoolMember(receiver, true, "localOnly", "LocalOnly");
+                FinishContact(receiver);
+                return;
+            }
+
             var isBlockCompatibility =
                 (string.Equals(currentParameter, TagHitBlocked, StringComparison.Ordinal) ||
                  string.Equals(currentParameter, "SoY_HitBlocked", StringComparison.Ordinal)) &&
                 tags.Any(tag => CompatibleBlockContactTags.Contains(tag));
 
-            if (!isExternalAlignment && !isBlockCompatibility)
+            if (!isBlockCompatibility)
             {
                 string canonicalParameter;
                 if (TryGetCanonicalIncomingParameter(tags, out canonicalParameter))
@@ -3442,9 +3505,6 @@ namespace StoriesOfYggdrasil.OSC
                 SetCollisionTags(receiver, IncomingWeakContactTags);
             else if (string.Equals(parameter, "SoY_HitAverage", StringComparison.Ordinal))
                 SetCollisionTags(receiver, IncomingAverageContactTags);
-            else if (string.Equals(parameter, DamageSourceEnemyParameter, StringComparison.Ordinal) &&
-                     tags.Contains(CasterEnemyTag))
-                SetCollisionTags(receiver, new[] { CasterEnemyTag }.Concat(ExternalDamageContactTags).Distinct(StringComparer.Ordinal).ToArray());
             else if ((string.Equals(parameter, TagHitBlocked, StringComparison.Ordinal) ||
                       string.Equals(parameter, "SoY_HitBlocked", StringComparison.Ordinal)) &&
                      tags.Any(tag => CompatibleBlockContactTags.Contains(tag)))
@@ -3671,6 +3731,8 @@ namespace StoriesOfYggdrasil.OSC
                 evasionAnimations = new List<ActionAnimationBinding>(),
                 favorites = new List<MenuFavorite>(),
                 resourceGauges = new List<ResourceGaugeProfile>(),
+                spellSchoolPresentationClips = new List<AnimationPresetBinding>(),
+                spellCategoryPresentationClips = new List<AnimationPresetBinding>(),
                 healthBlendPoints = new List<HealthBlendPoint>()
             };
             if (string.IsNullOrWhiteSpace(animationProfileAssetPath))
@@ -3692,6 +3754,10 @@ namespace StoriesOfYggdrasil.OSC
                     animationProfile.itemAnimations = new List<ActionAnimationBinding>();
                 if (animationProfile.evasionAnimations == null)
                     animationProfile.evasionAnimations = new List<ActionAnimationBinding>();
+                if (animationProfile.spellSchoolPresentationClips == null)
+                    animationProfile.spellSchoolPresentationClips = new List<AnimationPresetBinding>();
+                if (animationProfile.spellCategoryPresentationClips == null)
+                    animationProfile.spellCategoryPresentationClips = new List<AnimationPresetBinding>();
                 foreach (var binding in animationProfile.spellAnimations)
                 {
                     if (binding == null) continue;
@@ -4006,83 +4072,355 @@ namespace StoriesOfYggdrasil.OSC
             return clip == null ? string.Empty : AssetDatabase.GetAssetPath(clip);
         }
 
-        private void DrawSpellAnimationBuilder()
+        private static bool IsAnimationClipEmpty(AnimationClip clip)
         {
-            BeginCard("Spell Animation Layer Builder");
-            EditorGUILayout.LabelField("TB16 retains the managed spell action gate. Spell requests can only enter from Ready, cannot interrupt one another, and must pass through release + local recovery before another cast can begin.", wrappedLabel);
-            EditorGUILayout.HelpBox("Recovery and contact-window values are Unity-side enforcement/authoring values for this test build. Avatar reset can still reset local Animator state until the Desktop/Sam.py authority hook is added later.", MessageType.Warning);
-            animationSpellSearch = EditorGUILayout.TextField("Search Spell", animationSpellSearch);
-            var available = SpellDefinitions
-                .GroupBy(spell => spell.Id)
-                .Select(group => group.First())
-                .Where(spell => string.IsNullOrWhiteSpace(animationSpellSearch) || spell.Name.IndexOf(animationSpellSearch, StringComparison.OrdinalIgnoreCase) >= 0 || spell.Id.ToString().Contains(animationSpellSearch.Trim()))
-                .OrderBy(spell => spell.Id)
-                .ToArray();
-            if (available.Length > 0)
+            if (clip == null)
+                return true;
+            return AnimationUtility.GetCurveBindings(clip).Length == 0 &&
+                   AnimationUtility.GetObjectReferenceCurveBindings(clip).Length == 0;
+        }
+
+        private bool IsLegacyGeneratedEmptyPresentation(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return false;
+            var normalized = path.Replace('\\', '/');
+            if (!normalized.StartsWith(GeneratedAssetRoot + "/", StringComparison.OrdinalIgnoreCase))
+                return false;
+            var fileName = Path.GetFileName(normalized);
+            var looksLikeLegacyPlaceholder =
+                fileName.EndsWith("__Cast.anim", StringComparison.OrdinalIgnoreCase) ||
+                (fileName.StartsWith("SOY_Spell_", StringComparison.OrdinalIgnoreCase) &&
+                 fileName.IndexOf("_Wait", StringComparison.OrdinalIgnoreCase) < 0 &&
+                 fileName.IndexOf("_Recovery", StringComparison.OrdinalIgnoreCase) < 0 &&
+                 fileName.IndexOf("_AutoPresentation", StringComparison.OrdinalIgnoreCase) < 0) ||
+                (fileName.StartsWith("SOY_Technick_", StringComparison.OrdinalIgnoreCase) &&
+                 fileName.IndexOf("_Wait", StringComparison.OrdinalIgnoreCase) < 0 &&
+                 fileName.IndexOf("_Recovery", StringComparison.OrdinalIgnoreCase) < 0 &&
+                 fileName.IndexOf("_AutoPresentation", StringComparison.OrdinalIgnoreCase) < 0) ||
+                (fileName.StartsWith("SOY_Item_", StringComparison.OrdinalIgnoreCase) &&
+                 fileName.IndexOf("_Wait", StringComparison.OrdinalIgnoreCase) < 0 &&
+                 fileName.IndexOf("_Recovery", StringComparison.OrdinalIgnoreCase) < 0 &&
+                 fileName.IndexOf("_AutoPresentation", StringComparison.OrdinalIgnoreCase) < 0);
+            if (!looksLikeLegacyPlaceholder)
+                return false;
+            return IsAnimationClipEmpty(LoadClipFromPath(path));
+        }
+
+        private static AnimationPresetBinding FindAnimationPreset(List<AnimationPresetBinding> presets, string key)
+        {
+            if (presets == null || string.IsNullOrWhiteSpace(key))
+                return null;
+            return presets.FirstOrDefault(x => x != null && string.Equals(x.key, key, StringComparison.Ordinal));
+        }
+
+        private static AnimationPresetBinding GetOrCreateAnimationPreset(List<AnimationPresetBinding> presets, string key)
+        {
+            if (presets == null || string.IsNullOrWhiteSpace(key))
+                return null;
+            var existing = FindAnimationPreset(presets, key);
+            if (existing != null)
+                return existing;
+            existing = new AnimationPresetBinding { key = key, clipPath = string.Empty };
+            presets.Add(existing);
+            return existing;
+        }
+
+        private static bool TryGetSpellDefinitionById(int id, out SpellDefinition spell)
+        {
+            foreach (var candidate in SpellDefinitions)
             {
-                animationSpellSelectionIndex = Mathf.Clamp(animationSpellSelectionIndex, 0, available.Length - 1);
-                animationSpellSelectionIndex = EditorGUILayout.Popup("Spell", animationSpellSelectionIndex, available.Select(spell => spell.Id + " — " + spell.Name).ToArray());
-                animationSpellClip = (AnimationClip)EditorGUILayout.ObjectField("Animation Clip", animationSpellClip, typeof(AnimationClip), false);
-                if (GUILayout.Button("ADD / UPDATE SELECTED SPELL", GUILayout.Height(largeControls ? 42f : 30f)))
+                if (candidate.Id != id)
+                    continue;
+                spell = candidate;
+                return true;
+            }
+            spell = default(SpellDefinition);
+            return false;
+        }
+
+        private AnimationClip ResolveSpellPresentationClip(SpellAnimationBinding binding, out string source)
+        {
+            source = "Auto Functional";
+            if (binding == null)
+                return null;
+
+            var custom = LoadClipFromPath(binding.clipPath);
+            if (custom != null && !IsLegacyGeneratedEmptyPresentation(binding.clipPath))
+            {
+                source = "Per-spell override";
+                return custom;
+            }
+
+            SpellDefinition spell;
+            if (TryGetSpellDefinitionById(binding.id, out spell))
+            {
+                var school = FindAnimationPreset(animationProfile.spellSchoolPresentationClips, spell.School.ToString());
+                var schoolClip = school != null ? LoadClipFromPath(school.clipPath) : null;
+                if (schoolClip != null)
                 {
-                    var selected = available[animationSpellSelectionIndex];
-                    var binding = animationProfile.spellAnimations.FirstOrDefault(entry => entry.id == selected.Id);
+                    source = spell.School + " preset";
+                    return schoolClip;
+                }
+
+                var category = FindAnimationPreset(animationProfile.spellCategoryPresentationClips, spell.Category.ToString());
+                var categoryClip = category != null ? LoadClipFromPath(category.clipPath) : null;
+                if (categoryClip != null)
+                {
+                    source = GetSpellCategoryDisplayName(spell.Category) + " preset";
+                    return categoryClip;
+                }
+            }
+
+            var shared = LoadClipFromPath(animationProfile.defaultSpellPresentationClipPath);
+            if (shared != null)
+            {
+                source = "Shared Spell default";
+                return shared;
+            }
+            return null;
+        }
+
+        private AnimationClip ResolveActionPresentationClip(ActionAnimationKind kind, ActionAnimationBinding binding, out string source)
+        {
+            source = "Auto Functional";
+            if (binding == null)
+                return null;
+            var custom = LoadClipFromPath(binding.clipPath);
+            if (custom != null && !IsLegacyGeneratedEmptyPresentation(binding.clipPath))
+            {
+                source = "Per-action override";
+                return custom;
+            }
+            var sharedPath = kind == ActionAnimationKind.Technick
+                ? animationProfile.defaultTechnickPresentationClipPath
+                : animationProfile.defaultItemPresentationClipPath;
+            var shared = LoadClipFromPath(sharedPath);
+            if (shared != null)
+            {
+                source = "Shared " + kind + " default";
+                return shared;
+            }
+            return null;
+        }
+
+        private int SyncInstalledActionAnimationProfile(ActionAnimationKind kind, bool saveProfile = true)
+        {
+            if (animationProfile == null)
+                animationProfile = new AvatarAnimationProfile();
+            if (animationProfile.spellAnimations == null) animationProfile.spellAnimations = new List<SpellAnimationBinding>();
+            if (animationProfile.technickAnimations == null) animationProfile.technickAnimations = new List<ActionAnimationBinding>();
+            if (animationProfile.itemAnimations == null) animationProfile.itemAnimations = new List<ActionAnimationBinding>();
+            if (animationProfile.spellSchoolPresentationClips == null) animationProfile.spellSchoolPresentationClips = new List<AnimationPresetBinding>();
+            if (animationProfile.spellCategoryPresentationClips == null) animationProfile.spellCategoryPresentationClips = new List<AnimationPresetBinding>();
+
+            var changed = 0;
+            if (kind == ActionAnimationKind.Spell)
+            {
+                foreach (var installed in GetInstalledSpellDefinitions())
+                {
+                    var binding = animationProfile.spellAnimations.FirstOrDefault(x => x != null && x.id == installed.Id);
                     if (binding == null)
                     {
-                        binding = new SpellAnimationBinding { id = selected.Id, name = selected.Name, enabled = true, recoverySeconds = DefaultSpellRecoverySeconds, contactWindowSeconds = DefaultContactWindowSeconds };
+                        binding = new SpellAnimationBinding
+                        {
+                            id = installed.Id,
+                            name = installed.Name,
+                            enabled = true,
+                            recoverySeconds = DefaultSpellRecoverySeconds,
+                            contactWindowSeconds = DefaultContactWindowSeconds
+                        };
                         animationProfile.spellAnimations.Add(binding);
+                        changed++;
                     }
-                    binding.name = selected.Name;
-                    binding.clipPath = ClipPath(animationSpellClip);
-                    binding.enabled = true;
-                    SaveAnimationProfile();
+                    if (binding.name != installed.Name) { binding.name = installed.Name; changed++; }
+                    if (binding.recoverySeconds <= 0f) { binding.recoverySeconds = DefaultSpellRecoverySeconds; changed++; }
+                    if (binding.contactWindowSeconds <= 0f) { binding.contactWindowSeconds = DefaultContactWindowSeconds; changed++; }
+                    if (IsLegacyGeneratedEmptyPresentation(binding.clipPath)) { binding.clipPath = string.Empty; changed++; }
                 }
             }
             else
             {
-                EditorGUILayout.HelpBox("No spell matches the search.", MessageType.Info);
+                var definitions = kind == ActionAnimationKind.Technick ? GetInstalledTechnickDefinitions() : GetInstalledItemDefinitions();
+                var bindings = kind == ActionAnimationKind.Technick ? animationProfile.technickAnimations : animationProfile.itemAnimations;
+                var fallbackRecovery = kind == ActionAnimationKind.Technick ? DefaultTechnickRecoverySeconds : DefaultItemRecoverySeconds;
+                foreach (var installed in definitions)
+                {
+                    var binding = bindings.FirstOrDefault(x => x != null && x.id == installed.Id);
+                    if (binding == null)
+                    {
+                        binding = new ActionAnimationBinding
+                        {
+                            id = installed.Id,
+                            name = installed.Name,
+                            enabled = true,
+                            recoverySeconds = fallbackRecovery,
+                            contactWindowSeconds = DefaultContactWindowSeconds
+                        };
+                        bindings.Add(binding);
+                        changed++;
+                    }
+                    if (binding.name != installed.Name) { binding.name = installed.Name; changed++; }
+                    if (binding.recoverySeconds <= 0f) { binding.recoverySeconds = fallbackRecovery; changed++; }
+                    if (binding.contactWindowSeconds <= 0f) { binding.contactWindowSeconds = DefaultContactWindowSeconds; changed++; }
+                    if (IsLegacyGeneratedEmptyPresentation(binding.clipPath)) { binding.clipPath = string.Empty; changed++; }
+                }
             }
+
+            if (changed > 0 && saveProfile)
+                SaveAnimationProfile();
+            return changed;
+        }
+
+        private void RebuildAllAutomatedActionLayers()
+        {
+            if (avatarRoot == null || fxController == null)
+                return;
+            var changes = 0;
+            changes += SyncInstalledActionAnimationProfile(ActionAnimationKind.Spell, false);
+            changes += SyncInstalledActionAnimationProfile(ActionAnimationKind.Technick, false);
+            changes += SyncInstalledActionAnimationProfile(ActionAnimationKind.Item, false);
+            if (changes > 0)
+                SaveAnimationProfile();
+
+            RebuildSpellCastAnimationLayer();
+            RebuildActionAnimationLayer(ActionAnimationKind.Technick, "SoY_TechnickType", TechnickCastLayer, animationProfile.technickAnimations);
+            RebuildActionAnimationLayer(ActionAnimationKind.Item, "SoY_ItemType", ItemUseLayer, animationProfile.itemAnimations);
+            RebuildSpellAlignmentLayer();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Log("TB17 automated all installed Spell/Technick/Item presentation + functional action layers. No per-action animation clip is required.");
+        }
+
+        private void DrawSpellAnimationBuilder()
+        {
+            BeginCard("Spell Automation & Presentation");
+            var installed = GetInstalledSpellDefinitions();
+            EditorGUILayout.LabelField(
+                "TB17 separates functional spell authoring from optional avatar presentation. Installed spell Contacts/Raycasts are discovered automatically; the tool generates their gates, active windows, reset clips, and recovery timing without requiring one AnimationClip per spell.",
+                wrappedLabel);
+            EditorGUILayout.HelpBox(
+                "Presentation clips only animate the avatar (pose, hands, face, staff, etc.). Leaving every presentation field blank is valid: the spell still works and TB17 supplies a deterministic generated timer motion while the functional Contact/Raycast layers do the real toggling.",
+                MessageType.Info);
+            DrawTagRow("Installed Spells", installed.Length.ToString(), installed.Length == 0 ? "Create/repair spell Contacts or Raycasts first" : "Automatically discovered from managed action objects");
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("SYNC INSTALLED SPELLS", GUILayout.Height(largeControls ? 38f : 28f)))
+            {
+                var changed = SyncInstalledActionAnimationProfile(ActionAnimationKind.Spell);
+                Log("TB17 spell automation sync updated " + changed + " profile field(s).");
+            }
+            using (new EditorGUI.DisabledScope(fxController == null || installed.Length == 0))
+            {
+                if (GUILayout.Button("AUTOMATE / REPAIR INSTALLED SPELLS", GUILayout.Height(largeControls ? 38f : 28f)))
+                {
+                    SyncInstalledActionAnimationProfile(ActionAnimationKind.Spell);
+                    RebuildSpellCastAnimationLayer();
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+
+            var shared = LoadClipFromPath(animationProfile.defaultSpellPresentationClipPath);
+            var nextShared = (AnimationClip)EditorGUILayout.ObjectField("Shared Spell Cast", shared, typeof(AnimationClip), false);
+            if (nextShared != shared)
+            {
+                animationProfile.defaultSpellPresentationClipPath = ClipPath(nextShared);
+                SaveAnimationProfile();
+            }
+            EditorGUILayout.LabelField("Resolution order: per-spell override → school preset → purpose/category preset → shared default → generated automatic timer.", EditorStyles.miniLabel);
+
+            showSpellPresentationPresets = EditorGUILayout.Foldout(showSpellPresentationPresets, "Optional Shared Spell Presets", true);
+            if (showSpellPresentationPresets)
+            {
+                EditorGUILayout.LabelField("School Presets", cardTitleStyle);
+                foreach (SpellSchool school in Enum.GetValues(typeof(SpellSchool)))
+                {
+                    var preset = GetOrCreateAnimationPreset(animationProfile.spellSchoolPresentationClips, school.ToString());
+                    var clip = LoadClipFromPath(preset.clipPath);
+                    var next = (AnimationClip)EditorGUILayout.ObjectField(school.ToString(), clip, typeof(AnimationClip), false);
+                    if (next != clip)
+                    {
+                        preset.clipPath = ClipPath(next);
+                        SaveAnimationProfile();
+                    }
+                }
+                EditorGUILayout.Space(4f);
+                EditorGUILayout.LabelField("Purpose / Category Presets", cardTitleStyle);
+                foreach (SpellCategory category in Enum.GetValues(typeof(SpellCategory)))
+                {
+                    var preset = GetOrCreateAnimationPreset(animationProfile.spellCategoryPresentationClips, category.ToString());
+                    var clip = LoadClipFromPath(preset.clipPath);
+                    var next = (AnimationClip)EditorGUILayout.ObjectField(GetSpellCategoryDisplayName(category), clip, typeof(AnimationClip), false);
+                    if (next != clip)
+                    {
+                        preset.clipPath = ClipPath(next);
+                        SaveAnimationProfile();
+                    }
+                }
+            }
+
+            SyncInstalledActionAnimationProfile(ActionAnimationKind.Spell, false);
+            animationSpellSearch = EditorGUILayout.TextField("Filter Installed", animationSpellSearch);
+            var installedIds = new HashSet<int>(installed.Select(x => x.Id));
+            var visible = animationProfile.spellAnimations
+                .Where(binding => binding != null && installedIds.Contains(binding.id))
+                .Where(binding => string.IsNullOrWhiteSpace(animationSpellSearch) ||
+                    binding.name.IndexOf(animationSpellSearch, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    binding.id.ToString().Contains(animationSpellSearch.Trim()))
+                .OrderBy(binding => binding.id)
+                .ToList();
 
             EditorGUILayout.Space(5f);
-            EditorGUILayout.LabelField("Selected Spell States", cardTitleStyle);
-            EditorGUILayout.LabelField("Per row: enabled • action • clip • recovery seconds • contact window seconds.", wrappedLabel);
-            foreach (var binding in animationProfile.spellAnimations.OrderBy(entry => entry.id).ToList())
+            EditorGUILayout.LabelField("Installed Spell Presentation Overrides", cardTitleStyle);
+            foreach (var binding in visible)
             {
-                EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                EditorGUILayout.BeginHorizontal();
                 EditorGUI.BeginChangeCheck();
                 binding.enabled = EditorGUILayout.Toggle(binding.enabled, GUILayout.Width(20f));
-                if (EditorGUI.EndChangeCheck())
-                    SaveAnimationProfile();
-                EditorGUILayout.LabelField(binding.id + " — " + binding.name, GUILayout.Width(AccessibilityScale > 1f ? 260f : 210f));
-                var clip = LoadClipFromPath(binding.clipPath);
-                var nextClip = (AnimationClip)EditorGUILayout.ObjectField(clip, typeof(AnimationClip), false);
-                if (nextClip != clip)
+                EditorGUILayout.LabelField(binding.id + " — " + binding.name, GUILayout.Width(AccessibilityScale > 1f ? 300f : 235f));
+                string source;
+                var resolved = ResolveSpellPresentationClip(binding, out source);
+                EditorGUILayout.LabelField(source, EditorStyles.miniLabel);
+                if (EditorGUI.EndChangeCheck()) SaveAnimationProfile();
+                EditorGUILayout.EndHorizontal();
+
+                var custom = LoadClipFromPath(binding.clipPath);
+                if (IsLegacyGeneratedEmptyPresentation(binding.clipPath))
+                    custom = null;
+                var nextCustom = (AnimationClip)EditorGUILayout.ObjectField("Per-spell Override", custom, typeof(AnimationClip), false);
+                if (nextCustom != custom)
                 {
-                    binding.clipPath = ClipPath(nextClip);
+                    binding.clipPath = ClipPath(nextCustom);
                     SaveAnimationProfile();
                 }
+                if (custom == null && resolved != null)
+                    EditorGUILayout.LabelField("Resolved presentation: " + AssetDatabase.GetAssetPath(resolved), EditorStyles.miniLabel);
+                else if (custom == null)
+                    EditorGUILayout.LabelField("Resolved presentation: generated automatic timer (no manual animation required)", EditorStyles.miniLabel);
+
                 var oldRecovery = binding.recoverySeconds;
                 var oldWindow = binding.contactWindowSeconds;
-                binding.recoverySeconds = Mathf.Max(0.1f, EditorGUILayout.FloatField(binding.recoverySeconds, GUILayout.Width(48f)));
-                binding.contactWindowSeconds = Mathf.Max(0.05f, EditorGUILayout.FloatField(binding.contactWindowSeconds, GUILayout.Width(48f)));
+                EditorGUILayout.BeginHorizontal();
+                binding.recoverySeconds = Mathf.Max(0.1f, EditorGUILayout.FloatField("Recovery", binding.recoverySeconds));
+                binding.contactWindowSeconds = Mathf.Max(0.05f, EditorGUILayout.FloatField("Contact Window", binding.contactWindowSeconds));
+                EditorGUILayout.EndHorizontal();
                 if (!Mathf.Approximately(oldRecovery, binding.recoverySeconds) || !Mathf.Approximately(oldWindow, binding.contactWindowSeconds))
                     SaveAnimationProfile();
-                if (GUILayout.Button("Remove", GUILayout.Width(70f)))
-                {
-                    animationProfile.spellAnimations.Remove(binding);
-                    SaveAnimationProfile();
-                    EditorGUILayout.EndHorizontal();
-                    break;
-                }
-                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.EndVertical();
             }
 
-            using (new EditorGUI.DisabledScope(fxController == null || animationProfile.spellAnimations.Count(entry => entry.enabled) == 0))
+            using (new EditorGUI.DisabledScope(fxController == null || installed.Length == 0))
             {
-                if (GUILayout.Button("BUILD / REPAIR SPELL CAST ANIMATION LAYER", GUILayout.Height(largeControls ? 50f : 38f)))
+                if (GUILayout.Button("BUILD / REPAIR AUTOMATED SPELL LAYERS", GUILayout.Height(largeControls ? 50f : 38f)))
+                {
+                    SyncInstalledActionAnimationProfile(ActionAnimationKind.Spell);
                     RebuildSpellCastAnimationLayer();
+                }
             }
-            EditorGUILayout.HelpBox("Missing clips receive safe empty placeholders. Open the generated layer and replace or edit each state's Motion whenever the avatar-specific animation is ready.", MessageType.Info);
+            EditorGUILayout.HelpBox(
+                "TB17 no longer writes empty Raycast Cast clips into a spell as if they were required custom animations. Existing empty TB16-generated Cast placeholders are treated as legacy placeholders; non-empty clips are preserved as deliberate overrides.",
+                MessageType.None);
             EndCard();
         }
 
@@ -4465,6 +4803,39 @@ namespace StoriesOfYggdrasil.OSC
             }
         }
 
+        private static string VisualHolderNameForKind(ActionAnimationKind kind)
+        {
+            switch (kind)
+            {
+                case ActionAnimationKind.Spell: return "FX — Spell Visuals (Place Here)";
+                case ActionAnimationKind.Technick: return "FX — Technick Visuals (Place Here)";
+                case ActionAnimationKind.Item: return "FX — Item Visuals (Place Here)";
+                default: return "FX — Action Visuals (Place Here)";
+            }
+        }
+
+        private int EnsureManagedActionVisualHolders(ActionAnimationKind kind)
+        {
+            if (avatarRoot == null)
+                return 0;
+            var prefix = ContactHostPrefixForKind(kind);
+            var holderName = VisualHolderNameForKind(kind);
+            var created = 0;
+            foreach (var transform in avatarRoot.GetComponentsInChildren<Transform>(true)
+                .Where(x => x != null && x.name.StartsWith(prefix, StringComparison.Ordinal))
+                .ToArray())
+            {
+                var existing = transform.Cast<Transform>().FirstOrDefault(child => child != null && child.name == holderName);
+                if (existing != null)
+                    continue;
+                CreateContactChild(transform.gameObject, holderName, true);
+                created++;
+            }
+            if (created > 0)
+                Log("TB17 created " + created + " managed " + kind + " visual holder(s). Place optional action VFX under these holders; the generated functional gate toggles their parent action automatically.");
+            return created;
+        }
+
         private bool IsInsideRaycastManagedPayload(Transform transform)
         {
             for (var current = transform != null ? transform.parent : null; current != null; current = current.parent)
@@ -4635,24 +5006,35 @@ namespace StoriesOfYggdrasil.OSC
             fxController.AddLayer(layer);
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
-            Log("TB16 rebuilt " + kind + " contact gate for " + hostsById.Count + " action ID(s). Managed action Contacts now default hidden and open only during approved windows.");
+            Log("TB17 rebuilt " + kind + " contact gate for " + hostsById.Count + " action ID(s). Managed action Contacts now default hidden and open only during approved windows.");
         }
 
         private void RebuildSpellCastAnimationLayer()
         {
             if (fxController == null || !EnsureSafeFxCopy(true))
                 return;
-            var bindings = animationProfile.spellAnimations.Where(entry => entry != null && entry.enabled).OrderBy(entry => entry.id).ToList();
+
+            EnsureManagedActionVisualHolders(ActionAnimationKind.Spell);
+            SyncInstalledActionAnimationProfile(ActionAnimationKind.Spell, false);
+            var installedIds = new HashSet<int>(GetInstalledSpellDefinitions().Select(x => x.Id));
+            var bindings = animationProfile.spellAnimations
+                .Where(entry => entry != null && entry.enabled && installedIds.Contains(entry.id))
+                .OrderBy(entry => entry.id)
+                .ToList();
+
+            RemoveLayerByName(fxController, SpellCastLayer);
             if (bindings.Count == 0)
+            {
+                RebuildManagedActionContactGate(ActionAnimationKind.Spell);
+                EditorUtility.SetDirty(fxController);
+                AssetDatabase.SaveAssets();
                 return;
+            }
 
             EnsureAnimatorParameter(fxController, "SoY_SpellType", AnimatorControllerParameterType.Int);
             EnsureAnimatorParameter(fxController, "SoY_KO", AnimatorControllerParameterType.Bool);
-            EnsureAnimatorParameter(fxController, SpellApprovedParameter, AnimatorControllerParameterType.Bool);
-            RemoveLayerByName(fxController, SpellCastLayer);
             var layer = CreateHookLayer(fxController, SpellCastLayer);
             var idle = AddHookState(layer.stateMachine, "Ready / Idle", new Vector3(120f, 140f));
-            DriveBoolOnStateEnter(idle, SpellApprovedParameter, false);
             layer.stateMachine.defaultState = idle;
 
             var avatarName = MakeSafeAssetName(avatarDescriptor != null ? avatarDescriptor.gameObject.name : "Avatar");
@@ -4662,20 +5044,23 @@ namespace StoriesOfYggdrasil.OSC
             {
                 var binding = bindings[index];
                 var recoverySeconds = Mathf.Max(0.1f, binding.recoverySeconds > 0f ? binding.recoverySeconds : DefaultSpellRecoverySeconds);
+                var presentationSeconds = Mathf.Max(0.05f, binding.contactWindowSeconds > 0f ? binding.contactWindowSeconds : DefaultContactWindowSeconds);
                 var x = 520f + (index % 3) * 310f;
                 var y = 30f + (index / 3) * 240f;
-                var state = AddHookState(layer.stateMachine, binding.id + " — " + binding.name, new Vector3(x, y));
+                string source;
+                var presentation = ResolveSpellPresentationClip(binding, out source);
+                var state = AddHookState(layer.stateMachine, binding.id + " — " + binding.name + " [" + source + "]", new Vector3(x, y));
                 var waitForRelease = AddHookState(layer.stateMachine, binding.id + " — Wait For Menu Release", new Vector3(x, y + 80f));
                 var recovery = AddHookState(layer.stateMachine, binding.id + " — Recovery " + recoverySeconds.ToString("0.##") + "s", new Vector3(x, y + 160f));
-                state.motion = LoadClipFromPath(binding.clipPath) ?? GetOrCreatePlaceholderClip(folder, "SOY_Spell_" + binding.id + "_" + binding.name);
+                state.motion = presentation ?? CreateOrReplaceTimerClip(
+                    folder + "/SOY_Spell_" + binding.id + "_AutoPresentation.anim",
+                    presentationSeconds);
                 waitForRelease.motion = CreateOrReplaceTimerClip(folder + "/SOY_Spell_" + binding.id + "_Wait.anim", 1f / 60f);
                 recovery.motion = CreateOrReplaceTimerClip(folder + "/SOY_Spell_" + binding.id + "_Recovery.anim", recoverySeconds);
-                DriveBoolOnStateEnter(state, SpellApprovedParameter, true);
-                DriveBoolOnStateEnter(waitForRelease, SpellApprovedParameter, false);
-                DriveBoolOnStateEnter(recovery, SpellApprovedParameter, false);
 
-                // TB16: requests may only enter from Idle. This removes the TB14 AnyState path
-                // that allowed one selector to interrupt another action while it was still running.
+                // TB17 presentation layers do not write SoY_SpellApproved. Approval is owned
+                // exclusively by the functional Contact/Raycast gate so optional pose clips
+                // cannot fight the gameplay-facing gate parameter across Animator layers.
                 var enter = idle.AddTransition(state);
                 enter.hasExitTime = false; enter.duration = 0f;
                 enter.AddCondition(AnimatorConditionMode.Equals, binding.id, "SoY_SpellType");
@@ -4698,7 +5083,7 @@ namespace StoriesOfYggdrasil.OSC
             RebuildManagedActionContactGate(ActionAnimationKind.Spell);
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
-            Log("TB16 built spell action gate with " + bindings.Count + " selected spell state(s). Cross-action AnyState interruption is disabled.");
+            Log("TB17 built automated Spell presentation for " + bindings.Count + " installed spell(s). Functional approval remains owned by Contact/Raycast gates; no per-spell clip is required.");
         }
 
         private static void RemoveManagedResourceLayer(AnimatorController controller, ResourceGaugeKind kind)
@@ -4869,7 +5254,7 @@ namespace StoriesOfYggdrasil.OSC
                     if (GUILayout.Button("OPEN MENU BUILDER")) tab = StudioTab.MenuBuilder;
                     break;
                 case WizardStep.Animations:
-                    EditorGUILayout.LabelField("Bind avatar-specific Spell, Technick, Item, Evasion, and Resource FX clips to managed FX layers.", wrappedLabel);
+                    EditorGUILayout.LabelField("Spell/Technick/Item functional layers are auto-authored from installed actions. Optionally assign shared or per-action presentation clips, then configure Evasion and Resource FX.", wrappedLabel);
                     if (GUILayout.Button("OPEN ANIMATION BINDINGS")) tab = StudioTab.AnimatorSetup;
                     break;
                 case WizardStep.Contacts:
@@ -4905,12 +5290,12 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow("Spell Selector", ParameterStatus("SoY_SpellType", AnimatorControllerParameterType.Int, true), "Remote-visible spell animation routing");
             DrawTagRow("Technick Selector", ParameterStatus("SoY_TechnickType", AnimatorControllerParameterType.Int, true), "Remote-visible Technick animation routing");
             DrawTagRow("Item Selector", ParameterStatus("SoY_ItemType", AnimatorControllerParameterType.Int, true), "Remote-visible Item animation routing");
-            DrawTagRow("Evade Selector", ParameterStatus(EvadeTypeParameter, AnimatorControllerParameterType.Int, true), "TB16 remote-visible directional evade animation routing");
+            DrawTagRow("Evade Selector", ParameterStatus(EvadeTypeParameter, AnimatorControllerParameterType.Int, true), "TB17 remote-visible directional evade animation routing");
             DrawTagRow("Evading", ParameterStatus(EvadingParameter, AnimatorControllerParameterType.Bool, false), "Local animation-active telemetry; not gameplay invulnerability");
-            DrawTagRow("Spell Approved", ParameterStatus(SpellApprovedParameter, AnimatorControllerParameterType.Bool, false), "TB16 local approved-action pulse; suitable for downstream VRCFury logic");
-            DrawTagRow("Technick Approved", ParameterStatus(TechnickApprovedParameter, AnimatorControllerParameterType.Bool, false), "TB16 local approved-action pulse; suitable for downstream VRCFury logic");
-            DrawTagRow("Item Approved", ParameterStatus(ItemApprovedParameter, AnimatorControllerParameterType.Bool, false), "TB16 local approved-action pulse");
-            DrawTagRow("Raycast Approved", ParameterStatus(RaycastApprovedParameter, AnimatorControllerParameterType.Bool, false), "TB16 local raycast approval pulse");
+            DrawTagRow("Spell Approved", ParameterStatus(SpellApprovedParameter, AnimatorControllerParameterType.Bool, false), "TB17 functional-gate approval pulse; presentation layers do not write this parameter");
+            DrawTagRow("Technick Approved", ParameterStatus(TechnickApprovedParameter, AnimatorControllerParameterType.Bool, false), "TB17 functional-gate approval pulse; presentation layers do not write this parameter");
+            DrawTagRow("Item Approved", ParameterStatus(ItemApprovedParameter, AnimatorControllerParameterType.Bool, false), "TB17 functional-gate approval pulse");
+            DrawTagRow("Raycast Approved", ParameterStatus(RaycastApprovedParameter, AnimatorControllerParameterType.Bool, false), "TB17 local raycast approval pulse");
             DrawTagRow("Health Percent", ParameterStatus("SoY_HPPercent", AnimatorControllerParameterType.Float, DesiredNetworkSync("SoY_HPPercent", true)), "Resource FX Health driver");
             DrawTagRow("MP Percent", ParameterStatus("SoY_MPPercent", AnimatorControllerParameterType.Float, DesiredNetworkSync("SoY_MPPercent", false)), "Sam.py mp / max_mp visualization");
             DrawTagRow("KO", ParameterStatus("SoY_KO", AnimatorControllerParameterType.Bool, DesiredNetworkSync("SoY_KO", true)), "Health special-state routing");
@@ -4937,25 +5322,31 @@ namespace StoriesOfYggdrasil.OSC
 
         private void DrawTechnickAnimationBuilder()
         {
-            DrawActionAnimationBuilder(ActionAnimationKind.Technick, ref animationTechnickSearch, ref animationTechnickSelectionIndex,
-                ref animationTechnickClip, animationProfile.technickAnimations, TechnickDefinitions, "SoY_TechnickType", TechnickCastLayer);
+            DrawActionAnimationBuilder(ActionAnimationKind.Technick, ref animationTechnickSearch,
+                animationProfile.technickAnimations, "SoY_TechnickType", TechnickCastLayer);
         }
 
         private void DrawItemAnimationBuilder()
         {
-            DrawActionAnimationBuilder(ActionAnimationKind.Item, ref animationItemSearch, ref animationItemSelectionIndex,
-                ref animationItemClip, animationProfile.itemAnimations, ItemDefinitions, "SoY_ItemType", ItemUseLayer);
+            DrawActionAnimationBuilder(ActionAnimationKind.Item, ref animationItemSearch,
+                animationProfile.itemAnimations, "SoY_ItemType", ItemUseLayer);
         }
 
         private void DrawEvasionAnimationBuilder()
         {
             BeginCard("Evasion Animation Layer Builder");
             EditorGUILayout.LabelField(
-                "TB16 adds a dedicated directional Evasion layer. SoY_EvadeType is a synced selector for remote animation playback; SoY_Evading is local OSC telemetry only and does not grant gameplay invulnerability by itself.",
+                "TB17 retains the directional Evasion layer introduced in TB16. SoY_EvadeType is a synced selector for remote animation playback; SoY_Evading is local OSC telemetry only and does not grant gameplay invulnerability by itself.",
                 wrappedLabel);
             EditorGUILayout.HelpBox(
                 "Use this for sidesteps, dashes, rolls, or a generic fallback. The animation plays to completion, then waits for the menu/button selector to release before returning to Ready. Sam.py/Desktop remain authoritative for whether an incoming attack actually misses.",
                 MessageType.Info);
+            var nextGenericFallback = EditorGUILayout.ToggleLeft("Use Generic Evade for every unassigned direction/roll", animationProfile.useGenericEvadeFallback);
+            if (nextGenericFallback != animationProfile.useGenericEvadeFallback)
+            {
+                animationProfile.useGenericEvadeFallback = nextGenericFallback;
+                SaveAnimationProfile();
+            }
 
             animationEvasionSearch = EditorGUILayout.TextField("Search Evade", animationEvasionSearch);
             var searchText = animationEvasionSearch ?? string.Empty;
@@ -5039,10 +5430,27 @@ namespace StoriesOfYggdrasil.OSC
         {
             if (fxController == null || !EnsureSafeFxCopy(true))
                 return;
-            var bindings = animationProfile.evasionAnimations
+            var explicitBindings = animationProfile.evasionAnimations
                 .Where(x => x != null && x.enabled)
                 .OrderBy(x => x.id)
                 .ToList();
+            var explicitIds = new HashSet<int>(explicitBindings.Select(x => x.id));
+            var bindings = explicitBindings.ToList();
+            var generic = explicitBindings.FirstOrDefault(x => x.id == 9 && LoadClipFromPath(x.clipPath) != null);
+            if (animationProfile.useGenericEvadeFallback && generic != null)
+            {
+                foreach (var definition in EvasionDefinitions.Where(x => x.Id != 9 && !explicitIds.Contains(x.Id)))
+                {
+                    bindings.Add(new ActionAnimationBinding
+                    {
+                        id = definition.Id,
+                        name = definition.Name,
+                        enabled = true,
+                        clipPath = generic.clipPath
+                    });
+                }
+            }
+            bindings = bindings.OrderBy(x => x.id).ToList();
             if (bindings.Count == 0)
                 return;
 
@@ -5064,7 +5472,8 @@ namespace StoriesOfYggdrasil.OSC
                 var binding = bindings[index];
                 var x = 520f + (index % 3) * 310f;
                 var y = 30f + (index / 3) * 170f;
-                var state = AddHookState(layer.stateMachine, binding.id + " — " + binding.name, new Vector3(x, y));
+                var fallbackLabel = !explicitIds.Contains(binding.id) ? " [Generic Fallback]" : string.Empty;
+                var state = AddHookState(layer.stateMachine, binding.id + " — " + binding.name + fallbackLabel, new Vector3(x, y));
                 var wait = AddHookState(layer.stateMachine, binding.id + " — Wait For Release", new Vector3(x, y + 80f));
                 state.motion = LoadClipFromPath(binding.clipPath) ?? GetOrCreatePlaceholderClip(folder, "SOY_Evade_" + binding.id + "_" + binding.name);
                 wait.motion = CreateOrReplaceTimerClip(folder + "/SOY_Evade_" + binding.id + "_Wait.anim", 1f / 60f);
@@ -5093,97 +5502,149 @@ namespace StoriesOfYggdrasil.OSC
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            operationLog.Insert(0, "TB16 rebuilt Evasion animation layer with " + bindings.Count + " directional/fallback state(s).");
+            operationLog.Insert(0, "TB17 rebuilt Evasion animation layer with " + bindings.Count + " directional/fallback state(s).");
         }
 
         private ActionDefinition[] GetInstalledEvasionDefinitions()
         {
             if (animationProfile == null || animationProfile.evasionAnimations == null)
                 return Array.Empty<ActionDefinition>();
-            var ids = new HashSet<int>(animationProfile.evasionAnimations.Where(x => x != null && x.enabled).Select(x => x.id));
+            var enabled = animationProfile.evasionAnimations.Where(x => x != null && x.enabled).ToList();
+            var ids = new HashSet<int>(enabled.Select(x => x.id));
+            var generic = enabled.FirstOrDefault(x => x.id == 9 && LoadClipFromPath(x.clipPath) != null);
+            if (animationProfile.useGenericEvadeFallback && generic != null)
+                return EvasionDefinitions.OrderBy(x => x.Id).ToArray();
             return EvasionDefinitions.Where(x => ids.Contains(x.Id)).OrderBy(x => x.Id).ToArray();
         }
 
         private void DrawActionAnimationBuilder(
             ActionAnimationKind kind,
             ref string search,
-            ref int selectionIndex,
-            ref AnimationClip selectedClip,
             List<ActionAnimationBinding> bindings,
-            ActionDefinition[] definitions,
             string parameterName,
             string layerName)
         {
-            BeginCard(kind + " Animation Layer Builder");
-            EditorGUILayout.LabelField("TB16 action-gates each selected " + kind + ": a request can only enter from Idle, the animation cannot be interrupted by another selector, release enters a local recovery window, and managed Contacts use the same timing profile.", wrappedLabel);
-            EditorGUILayout.HelpBox("The two numeric fields on each installed action are Recovery Seconds and Contact Window Seconds. These are local Unity safeguards for testing; Sam.py remains untouched in TB16.", MessageType.Info);
-            search = EditorGUILayout.TextField("Search", search);
-            // C# does not allow ref parameters to be captured by lambdas.
-            // Copy the current value into an ordinary local before filtering.
-            var searchText = search ?? string.Empty;
-            var trimmedSearch = searchText.Trim();
-            var available = definitions.Where(x =>
-                string.IsNullOrWhiteSpace(searchText) ||
-                x.Name.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                x.Id.ToString().Contains(trimmedSearch)).ToArray();
-            if (available.Length > 0)
+            BeginCard(kind + " Automation & Presentation");
+            var installed = kind == ActionAnimationKind.Technick ? GetInstalledTechnickDefinitions() : GetInstalledItemDefinitions();
+            EditorGUILayout.LabelField(
+                "TB17 discovers installed " + kind + " actions automatically. Functional Contacts, approval windows, release handling, and recovery are generated by the tool; presentation animation is optional.",
+                wrappedLabel);
+            DrawTagRow("Installed " + kind + "s", installed.Length.ToString(), installed.Length == 0 ? "Create/repair managed actions first" : "Auto-discovered from the avatar hierarchy");
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("SYNC INSTALLED", GUILayout.Height(largeControls ? 38f : 28f)))
             {
-                selectionIndex = Mathf.Clamp(selectionIndex, 0, available.Length - 1);
-                selectionIndex = EditorGUILayout.Popup(kind.ToString(), selectionIndex, available.Select(x => x.Id + " — " + x.Name).ToArray());
-                selectedClip = (AnimationClip)EditorGUILayout.ObjectField("Animation Clip", selectedClip, typeof(AnimationClip), false);
-                if (GUILayout.Button("ADD / UPDATE SELECTED " + kind.ToString().ToUpperInvariant()))
+                var changed = SyncInstalledActionAnimationProfile(kind);
+                Log("TB17 " + kind + " automation sync updated " + changed + " profile field(s).");
+            }
+            using (new EditorGUI.DisabledScope(fxController == null || installed.Length == 0))
+            {
+                if (GUILayout.Button("AUTOMATE / REPAIR", GUILayout.Height(largeControls ? 38f : 28f)))
                 {
-                    var selected = available[selectionIndex];
-                    var binding = bindings.FirstOrDefault(x => x.id == selected.Id);
-                    if (binding == null)
-                    {
-                        binding = new ActionAnimationBinding { id = selected.Id, name = selected.Name, enabled = true, recoverySeconds = kind == ActionAnimationKind.Technick ? DefaultTechnickRecoverySeconds : DefaultItemRecoverySeconds, contactWindowSeconds = DefaultContactWindowSeconds };
-                        bindings.Add(binding);
-                    }
-                    binding.name = selected.Name;
-                    binding.clipPath = ClipPath(selectedClip);
-                    binding.enabled = true;
-                    SaveAnimationProfile();
+                    SyncInstalledActionAnimationProfile(kind);
+                    RebuildActionAnimationLayer(kind, parameterName, layerName, bindings);
                 }
             }
-            foreach (var binding in bindings.OrderBy(x => x.id).ToList())
+            EditorGUILayout.EndHorizontal();
+
+            var defaultPath = kind == ActionAnimationKind.Technick
+                ? animationProfile.defaultTechnickPresentationClipPath
+                : animationProfile.defaultItemPresentationClipPath;
+            var shared = LoadClipFromPath(defaultPath);
+            var nextShared = (AnimationClip)EditorGUILayout.ObjectField("Shared " + kind + " Animation", shared, typeof(AnimationClip), false);
+            if (nextShared != shared)
             {
-                EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
+                if (kind == ActionAnimationKind.Technick)
+                    animationProfile.defaultTechnickPresentationClipPath = ClipPath(nextShared);
+                else
+                    animationProfile.defaultItemPresentationClipPath = ClipPath(nextShared);
+                SaveAnimationProfile();
+            }
+            EditorGUILayout.LabelField("Resolution order: per-action override → shared default → generated automatic timer.", EditorStyles.miniLabel);
+
+            SyncInstalledActionAnimationProfile(kind, false);
+            search = EditorGUILayout.TextField("Filter Installed", search);
+            var searchText = search ?? string.Empty;
+            var installedIds = new HashSet<int>(installed.Select(x => x.Id));
+            var visible = bindings
+                .Where(binding => binding != null && installedIds.Contains(binding.id))
+                .Where(binding => string.IsNullOrWhiteSpace(searchText) ||
+                    binding.name.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    binding.id.ToString().Contains(searchText.Trim()))
+                .OrderBy(binding => binding.id)
+                .ToList();
+
+            foreach (var binding in visible)
+            {
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                EditorGUILayout.BeginHorizontal();
                 EditorGUI.BeginChangeCheck();
                 binding.enabled = EditorGUILayout.Toggle(binding.enabled, GUILayout.Width(20f));
+                EditorGUILayout.LabelField(binding.id + " — " + binding.name, GUILayout.Width(AccessibilityScale > 1f ? 300f : 235f));
+                string source;
+                var resolved = ResolveActionPresentationClip(kind, binding, out source);
+                EditorGUILayout.LabelField(source, EditorStyles.miniLabel);
                 if (EditorGUI.EndChangeCheck()) SaveAnimationProfile();
-                EditorGUILayout.LabelField(binding.id + " — " + binding.name, GUILayout.Width(AccessibilityScale > 1f ? 260f : 210f));
-                var clip = LoadClipFromPath(binding.clipPath);
-                var nextClip = (AnimationClip)EditorGUILayout.ObjectField(clip, typeof(AnimationClip), false);
-                if (nextClip != clip) { binding.clipPath = ClipPath(nextClip); SaveAnimationProfile(); }
+                EditorGUILayout.EndHorizontal();
+
+                var custom = LoadClipFromPath(binding.clipPath);
+                if (IsLegacyGeneratedEmptyPresentation(binding.clipPath))
+                    custom = null;
+                var nextCustom = (AnimationClip)EditorGUILayout.ObjectField("Per-action Override", custom, typeof(AnimationClip), false);
+                if (nextCustom != custom)
+                {
+                    binding.clipPath = ClipPath(nextCustom);
+                    SaveAnimationProfile();
+                }
+                if (custom == null && resolved != null)
+                    EditorGUILayout.LabelField("Resolved presentation: " + AssetDatabase.GetAssetPath(resolved), EditorStyles.miniLabel);
+                else if (custom == null)
+                    EditorGUILayout.LabelField("Resolved presentation: generated automatic timer (no manual animation required)", EditorStyles.miniLabel);
+
                 var oldRecovery = binding.recoverySeconds;
                 var oldWindow = binding.contactWindowSeconds;
-                binding.recoverySeconds = Mathf.Max(0.1f, EditorGUILayout.FloatField(binding.recoverySeconds, GUILayout.Width(48f)));
-                binding.contactWindowSeconds = Mathf.Max(0.05f, EditorGUILayout.FloatField(binding.contactWindowSeconds, GUILayout.Width(48f)));
-                if (!Mathf.Approximately(oldRecovery, binding.recoverySeconds) || !Mathf.Approximately(oldWindow, binding.contactWindowSeconds)) SaveAnimationProfile();
-                if (GUILayout.Button("Open", GUILayout.Width(55f)) && clip != null) { Selection.activeObject = clip; EditorGUIUtility.PingObject(clip); }
-                if (GUILayout.Button("Remove", GUILayout.Width(70f))) { bindings.Remove(binding); SaveAnimationProfile(); EditorGUILayout.EndHorizontal(); break; }
+                EditorGUILayout.BeginHorizontal();
+                binding.recoverySeconds = Mathf.Max(0.1f, EditorGUILayout.FloatField("Recovery", binding.recoverySeconds));
+                binding.contactWindowSeconds = Mathf.Max(0.05f, EditorGUILayout.FloatField("Contact Window", binding.contactWindowSeconds));
                 EditorGUILayout.EndHorizontal();
+                if (!Mathf.Approximately(oldRecovery, binding.recoverySeconds) || !Mathf.Approximately(oldWindow, binding.contactWindowSeconds))
+                    SaveAnimationProfile();
+                EditorGUILayout.EndVertical();
             }
-            using (new EditorGUI.DisabledScope(fxController == null || bindings.Count(x => x.enabled) == 0))
-                if (GUILayout.Button("BUILD / REPAIR " + kind.ToString().ToUpperInvariant() + " ANIMATION LAYER", GUILayout.Height(largeControls ? 50f : 38f)))
+
+            using (new EditorGUI.DisabledScope(fxController == null || installed.Length == 0))
+                if (GUILayout.Button("BUILD / REPAIR AUTOMATED " + kind.ToString().ToUpperInvariant() + " LAYERS", GUILayout.Height(largeControls ? 50f : 38f)))
+                {
+                    SyncInstalledActionAnimationProfile(kind);
                     RebuildActionAnimationLayer(kind, parameterName, layerName, bindings);
+                }
             EndCard();
         }
 
         private void RebuildActionAnimationLayer(ActionAnimationKind kind, string parameterName, string layerName, List<ActionAnimationBinding> sourceBindings)
         {
             if (fxController == null || !EnsureSafeFxCopy(true)) return;
-            var bindings = sourceBindings.Where(x => x != null && x.enabled).OrderBy(x => x.id).ToList();
-            if (bindings.Count == 0) return;
-            var approvedParameter = ApprovedParameterForKind(kind);
+            EnsureManagedActionVisualHolders(kind);
+            SyncInstalledActionAnimationProfile(kind, false);
+            var installedIds = new HashSet<int>((kind == ActionAnimationKind.Technick ? GetInstalledTechnickDefinitions() : GetInstalledItemDefinitions()).Select(x => x.Id));
+            var bindings = sourceBindings
+                .Where(x => x != null && x.enabled && installedIds.Contains(x.id))
+                .OrderBy(x => x.id)
+                .ToList();
+
+            RemoveLayerByName(fxController, layerName);
+            if (bindings.Count == 0)
+            {
+                RebuildManagedActionContactGate(kind);
+                EditorUtility.SetDirty(fxController);
+                AssetDatabase.SaveAssets();
+                return;
+            }
+
             EnsureAnimatorParameter(fxController, parameterName, AnimatorControllerParameterType.Int);
             EnsureAnimatorParameter(fxController, "SoY_KO", AnimatorControllerParameterType.Bool);
-            EnsureAnimatorParameter(fxController, approvedParameter, AnimatorControllerParameterType.Bool);
-            RemoveLayerByName(fxController, layerName);
             var layer = CreateHookLayer(fxController, layerName);
             var idle = AddHookState(layer.stateMachine, "Ready / Idle", new Vector3(120f, 140f));
-            DriveBoolOnStateEnter(idle, approvedParameter, false);
             layer.stateMachine.defaultState = idle;
             var avatarName = MakeSafeAssetName(avatarDescriptor != null ? avatarDescriptor.gameObject.name : "Avatar");
             var folder = AvatarGeneratedFolder(avatarName, "Animations/" + kind + "s");
@@ -5193,18 +5654,22 @@ namespace StoriesOfYggdrasil.OSC
                 var binding = bindings[index];
                 var fallbackRecovery = kind == ActionAnimationKind.Technick ? DefaultTechnickRecoverySeconds : DefaultItemRecoverySeconds;
                 var recoverySeconds = Mathf.Max(0.1f, binding.recoverySeconds > 0f ? binding.recoverySeconds : fallbackRecovery);
+                var presentationSeconds = Mathf.Max(0.05f, binding.contactWindowSeconds > 0f ? binding.contactWindowSeconds : DefaultContactWindowSeconds);
                 var x = 520f + (index % 3) * 310f;
                 var y = 30f + (index / 3) * 240f;
-                var state = AddHookState(layer.stateMachine, binding.id + " — " + binding.name, new Vector3(x, y));
+                string source;
+                var presentation = ResolveActionPresentationClip(kind, binding, out source);
+                var state = AddHookState(layer.stateMachine, binding.id + " — " + binding.name + " [" + source + "]", new Vector3(x, y));
                 var wait = AddHookState(layer.stateMachine, binding.id + " — Wait For Menu Release", new Vector3(x, y + 80f));
                 var recovery = AddHookState(layer.stateMachine, binding.id + " — Recovery " + recoverySeconds.ToString("0.##") + "s", new Vector3(x, y + 160f));
-                state.motion = LoadClipFromPath(binding.clipPath) ?? GetOrCreatePlaceholderClip(folder, "SOY_" + kind + "_" + binding.id + "_" + binding.name);
+                state.motion = presentation ?? CreateOrReplaceTimerClip(
+                    folder + "/SOY_" + kind + "_" + binding.id + "_AutoPresentation.anim",
+                    presentationSeconds);
                 wait.motion = CreateOrReplaceTimerClip(folder + "/SOY_" + kind + "_" + binding.id + "_Wait.anim", 1f / 60f);
                 recovery.motion = CreateOrReplaceTimerClip(folder + "/SOY_" + kind + "_" + binding.id + "_Recovery.anim", recoverySeconds);
-                DriveBoolOnStateEnter(state, approvedParameter, true);
-                DriveBoolOnStateEnter(wait, approvedParameter, false);
-                DriveBoolOnStateEnter(recovery, approvedParameter, false);
 
+                // TB17: presentation does not own SoY_*Approved. The functional gate is the
+                // sole writer, preventing an optional animation layer from opening/closing Contacts.
                 var enter = idle.AddTransition(state);
                 enter.hasExitTime = false; enter.duration = 0f;
                 enter.AddCondition(AnimatorConditionMode.Equals, binding.id, parameterName);
@@ -5227,7 +5692,7 @@ namespace StoriesOfYggdrasil.OSC
             RebuildManagedActionContactGate(kind);
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
-            Log("TB16 built " + kind + " action gate with " + bindings.Count + " state(s). Selector requests cannot interrupt an active/recovering action.");
+            Log("TB17 built automated " + kind + " presentation for " + bindings.Count + " installed action(s). Functional approval remains owned by the Contact/Raycast gate.");
         }
 
         private void DrawMenuBuilder()
@@ -6060,40 +6525,59 @@ namespace StoriesOfYggdrasil.OSC
             if (actionId <= 0 || string.IsNullOrWhiteSpace(actionName))
                 return null;
 
-            var animationIdentity = RaycastSelectorKindToken(kind) + "_" + actionId + "_" + actionName;
-            var generated = LoadOrCreateClip(RaycastAnimationClipPath(animationIdentity, "Cast"));
-
+            // TB17 no longer creates an empty Raycast Cast clip and records it as though
+            // every action required a bespoke animation. Functional Raycast/Contact clips
+            // are generated by their own gate layers; this method only ensures an optional
+            // presentation binding exists and returns the resolved shared/custom clip.
             if (kind == OutgoingContactKind.Spell)
             {
                 var binding = animationProfile.spellAnimations.FirstOrDefault(entry => entry.id == actionId);
                 if (binding == null)
                 {
-                    binding = new SpellAnimationBinding { id = actionId, name = actionName, enabled = true };
+                    binding = new SpellAnimationBinding
+                    {
+                        id = actionId,
+                        name = actionName,
+                        enabled = true,
+                        recoverySeconds = DefaultSpellRecoverySeconds,
+                        contactWindowSeconds = DefaultContactWindowSeconds
+                    };
                     animationProfile.spellAnimations.Add(binding);
                 }
                 binding.name = actionName;
                 binding.enabled = true;
-                if (string.IsNullOrWhiteSpace(binding.clipPath))
-                    binding.clipPath = ClipPath(generated);
+                if (binding.recoverySeconds <= 0f) binding.recoverySeconds = DefaultSpellRecoverySeconds;
+                if (binding.contactWindowSeconds <= 0f) binding.contactWindowSeconds = DefaultContactWindowSeconds;
+                if (IsLegacyGeneratedEmptyPresentation(binding.clipPath)) binding.clipPath = string.Empty;
                 SaveAnimationProfile();
                 if (fxController != null)
                     RebuildSpellCastAnimationLayer();
-                return LoadClipFromPath(binding.clipPath) ?? generated;
+                string source;
+                return ResolveSpellPresentationClip(binding, out source);
             }
 
             if (kind == OutgoingContactKind.Technick || kind == OutgoingContactKind.Item)
             {
+                var animationKind = kind == OutgoingContactKind.Technick ? ActionAnimationKind.Technick : ActionAnimationKind.Item;
                 var bindings = kind == OutgoingContactKind.Technick ? animationProfile.technickAnimations : animationProfile.itemAnimations;
                 var binding = bindings.FirstOrDefault(entry => entry.id == actionId);
                 if (binding == null)
                 {
-                    binding = new ActionAnimationBinding { id = actionId, name = actionName, enabled = true, recoverySeconds = kind == OutgoingContactKind.Technick ? DefaultTechnickRecoverySeconds : DefaultItemRecoverySeconds, contactWindowSeconds = DefaultContactWindowSeconds };
+                    binding = new ActionAnimationBinding
+                    {
+                        id = actionId,
+                        name = actionName,
+                        enabled = true,
+                        recoverySeconds = kind == OutgoingContactKind.Technick ? DefaultTechnickRecoverySeconds : DefaultItemRecoverySeconds,
+                        contactWindowSeconds = DefaultContactWindowSeconds
+                    };
                     bindings.Add(binding);
                 }
                 binding.name = actionName;
                 binding.enabled = true;
-                if (string.IsNullOrWhiteSpace(binding.clipPath))
-                    binding.clipPath = ClipPath(generated);
+                if (binding.recoverySeconds <= 0f) binding.recoverySeconds = kind == OutgoingContactKind.Technick ? DefaultTechnickRecoverySeconds : DefaultItemRecoverySeconds;
+                if (binding.contactWindowSeconds <= 0f) binding.contactWindowSeconds = DefaultContactWindowSeconds;
+                if (IsLegacyGeneratedEmptyPresentation(binding.clipPath)) binding.clipPath = string.Empty;
                 SaveAnimationProfile();
                 if (fxController != null)
                 {
@@ -6102,7 +6586,8 @@ namespace StoriesOfYggdrasil.OSC
                     else
                         RebuildActionAnimationLayer(ActionAnimationKind.Item, "SoY_ItemType", ItemUseLayer, animationProfile.itemAnimations);
                 }
-                return LoadClipFromPath(binding.clipPath) ?? generated;
+                string source;
+                return ResolveActionPresentationClip(animationKind, binding, out source);
             }
 
             return null;
@@ -7100,7 +7585,7 @@ namespace StoriesOfYggdrasil.OSC
             RemoveLayerByName(fxController, layerName);
             var layer = CreateHookLayer(fxController, layerName);
 
-            // TB16 keeps the TB14 two-stage native raycast flow, but adds a mandatory
+            // TB17 retains the hardened TB14/TB16 two-stage native raycast flow, but adds a mandatory
             // recovery state after release so a held/retriggered request cannot immediately
             // reopen the Contact payload. Sam.py/Desktop can later replace this local timing
             // with an authoritative cooldown without changing the generated avatar contract.
@@ -7199,7 +7684,7 @@ namespace StoriesOfYggdrasil.OSC
             fxController.AddLayer(layer);
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
-            Log("TB16 rebuilt raycast gate '" + layerKey + "' with " + recoverySeconds.ToString("0.##") + "s local recovery and approved-action pulse.");
+            Log("TB17 rebuilt raycast gate '" + layerKey + "' with " + recoverySeconds.ToString("0.##") + "s local recovery and approved-action pulse.");
         }
 
         private void RebuildRaycastTargetingLayer(
@@ -7590,7 +8075,7 @@ namespace StoriesOfYggdrasil.OSC
                     ref attackPosition, ref attackRotation,
                     HasUsableTargets() && ContactTypesAvailable(),
                     "Preview Attack");
-                attackStartsEnabled = EditorGUILayout.ToggleLeft("Debug: Start enabled (TB16 gate will override during Play)", attackStartsEnabled);
+                attackStartsEnabled = EditorGUILayout.ToggleLeft("Debug: Start enabled (TB17 functional gate overrides during Play)", attackStartsEnabled);
             }
 
             if (attackTier == AttackTier.Critical)
@@ -7632,7 +8117,7 @@ namespace StoriesOfYggdrasil.OSC
                     ref spellPosition, ref spellRotation,
                     HasUsableTargets() && ContactTypesAvailable(),
                     "Preview Spell");
-                spellStartsEnabled = EditorGUILayout.ToggleLeft("Debug: Start enabled (TB16 gate will override during Play)", spellStartsEnabled);
+                spellStartsEnabled = EditorGUILayout.ToggleLeft("Debug: Start enabled (TB17 functional gate overrides during Play)", spellStartsEnabled);
             }
 
             showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Details", true);
@@ -7675,7 +8160,7 @@ namespace StoriesOfYggdrasil.OSC
                     ref technickPosition, ref technickRotation,
                     HasUsableTargets() && ContactTypesAvailable(),
                     "Preview Technick");
-                technickStartsEnabled = EditorGUILayout.ToggleLeft("Debug: Start enabled (TB16 gate will override during Play)", technickStartsEnabled);
+                technickStartsEnabled = EditorGUILayout.ToggleLeft("Debug: Start enabled (TB17 functional gate overrides during Play)", technickStartsEnabled);
             }
 
             showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Details", true);
@@ -7714,7 +8199,7 @@ namespace StoriesOfYggdrasil.OSC
                     ref itemPosition, ref itemRotation,
                     HasUsableTargets() && ContactTypesAvailable(),
                     "Preview Item");
-                itemStartsEnabled = EditorGUILayout.ToggleLeft("Debug: Start enabled (TB16 gate will override during Play)", itemStartsEnabled);
+                itemStartsEnabled = EditorGUILayout.ToggleLeft("Debug: Start enabled (TB17 functional gate overrides during Play)", itemStartsEnabled);
             }
 
             showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Details", true);
@@ -7853,7 +8338,8 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow("Spell Active", SpellActiveParameter, "True while any encoded spell sender is inside the receiver");
             DrawTagRow("Spell ID Bits", SpellBitParameterPrefix + "0-7", "Eight Bool values reconstruct the stable 1-255 spell ID in Desktop v0.8.1+");
             DrawTagRow("Resolved Spell", "SoY_SpellType (Int)", "Desktop reconstructs the bit bus and sends the normal registry ID to Sam.py");
-            DrawTagRow("Action alignment", "SoY_HealingSourceEnemy / SoY_DamageSourceEnemy", "Enemy-tagged action and damage sources");
+            DrawTagRow("Canonical action alignment", "SoY_HealingSourceEnemy / SoY_DamageSourceEnemy", "Driven only by SoY Caster Enemy");
+            DrawTagRow("External damage source", ExternalDamageSourceParameter, "Sword / Weapon / Hands compatibility is isolated from canonical Stories alignment");
             DrawTagRow("Technick Bus", "SoY_TechnickActive + Bit0-7", "Desktop reconstructs TECHNICK_ID_REGISTRY_v1");
             DrawTagRow("Item Bus", "SoY_ItemActive + Bit0-7", "Desktop reconstructs ITEM_ID_REGISTRY_v1; Sam.py verifies inventory");
             DrawTagRow("I-Frames", "1.0 second", "Incoming damage receiver child is disabled after each accepted hit");
@@ -7904,6 +8390,16 @@ namespace StoriesOfYggdrasil.OSC
 
             if (GUILayout.Button("OPEN AVATAR SETUP / REPAIR", GUILayout.Height(largeControls ? 44f : 34f)))
                 tab = StudioTab.Setup;
+
+            var installedActionCount = GetInstalledSpellDefinitions().Length + GetInstalledTechnickDefinitions().Length + GetInstalledItemDefinitions().Length;
+            using (new EditorGUI.DisabledScope(fxController == null || avatarRoot == null || installedActionCount == 0))
+            {
+                if (GUILayout.Button("AUTOMATE / REPAIR ALL INSTALLED ACTIONS", GUILayout.Height(largeControls ? 48f : 36f)))
+                    RebuildAllAutomatedActionLayers();
+            }
+            EditorGUILayout.LabelField(
+                "TB17 automation discovers installed Spell/Technick/Item actions, repairs their profile bindings, generates functional gates and timer motions, and preserves optional shared/custom presentation clips.",
+                wrappedLabel);
 
             showAnimationAdvanced = EditorGUILayout.Foldout(showAnimationAdvanced, "Advanced Maintenance", true);
             if (showAnimationAdvanced)
@@ -8430,7 +8926,7 @@ namespace StoriesOfYggdrasil.OSC
             DrawHealthSafetyCard();
             BeginCard("Unity / OSC Protocol Marker");
             DrawTagRow("Tool", "v" + Version + " " + BuildNumber, "Current authoring build");
-            DrawTagRow("Protocol", OscProtocolVersion.ToString(), "Required by Desktop v0.8.21");
+            DrawTagRow("Protocol", OscProtocolVersion.ToString(), "Required by Desktop v0.8.21-prebuild.2");
             DrawTagRow("Marker", HasCurrentCompatibilityMarkerLayer() ? "✓ Installed" : "✕ Missing", UnityMarkerLayer);
             DrawTagRow("Schema", managedRepairAuditReady && CurrentSchemaIsValid() ? "✓ Valid" : "! Audit / migration required", "Run Avatar Setup → Migrate / Validate");
             EndCard();
@@ -9208,6 +9704,7 @@ namespace StoriesOfYggdrasil.OSC
             foreach (var target in GetTargets())
             {
                 var host = CreateContactChild(target, "Stories Spell - " + spell.Id + " " + spell.Name, spellStartsEnabled);
+                CreateContactChild(host, "FX — Spell Visuals (Place Here)", true);
                 var allyHost = CreateContactChild(host, "[SoY Spell Ally] " + spell.Id + " " + spell.Name, true);
                 var enemyHost = CreateContactChild(host, "[SoY Spell Enemy] " + spell.Id + " " + spell.Name, false);
 
@@ -9218,7 +9715,8 @@ namespace StoriesOfYggdrasil.OSC
                 Log("Spell sender ready on '" + host.name + "': " + spell.Name + " (ID " + spell.Id + ", bits " + GetSpellBinary(spell.Id) + ").");
             }
 
-            RebuildManagedActionContactGate(ActionAnimationKind.Spell);
+            SyncInstalledActionAnimationProfile(ActionAnimationKind.Spell);
+            RebuildSpellCastAnimationLayer();
             RebuildSpellAlignmentLayer();
         }
 
@@ -9251,6 +9749,7 @@ namespace StoriesOfYggdrasil.OSC
             foreach (var target in GetTargets())
             {
                 var host = CreateContactChild(target, "Stories Technick - " + technick.Id + " " + technick.Name, technickStartsEnabled);
+                CreateContactChild(host, "FX — Technick Visuals (Place Here)", true);
                 var allyHost = CreateContactChild(host, "[SoY Technick Ally] " + technick.Id + " " + technick.Name, true);
                 var enemyHost = CreateContactChild(host, "[SoY Technick Enemy] " + technick.Id + " " + technick.Name, false);
                 ConfigureActionSender(allyHost, technick.Id, TechnickActiveTag, TechnickBitTagPrefix, "SoY Technick", CasterAllyTag,
@@ -9260,7 +9759,8 @@ namespace StoriesOfYggdrasil.OSC
                 Selection.activeGameObject = host;
                 Log("Technick sender ready on '" + host.name + "': " + technick.Name + " (ID " + technick.Id + ", bits " + GetActionBinary(technick.Id) + ").");
             }
-            RebuildManagedActionContactGate(ActionAnimationKind.Technick);
+            SyncInstalledActionAnimationProfile(ActionAnimationKind.Technick);
+            RebuildActionAnimationLayer(ActionAnimationKind.Technick, "SoY_TechnickType", TechnickCastLayer, animationProfile.technickAnimations);
             RebuildSpellAlignmentLayer();
         }
 
@@ -9273,6 +9773,7 @@ namespace StoriesOfYggdrasil.OSC
             foreach (var target in GetTargets())
             {
                 var host = CreateContactChild(target, "Stories Item - " + item.Id + " " + item.Name, itemStartsEnabled);
+                CreateContactChild(host, "FX — Item Visuals (Place Here)", true);
                 var allyHost = CreateContactChild(host, "[SoY Item Ally] " + item.Id + " " + item.Name, true);
                 var enemyHost = CreateContactChild(host, "[SoY Item Enemy] " + item.Id + " " + item.Name, false);
                 ConfigureActionSender(allyHost, item.Id, ItemActiveTag, ItemBitTagPrefix, "SoY Item", CasterAllyTag,
@@ -9282,7 +9783,8 @@ namespace StoriesOfYggdrasil.OSC
                 Selection.activeGameObject = host;
                 Log("Item sender ready on '" + host.name + "': " + item.Name + " (ID " + item.Id + ", bits " + GetActionBinary(item.Id) + ").");
             }
-            RebuildManagedActionContactGate(ActionAnimationKind.Item);
+            SyncInstalledActionAnimationProfile(ActionAnimationKind.Item);
+            RebuildActionAnimationLayer(ActionAnimationKind.Item, "SoY_ItemType", ItemUseLayer, animationProfile.itemAnimations);
             RebuildSpellAlignmentLayer();
         }
 
@@ -9348,17 +9850,11 @@ namespace StoriesOfYggdrasil.OSC
             }
             if (incomingHits || incomingDebuffs)
             {
-                // Outside systems using Sword / Weapon / Hands do not carry the Stories
-                // SoY Caster Enemy alignment tag. Treat those compatibility hits as hostile
-                // sources so Desktop can send them through the normal Sam.py DM Gate instead
-                // of misclassifying them as friendly/ally contact.
-                var alignmentTags = incomingHits
-                    ? new[] { CasterEnemyTag }
-                        .Concat(ExternalDamageContactTags)
-                        .Distinct(StringComparer.Ordinal)
-                        .ToArray()
-                    : new[] { CasterEnemyTag };
-                damageMappings.Add(new ReceiverMapping(alignmentTags, DamageSourceEnemyParameter));
+                // Protocol 20 keeps Stories alignment and generic compatibility separate.
+                // Canonical SoY_DamageSourceEnemy is driven ONLY by SoY Caster Enemy.
+                damageMappings.Add(new ReceiverMapping(CasterEnemyTag, DamageSourceEnemyParameter));
+                if (incomingHits)
+                    damageMappings.Add(new ReceiverMapping(ExternalDamageContactTags, ExternalDamageSourceParameter));
             }
 
             if (incomingSpells)
@@ -10462,7 +10958,18 @@ namespace StoriesOfYggdrasil.OSC
             foreach (var host in avatarRoot.GetComponentsInChildren<Transform>(true)
                 .Where(t => t.name == "Stories Incoming Damage Contacts"))
             {
+                var receiverType = FindType(ReceiverTypeName);
+                if (receiverType != null)
+                {
+                    foreach (var receiver in host.GetComponents(receiverType).Cast<Component>()
+                        .Where(component => string.Equals(ReadStringMember(component, "parameter", "Parameter"), DamageSourceEnemyParameter, StringComparison.Ordinal))
+                        .ToArray())
+                    {
+                        RepairIncomingReceiverMapping(receiver);
+                    }
+                }
                 ConfigureIncomingReceiver(host.gameObject, new ReceiverMapping(CasterEnemyTag, DamageSourceEnemyParameter));
+                ConfigureIncomingReceiver(host.gameObject, new ReceiverMapping(ExternalDamageContactTags, ExternalDamageSourceParameter));
             }
             // Existing v0.5.5 and earlier avatars may still start I-Frames from raw hit
             // receivers. Rebuild the layer so only Sam.py-accepted SoY_Damaged pulses
@@ -10798,7 +11305,7 @@ namespace StoriesOfYggdrasil.OSC
             var markerPresent = HasCurrentCompatibilityMarkerLayer();
             var schemaValid = managedRepairAuditReady && CurrentSchemaIsValid();
             DrawTagRow("Unity Tool", "v" + Version + " " + BuildNumber, "Written into the avatar marker layer");
-            DrawTagRow("OSC Protocol", OscProtocolVersion.ToString(), "Desktop v0.8.21 requires protocol 19 for Stories-generated gameplay Contacts");
+            DrawTagRow("OSC Protocol", OscProtocolVersion.ToString(), "Desktop v0.8.21-prebuild.2 requires protocol 20 for Stories-generated gameplay Contacts");
             DrawTagRow("Marker Layer", markerPresent ? "✓ Installed" : "✕ Missing", UnityMarkerLayer);
             DrawTagRow("Schema", markerPresent && schemaValid ? "✓ Valid" : "✕ Update Required", "Legacy/broken Stories-managed Contacts remain blocked by the Desktop runtime");
             EditorGUILayout.HelpBox(
@@ -10815,6 +11322,8 @@ namespace StoriesOfYggdrasil.OSC
                         if (managedRepairFindings.Any(finding => finding.CanAutoRepair))
                             RunManagedRepair(false);
                         InstallAllBridgeHooks();
+                        if (GetInstalledSpellDefinitions().Length + GetInstalledTechnickDefinitions().Length + GetInstalledItemDefinitions().Length > 0)
+                            RebuildAllAutomatedActionLayers();
                     }
                 }
             }

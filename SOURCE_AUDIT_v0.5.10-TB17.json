@@ -1,0 +1,31 @@
+{
+  "version": "0.5.10",
+  "build": "TB17",
+  "tag": "v0.5.10-TB17",
+  "osc_protocol_version": 20,
+  "minimum_desktop_version": "0.8.21-prebuild.2",
+  "source_sha256": "b05f9c3654fe44e4cbc8f864f34f893c89e0814986a6820b9e556a2a0b6ca579",
+  "checks": {
+    "build_header": true,
+    "protocol_marker": true,
+    "schema_validation": true,
+    "evasion_builder": true,
+    "action_gates": true,
+    "raycast_recovery": true,
+    "resource_float_fx": true,
+    "context_persistence_retained": true,
+    "automated_action_discovery": true,
+    "optional_presentation_clips": true,
+    "shared_spell_presets": true,
+    "functional_gate_approval_ownership": true,
+    "managed_action_visual_holders": true,
+    "legacy_empty_cast_placeholder_migration": true,
+    "generic_evade_fallback": true,
+    "external_contact_compatibility_v18": true,
+    "canonical_external_alignment_split": true
+  },
+  "sam_py_patch_required": false,
+  "desktop_patch_required": true,
+  "minimum_desktop": "0.8.21-prebuild.2",
+  "unity_compile_performed": false
+}

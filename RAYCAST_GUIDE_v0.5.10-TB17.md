@@ -1,10 +1,10 @@
-# Raycast Guide — v0.5.10 TB16
+# Raycast Guide — v0.5.10 TB17
 
-TB16 retains the Raycast transport from the current v0.5.10 test line and adds protocol 19 validation plus a recovery gate before returning to Ready.
+TB17 retains the Raycast transport from the current v0.5.10 test line and adds protocol 20 validation plus a recovery gate before returning to Ready.
 
 ## Before testing Raycasts on an older avatar
 
-Run **MIGRATE / VALIDATE AVATAR FOR PROTOCOL 19** first. Desktop v0.8.21+ can reject Stories-generated gameplay input from avatars that do not publish the current valid schema marker.
+Run **MIGRATE / VALIDATE AVATAR FOR PROTOCOL 20** first. Desktop v0.8.21-prebuild.2-prebuild.2+ can reject Stories-generated gameplay input from avatars that do not publish the current valid schema marker.
 
 ## Direct Impact
 
@@ -51,4 +51,9 @@ Stories-generated clip asset names and internal `AnimationClip.name` values are 
 
 ## Outside Contact interaction
 
-Raycast-generated actions still emit the normal Stories Contact bus. The `Sword`, `Weapon`, `Hands`, and block/parry aliases affect incoming compatibility only; they do not replace the Spell/Technick/Item action IDs or protocol 19 marker.
+Raycast-generated actions still emit the normal Stories Contact bus. The `Sword`, `Weapon`, `Hands`, and block/parry aliases affect incoming compatibility only; they do not replace the Spell/Technick/Item action IDs or protocol 20 marker.
+
+
+## TB17 presentation automation
+
+Selector-driven Raycast actions no longer require an empty per-action Cast AnimationClip. Functional Raycast clips remain generated automatically. Optional character presentation resolves through TB17 shared/preset/override rules and is independent from Contact/Raycast approval.

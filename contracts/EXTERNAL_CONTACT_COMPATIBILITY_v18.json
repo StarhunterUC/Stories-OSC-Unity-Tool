@@ -1,7 +1,7 @@
 {
   "name": "Stories OSC External Contact Compatibility",
-  "revision": 17,
-  "unity_tool": "0.5.10-TB16",
+  "revision": 18,
+  "unity_tool": "0.5.10-TB17",
   "exact_case_sensitive_tags": true,
   "sender_aliases": [
     {
@@ -38,5 +38,16 @@
   "transport_change_required": false,
   "sam_py_change_required": false,
   "desktop_change_required": false,
-  "notes": "External alias contract remains revision 17. TB16 adds protocol 19 marker enforcement separately."
+  "notes": "Revision 18 isolates Sword/Weapon/Hands on SoY_ExternalDamageSource. TB17 Protocol 20 forbids mixing those aliases into SoY_DamageSourceEnemy.",
+  "alignment_transport": {
+    "canonical_enemy_parameter": "SoY_DamageSourceEnemy",
+    "canonical_enemy_tag": "SoY Caster Enemy",
+    "external_source_parameter": "SoY_ExternalDamageSource",
+    "external_source_tags": [
+      "Sword",
+      "Weapon",
+      "Hands"
+    ],
+    "mixed_receiver_forbidden": true
+  }
 }

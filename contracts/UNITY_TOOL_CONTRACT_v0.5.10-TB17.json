@@ -1,11 +1,11 @@
 {
   "contract": "Stories Of Yggdrasil Unity Tool Contact Contract",
   "version": "0.5.10",
-  "build_number": "TB16",
-  "tag": "v0.5.10-TB16",
-  "contact_contract_revision": 17,
-  "osc_protocol_version": 19,
-  "minimum_desktop_version": "0.8.21",
+  "build_number": "TB17",
+  "tag": "v0.5.10-TB17",
+  "contact_contract_revision": 19,
+  "osc_protocol_version": 20,
+  "minimum_desktop_version": "0.8.21-prebuild.2",
   "unity_authoring_marker": {
     "layer": "Stories Of Yggdrasil | Unity Tool Marker",
     "local_unsynced": true,
@@ -23,9 +23,9 @@
       "major": 0,
       "minor": 5,
       "patch": 10,
-      "tb": 16,
+      "tb": 17,
       "tb_revision": 0,
-      "protocol": 19
+      "protocol": 20
     },
     "schema_valid_policy": "Only true after current managed Animator/Expression parameters and recognized Stories-managed systems validate."
   },
@@ -45,7 +45,7 @@
     ]
   },
   "external_contact_compatibility": {
-    "revision": 17,
+    "revision": 18,
     "exact_case_sensitive": true,
     "damage_aliases": {
       "Sword": {
@@ -69,7 +69,19 @@
       "Blockable",
       "Hit Blocked",
       "Parry_Detect"
-    ]
+    ],
+    "alignment_transport": {
+      "canonical_enemy_parameter": "SoY_DamageSourceEnemy",
+      "canonical_enemy_tags": [
+        "SoY Caster Enemy"
+      ],
+      "external_source_parameter": "SoY_ExternalDamageSource",
+      "external_source_tags": [
+        "Sword",
+        "Weapon",
+        "Hands"
+      ]
+    }
   },
   "action_transport": {
     "spell": {
@@ -155,9 +167,42 @@
   },
   "updater": {
     "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
-    "test_build_tag": "v0.5.10-TB16",
+    "test_build_tag": "v0.5.10-TB17",
     "preferred_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
     "required_checksum_asset": "StoriesOfYggdrasilOSCContactSystem.cs.sha256",
     "zip_fallback_supported": true
+  },
+  "automated_action_authoring": {
+    "introduced_in": "TB17",
+    "transport_protocol_changed": true,
+    "installed_action_discovery": true,
+    "presentation_optional": true,
+    "presentation_resolution": {
+      "spell": [
+        "per_action_override",
+        "spell_school_preset",
+        "spell_category_preset",
+        "shared_spell_default",
+        "generated_timer"
+      ],
+      "technick": [
+        "per_action_override",
+        "shared_technick_default",
+        "generated_timer"
+      ],
+      "item": [
+        "per_action_override",
+        "shared_item_default",
+        "generated_timer"
+      ]
+    },
+    "functional_gate_owns_approved_parameter": true,
+    "managed_visual_holders": {
+      "spell": "FX \u2014 Spell Visuals (Place Here)",
+      "technick": "FX \u2014 Technick Visuals (Place Here)",
+      "item": "FX \u2014 Item Visuals (Place Here)"
+    },
+    "legacy_empty_cast_placeholder_policy": "Treat empty TB16-generated Cast placeholders as auto-generated; preserve non-empty edited clips as deliberate overrides.",
+    "generic_evade_fallback": true
   }
 }
