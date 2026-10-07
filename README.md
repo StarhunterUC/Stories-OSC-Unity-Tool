@@ -1,12 +1,12 @@
-# Stories OSC Unity Tool v0.5.10 TB17
+# Stories OSC Unity Tool v0.5.10 TB17.1
 
-Current prerelease: **Stories OSC Unity Tool v0.5.10 TB17 — Automated Action Authoring**.
+Current prerelease: **Stories OSC Unity Tool v0.5.10 TB17.1 — Automated Action Authoring**.
 
 This repository contains the Unity Editor authoring/repair tool for the Stories Of Yggdrasil OSC Contact System used by VRChat avatars.
 
 ## Install
 
-Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB17.unitypackage`, or copy the canonical script to:
+Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB17.1.unitypackage`, or copy the canonical script to:
 
 ```text
 Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs
@@ -14,7 +14,7 @@ Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs
 
 Only one `StoriesOfYggdrasilOSCContactSystem` script should exist inside a Unity project's `Assets` folder.
 
-## TB17 — automated authoring on protocol 20
+## TB17.1 — automated authoring + marker self-healing on protocol 20
 
 TB17 retains the protocol 20 fail-closed marker introduced in TB16 and adds automatic Spell/Technick/Item authoring without changing the Desktop transport contract.
 
@@ -28,10 +28,15 @@ After **MIGRATE / VALIDATE AVATAR FOR PROTOCOL 20** succeeds, the avatar publish
 - `SoY_UnityToolTBRevision`
 - `SoY_ProtocolVersion`
 - `SoY_UnitySchemaValid`
+- `SoY_UnityMarkerBeacon` — encoded TB17.1 heartbeat (117/118) for late Desktop discovery
 
-For this build the expected authoring marker is **v0.5.10 TB17 / Protocol 20**. `SoY_UnitySchemaValid` is only published as true after the current managed schema validates.
+For this build the expected authoring marker is **v0.5.10 TB17.1 / Protocol 20**. `SoY_UnitySchemaValid` is only published as true after the current managed schema validates. TB17.1 periodically alternates `SoY_UnityMarkerBeacon` between `117` and `118`, allowing the Desktop client to rediscover the current marker even when it starts after the avatar.
 
-The matching Desktop line is **v0.8.21+**. Older, unmarked, invalid, or future protocol Stories-generated gameplay input is handled fail-closed by the Desktop runtime. Sam.py is not changed by TB17.
+The matching Desktop line is **v0.8.21-prebuild.4+**. Older, unmarked, invalid, or future protocol Stories-generated gameplay input is handled fail-closed by the Desktop runtime. Sam.py is not changed by TB17.1.
+
+### TB17.1 marker repair
+
+Safe Repair All now treats the Unity compatibility marker as a managed repair target. Missing/outdated marker parameters or marker layers are reported as Repairable and rebuilt automatically. Migrate / Validate performs the same marker repair before publishing schema validity.
 
 ## Evasion animation authoring
 
@@ -93,7 +98,7 @@ These aliases remain compatibility inputs. They do not bypass the existing Deskt
 - Flat, globally unique generated Raycast animation names under `<Avatar>/Animations/Raycasts/`.
 - Menus are install-aware: only actions with matching managed Contacts are emitted.
 
-See `RAYCAST_GUIDE_v0.5.10-TB17.md`.
+See `RAYCAST_GUIDE_v0.5.10-TB17.1.md`.
 
 ## Repository layout
 

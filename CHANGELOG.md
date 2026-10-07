@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.10 TB17.1 — Marker Self-Healing
+
+- Added `SoY_UnityMarkerBeacon`, an encoded local heartbeat alternating between 117/118.
+- Desktop v0.8.21-prebuild.4 can recover Tool/Protocol/schema identity even when it starts after the avatar.
+- Safe Repair All now audits the Unity compatibility marker and reports missing/outdated marker state as Repairable.
+- Migrate / Validate rebuilds the marker before publishing schema validity.
+- Marker repair installs required Animator + Expression parameters and the periodic marker layer.
+- Retains Protocol 20 canonical/external damage-source separation from TB17.
+- Sam.py is unchanged.
+
+
 ## v0.5.10 TB17 — Automated Action Authoring
 
 - Installed Spell/Technick/Item actions are now auto-discovered and synchronized into the animation profile.

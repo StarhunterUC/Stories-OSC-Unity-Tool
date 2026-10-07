@@ -1,10 +1,10 @@
-# Raycast Guide — v0.5.10 TB17
+# Raycast Guide — v0.5.10 TB17.1
 
-TB17 retains the Raycast transport from the current v0.5.10 test line and adds protocol 20 validation plus a recovery gate before returning to Ready.
+TB17.1 retains the TB17 Raycast transport, Protocol 20 alignment split, managed action gates, and recovery behavior. The TB17.1 change is the self-healing compatibility marker/beacon used by the Desktop runtime.
 
 ## Before testing Raycasts on an older avatar
 
-Run **MIGRATE / VALIDATE AVATAR FOR PROTOCOL 20** first. Desktop v0.8.21-prebuild.2-prebuild.2+ can reject Stories-generated gameplay input from avatars that do not publish the current valid schema marker.
+Run **MIGRATE / VALIDATE AVATAR FOR PROTOCOL 20** or **Safe Repair All** first. TB17.1 repairs the compatibility marker itself and installs the periodic `SoY_UnityMarkerBeacon`.
 
 ## Direct Impact
 
@@ -51,9 +51,8 @@ Stories-generated clip asset names and internal `AnimationClip.name` values are 
 
 ## Outside Contact interaction
 
-Raycast-generated actions still emit the normal Stories Contact bus. The `Sword`, `Weapon`, `Hands`, and block/parry aliases affect incoming compatibility only; they do not replace the Spell/Technick/Item action IDs or protocol 20 marker.
+Raycast-generated actions still emit the normal Stories Contact bus. `Sword`, `Weapon`, `Hands`, and block/parry aliases affect incoming compatibility only; they do not replace Spell/Technick/Item action IDs or the Protocol 20 marker.
 
+## TB17.1 marker beacon
 
-## TB17 presentation automation
-
-Selector-driven Raycast actions no longer require an empty per-action Cast AnimationClip. Functional Raycast clips remain generated automatically. Optional character presentation resolves through TB17 shared/preset/override rules and is independent from Contact/Raycast approval.
+The marker layer periodically alternates the local unsynced `SoY_UnityMarkerBeacon` between encoded values 117/118. This is compatibility telemetry only; it does not authorize a Raycast or gameplay action.

@@ -1,6 +1,11 @@
 name: Build Unity Tool Release
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - version.json
   workflow_dispatch:
     inputs:
       publish_release:
@@ -19,6 +24,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -53,8 +60,8 @@ jobs:
           path: ${{ steps.meta.outputs.dist }}/*
           if-no-files-found: error
 
-      - name: Publish GitHub Release
-        if: ${{ inputs.publish_release }}
+      - name: Publish GitHub prerelease
+        if: ${{ github.event_name == 'push' || inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -66,7 +73,7 @@ jobs:
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$DIST"/* --clobber
-            gh release edit "$TAG"               --title "$TITLE"               --notes-file "$NOTES"               --prerelease
+            gh release edit "$TAG" --target "${{ github.sha }}" --title "$TITLE" --notes-file "$NOTES" --prerelease
           else
-            gh release create "$TAG"               "$DIST"/*               --target "${{ github.sha }}"               --title "$TITLE"               --notes-file "$NOTES"               --prerelease
+            gh release create "$TAG" "$DIST"/* --target "${{ github.sha }}" --title "$TITLE" --notes-file "$NOTES" --prerelease
           fi

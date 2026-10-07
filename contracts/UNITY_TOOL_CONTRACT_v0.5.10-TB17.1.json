@@ -1,11 +1,11 @@
 {
   "contract": "Stories Of Yggdrasil Unity Tool Contact Contract",
   "version": "0.5.10",
-  "build_number": "TB17",
-  "tag": "v0.5.10-TB17",
-  "contact_contract_revision": 19,
+  "build_number": "TB17.1",
+  "tag": "v0.5.10-TB17.1",
+  "contact_contract_revision": 20,
   "osc_protocol_version": 20,
-  "minimum_desktop_version": "0.8.21-prebuild.2",
+  "minimum_desktop_version": "0.8.21-prebuild.4",
   "unity_authoring_marker": {
     "layer": "Stories Of Yggdrasil | Unity Tool Marker",
     "local_unsynced": true,
@@ -17,16 +17,23 @@
       "tb": "SoY_UnityToolTB",
       "tb_revision": "SoY_UnityToolTBRevision",
       "protocol": "SoY_ProtocolVersion",
-      "schema_valid": "SoY_UnitySchemaValid"
+      "schema_valid": "SoY_UnitySchemaValid",
+      "beacon": "SoY_UnityMarkerBeacon"
     },
     "expected_values": {
       "major": 0,
       "minor": 5,
       "patch": 10,
       "tb": 17,
-      "tb_revision": 0,
-      "protocol": 20
+      "tb_revision": 1,
+      "protocol": 20,
+      "beacon_values": [
+        117,
+        118
+      ]
     },
+    "beacon_policy": "Local unsynced Int alternates 117/118 so a late-start Desktop can rediscover the current Tool/Protocol/schema marker.",
+    "repair_policy": "Safe Repair All and Migrate / Validate rebuild missing/outdated marker parameters and marker layer.",
     "schema_valid_policy": "Only true after current managed Animator/Expression parameters and recognized Stories-managed systems validate."
   },
   "canonical_contact_names": {
@@ -90,7 +97,7 @@
       "active": "SoY_SpellActive",
       "bit_prefix": "SoY_SpellBit",
       "bit_count": 8,
-      "default_recovery_seconds": 8.0
+      "default_recovery_seconds": 8
     },
     "technick": {
       "selector": "SoY_TechnickType",
@@ -98,7 +105,7 @@
       "active": "SoY_TechnickActive",
       "bit_prefix": "SoY_TechnickBit",
       "bit_count": 8,
-      "default_recovery_seconds": 15.0
+      "default_recovery_seconds": 15
     },
     "item": {
       "selector": "SoY_ItemType",
@@ -106,13 +113,13 @@
       "active": "SoY_ItemActive",
       "bit_prefix": "SoY_ItemBit",
       "bit_count": 8,
-      "default_recovery_seconds": 5.0
+      "default_recovery_seconds": 5
     },
     "raycast": {
       "approved": "SoY_RaycastApproved",
-      "default_recovery_seconds": 1.0
+      "default_recovery_seconds": 1
     },
-    "attack_planned_default_recovery_seconds": 5.0
+    "attack_planned_default_recovery_seconds": 5
   },
   "evasion": {
     "layer": "Stories Of Yggdrasil | Evasion Animations",
@@ -135,8 +142,8 @@
   },
   "resource_fx": {
     "normalized_float_range": [
-      0.0,
-      1.0
+      0,
+      1
     ],
     "blend_tree": "Simple1D",
     "parameters": [
@@ -147,7 +154,7 @@
       "SoY_ArousalPercent"
     ]
   },
-  "incoming_hit_iframes_seconds": 1.0,
+  "incoming_hit_iframes_seconds": 1,
   "raycast": {
     "direct_impact": true,
     "spell_world_ground_placement": true,
@@ -167,7 +174,7 @@
   },
   "updater": {
     "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
-    "test_build_tag": "v0.5.10-TB17",
+    "test_build_tag": "v0.5.10-TB17.1",
     "preferred_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
     "required_checksum_asset": "StoriesOfYggdrasilOSCContactSystem.cs.sha256",
     "zip_fallback_supported": true
@@ -198,9 +205,9 @@
     },
     "functional_gate_owns_approved_parameter": true,
     "managed_visual_holders": {
-      "spell": "FX \u2014 Spell Visuals (Place Here)",
-      "technick": "FX \u2014 Technick Visuals (Place Here)",
-      "item": "FX \u2014 Item Visuals (Place Here)"
+      "spell": "FX — Spell Visuals (Place Here)",
+      "technick": "FX — Technick Visuals (Place Here)",
+      "item": "FX — Item Visuals (Place Here)"
     },
     "legacy_empty_cast_placeholder_policy": "Treat empty TB16-generated Cast placeholders as auto-generated; preserve non-empty edited clips as deliberate overrides.",
     "generic_evade_fallback": true

@@ -2,22 +2,22 @@
   "product": "Stories Of Yggdrasil OSC Contact System",
   "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
   "version": "0.5.10",
-  "build_number": "TB17",
-  "build_label": "Test Build 17 \u2014 Automated Action Authoring + Alignment Repair",
-  "tag": "v0.5.10-TB17",
+  "build_number": "TB17.1",
+  "build_label": "Test Build 17.1 — Marker Self-Healing + Alignment Repair",
+  "tag": "v0.5.10-TB17.1",
   "channel": "test",
   "prerelease": true,
   "canonical_source_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
   "unity_asset_path": "Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs",
-  "source_sha256": "b05f9c3654fe44e4cbc8f864f34f893c89e0814986a6820b9e556a2a0b6ca579",
+  "source_sha256": "8d23d73eee75689a7e6cda6c686985ac39ff8f64fdc24fdc1768b4bf0bbcaa96",
   "minimum_vrchat_avatars_sdk": "3.10.3",
   "recommended_tested_sdk_line": "3.10.5-beta.1",
   "osc_protocol_version": 20,
-  "minimum_desktop_version": "0.8.21-prebuild.2",
+  "minimum_desktop_version": "0.8.21-prebuild.4",
   "registries": {
     "spell_registry": "registries/SPELL_ID_REGISTRY_v2.json",
     "technick_registry": "registries/TECHNICK_ID_REGISTRY_v1.json",
     "item_registry": "registries/ITEM_ID_REGISTRY_v1.json"
   },
-  "display_version": "Stories OSC Unity Tool v0.5.10 TB17"
+  "display_version": "Stories OSC Unity Tool v0.5.10 TB17.1"
 }

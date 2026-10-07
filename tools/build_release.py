@@ -142,7 +142,7 @@ def main() -> int:
             f"RAYCAST_GUIDE_{tag}.md",
             f"SOURCE_AUDIT_{tag}.json",
             f"TEST_PLAN_{tag}.md",
-            "OSC_PROTOCOL_v19.md",
+            "OSC_PROTOCOL_v20.md",
             "version.json",
         ):
             path = root / relative
