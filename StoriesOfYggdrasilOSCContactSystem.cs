@@ -31,8 +31,8 @@ namespace StoriesOfYggdrasil.OSC
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
         private const string Version = "0.5.10";
-        private const string BuildNumber = "TB17.5";
-        private const string BuildLabel = "Test Build 17.5 — Marker Metadata Contract";
+        private const string BuildNumber = "TB18";
+        private const string BuildLabel = "Test Build 18 — Physical Helpful Items";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
         private static readonly string[] RaycastTypeNames =
@@ -186,6 +186,24 @@ namespace StoriesOfYggdrasil.OSC
             Spell,
             Technick,
             Item
+        }
+
+        private enum HelpfulItemHand
+        {
+            Left,
+            Right
+        }
+
+        private enum HelpfulItemGesture
+        {
+            Neutral = 0,
+            Fist = 1,
+            HandOpen = 2,
+            FingerPoint = 3,
+            Victory = 4,
+            RockNRoll = 5,
+            HandGun = 6,
+            ThumbsUp = 7
         }
 
         private enum ContactPreset
@@ -427,6 +445,16 @@ namespace StoriesOfYggdrasil.OSC
         private const string ItemBitTagPrefix = "SoY Item Bit ";
         private const string ItemActiveParameter = "SoY_ItemActive";
         private const string ItemBitParameterPrefix = "SoY_ItemBit";
+        private const string HelpfulItemActiveTag = "SoY Help Item Active";
+        private const string HelpfulItemBitTagPrefix = "SoY Help Item Bit ";
+        private const string HelpfulItemActiveParameter = "SoY_HelpItemActive";
+        private const string HelpfulItemBitParameterPrefix = "SoY_HelpItemBit";
+        private const string HelpfulItemSelfTouchParameter = "SoY_HelpItemSelfTouch";
+        private const string HelpfulItemOtherTouchParameter = "SoY_HelpItemOtherTouch";
+        private const string HelpfulItemUseResultParameter = "SoY_ItemUseResult";
+        private const string HelpfulItemReceiveResultParameter = "SoY_ItemReceiveResult";
+        private const string HelpfulItemLayerPrefix = "Stories Of Yggdrasil | Helpful Item ";
+        private const string HelpfulItemHeadReceiverHost = "Stories Helpful Item Head Receiver";
         private const int ActionBitCount = 8;
         private const string GitHubRepository = "StarhunterUC/Stories-OSC-Unity-Tool";
         private const string GitHubLatestReleaseApi = "https://api.github.com/repos/StarhunterUC/Stories-OSC-Unity-Tool/releases/latest";
@@ -437,7 +465,7 @@ namespace StoriesOfYggdrasil.OSC
         // TB16 avatar/runtime compatibility contract. The Desktop OSC runtime reads these
         // local, unsynced avatar parameters and refuses Stories-generated gameplay input
         // from legacy/invalid schemas. OSC contract v19 is the first Unity-enforced marker.
-        private const int OscProtocolVersion = 20;
+        private const int OscProtocolVersion = 21;
         private const string UnityMarkerLayer = "Stories Of Yggdrasil | Unity Tool Marker";
         private const string UnityMarkerStateA = "SoY Marker Beacon A";
         private const string UnityMarkerStateB = "SoY Marker Beacon B";
@@ -871,6 +899,17 @@ namespace StoriesOfYggdrasil.OSC
             new ActionDefinition(99, "Wither", "Lower one foe's strength."),
         };
 
+        private static readonly HashSet<int> HelpfulPhysicalItemIds = new HashSet<int>
+        {
+            1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+            28, 30, 31, 37, 40, 43, 50
+        };
+
+        private static bool IsHelpfulPhysicalItem(int id)
+        {
+            return HelpfulPhysicalItemIds.Contains(id);
+        }
+
         private static readonly ActionDefinition[] ItemDefinitions =
         {
             new ActionDefinition(1, "Potion", "Restores 120 HP and removes 1 wound; amount increases with Potion Lore."),
@@ -1009,6 +1048,19 @@ namespace StoriesOfYggdrasil.OSC
             new ParameterSpec(ItemBitParameterPrefix + "5", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(ItemBitParameterPrefix + "6", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(ItemBitParameterPrefix + "7", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemSelfTouchParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemOtherTouchParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemActiveParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "0", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "1", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "2", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "3", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "4", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "5", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "6", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "7", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemUseResultParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
+            new ParameterSpec(HelpfulItemReceiveResultParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
             new ParameterSpec("SoY_HealingSourceEnemy", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(DamageSourceEnemyParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(ExternalDamageSourceParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
@@ -1113,6 +1165,17 @@ namespace StoriesOfYggdrasil.OSC
             public bool enabled = true;
             public float recoverySeconds;
             public float contactWindowSeconds = DefaultContactWindowSeconds;
+
+            // TB18 physical helpful-item authoring. Ignored for Technicks.
+            public bool physicalHelpful;
+            public string physicalPropPath;
+            public HelpfulItemHand helpfulHand = HelpfulItemHand.Right;
+            public HelpfulItemGesture grabGesture = HelpfulItemGesture.Fist;
+            public HelpfulItemGesture useGesture = HelpfulItemGesture.HandOpen;
+            public bool helpfulAllowSelf = true;
+            public bool helpfulAllowOthers = true;
+            public string helpfulSuccessClipPath;
+            public string helpfulFailureClipPath;
         }
 
         [Serializable]
@@ -11919,8 +11982,8 @@ namespace StoriesOfYggdrasil.OSC
             var validB = states.FirstOrDefault(state => state.name == UnityMarkerStateB);
             var invalid = states.FirstOrDefault(state => state.name == UnityMarkerStateInvalid);
 
-            var validPair = MarkerStatePublishes(validA, true, 117) &&
-                            MarkerStatePublishes(validB, true, 118);
+            var validPair = MarkerStatePublishes(validA, true, 121) &&
+                            MarkerStatePublishes(validB, true, 122);
             var invalidMarker = MarkerStatePublishes(invalid, false, 0);
             return validPair || invalidMarker;
         }
@@ -11950,8 +12013,8 @@ namespace StoriesOfYggdrasil.OSC
                 .ToArray();
             var stateA = states.FirstOrDefault(state => state.name == UnityMarkerStateA);
             var stateB = states.FirstOrDefault(state => state.name == UnityMarkerStateB);
-            if (!MarkerStatePublishes(stateA, true, 117) ||
-                !MarkerStatePublishes(stateB, true, 118))
+            if (!MarkerStatePublishes(stateA, true, 121) ||
+                !MarkerStatePublishes(stateB, true, 122))
                 return false;
 
             var machine = layers[0].stateMachine;
@@ -12014,8 +12077,8 @@ namespace StoriesOfYggdrasil.OSC
                 var stateB = AddHookState(layer.stateMachine, UnityMarkerStateB, new Vector3(560f, 100f));
                 stateA.motion = CreateOrReplaceTimerClip(folder + "/SOY_UnityMarker_Beacon_A.anim", 2f);
                 stateB.motion = CreateOrReplaceTimerClip(folder + "/SOY_UnityMarker_Beacon_B.anim", 2f);
-                ConfigureUnityMarkerDriver(stateA, true, 117);
-                ConfigureUnityMarkerDriver(stateB, true, 118);
+                ConfigureUnityMarkerDriver(stateA, true, 121);
+                ConfigureUnityMarkerDriver(stateB, true, 122);
                 layer.stateMachine.defaultState = stateA;
 
                 var toB = stateA.AddTransition(stateB);
@@ -12046,7 +12109,7 @@ namespace StoriesOfYggdrasil.OSC
                 fxController.layers.Any(layer => layer.name == UnityMarkerLayer && layer.stateMachine != null);
             var schemaValid = managedRepairAuditReady && CurrentSchemaIsValid();
             DrawTagRow("Unity Tool", "v" + Version + " " + BuildNumber, "Written into the avatar marker layer");
-            DrawTagRow("OSC Protocol", OscProtocolVersion.ToString(), "Desktop v0.8.21-prebuild.4 requires protocol 20 for Stories-generated gameplay Contacts");
+            DrawTagRow("OSC Protocol", OscProtocolVersion.ToString(), "Desktop v0.8.22-prebuild.1 requires Protocol 21 for physical helpful-item interactions");
             DrawTagRow("Marker Layer",
                 markerPresent ? "✓ Installed" :
                 markerStructurePresent ? "! Installed / Schema Invalid" :
@@ -12054,7 +12117,7 @@ namespace StoriesOfYggdrasil.OSC
                 UnityMarkerLayer);
             DrawTagRow("Schema", markerPresent && schemaValid ? "✓ Valid" : "✕ Update Required", "Legacy/broken Stories-managed Contacts remain blocked by the Desktop runtime");
             EditorGUILayout.HelpBox(
-                "TB17.5 validates Protocol 20 marker metadata from the local Avatar Parameter Driver itself. Marker state names are now fixed, minimal, and version-agnostic so Unity state-name parsing cannot break compatibility detection.",
+                "TB18 keeps the metadata-based compatibility marker and adds Protocol 21 physical helpful-item interactions. The 121/122 local beacon identifies the TB18 / Protocol 21 schema to Desktop v0.8.22-prebuild.1.",
                 markerPresent && schemaValid ? MessageType.Info : MessageType.Warning);
             using (new EditorGUI.DisabledScope(avatarDescriptor == null))
             {
