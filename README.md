@@ -1,18 +1,29 @@
-# Stories OSC Unity Tool v0.5.10 TB17.4
+# Stories OSC Unity Tool v0.5.10 TB17.5
 
-Current prerelease: **Stories OSC Unity Tool v0.5.10 TB17.4 — Animator Integrity Hotfix**.
+Current prerelease: **Stories OSC Unity Tool v0.5.10 TB17.5 — Animator Integrity Hotfix**.
 
 This repository contains the Unity Editor authoring/repair tool for the Stories Of Yggdrasil OSC Contact System used by VRChat avatars.
 
 ## Install
 
-Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB17.4.unitypackage`, or copy the canonical script to:
+Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB17.5.unitypackage`, or copy the canonical script to:
 
 ```text
 Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs
 ```
 
 Only one `StoriesOfYggdrasilOSCContactSystem` script should exist inside a Unity project's `Assets` folder.
+
+## TB17.5 — marker metadata contract
+
+TB17.5 removes version/protocol/schema parsing from Animator state names entirely.
+
+- Marker states now use fixed safe names: `SoY Marker Beacon A`, `SoY Marker Beacon B`, and `SoY Marker INVALID`.
+- Current build, Protocol 20, schema-validity, and beacon values are validated from the local `VRCAvatarParameterDriver` metadata inside the marker states.
+- Marker validity now checks the 117/118 beacon transitions and the actual driver values instead of decorative labels.
+- Generated state-name sanitization remains in place and now emits an explicit diagnostic if it ever has to modify a name.
+- TB17.4 bridge-parameter restoration and TB17.2 controller-integrity protections are retained.
+- Sam.py and OSC Protocol 20 remain unchanged.
 
 ## TB17.4 — marker convergence hotfix
 
