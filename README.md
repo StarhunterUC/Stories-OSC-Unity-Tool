@@ -1,18 +1,31 @@
-# Stories OSC Unity Tool v0.5.10 TB17.1
+# Stories OSC Unity Tool v0.5.10 TB17.2
 
-Current prerelease: **Stories OSC Unity Tool v0.5.10 TB17.1 — Automated Action Authoring**.
+Current prerelease: **Stories OSC Unity Tool v0.5.10 TB17.2 — Animator Integrity Hotfix**.
 
 This repository contains the Unity Editor authoring/repair tool for the Stories Of Yggdrasil OSC Contact System used by VRChat avatars.
 
 ## Install
 
-Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB17.1.unitypackage`, or copy the canonical script to:
+Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB17.2.unitypackage`, or copy the canonical script to:
 
 ```text
 Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs
 ```
 
 Only one `StoriesOfYggdrasilOSCContactSystem` script should exist inside a Unity project's `Assets` folder.
+
+## TB17.2 — Animator integrity hotfix
+
+TB17.2 hardens the Unity-side repair path after TB17.1 could leave unreachable Animator transition subassets inside an FX controller when rebuilding the compatibility marker layer.
+
+Changes:
+
+- Safe layer removal now destroys only Animator graph subassets that become unreachable after the target Stories-managed layer is removed.
+- Managed repair creates a full FX controller backup before mutating Animator data.
+- Managed repair removes unreachable transition subassets, validates the live Animator graph, and only saves after integrity validation passes.
+- Marker publication is deferred until the complete repair transaction has passed its core audit.
+- Added **REPAIR ANIMATOR INTEGRITY** for controllers already affected by TB17.1. It removes only unreachable transition subassets and refuses to commit if the live graph still contains missing destinations, missing defaults, or missing state-machine references.
+- Sam.py and the Desktop OSC transport contract are unchanged.
 
 ## TB17.1 — automated authoring + marker self-healing on protocol 20
 
