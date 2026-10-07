@@ -2,14 +2,14 @@
   "product": "Stories Of Yggdrasil OSC Contact System",
   "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
   "version": "0.5.10",
-  "build_number": "TB17.3",
-  "build_label": "Test Build 17.3 — Marker State-Name Hotfix",
-  "tag": "v0.5.10-TB17.3",
+  "build_number": "TB17.4",
+  "build_label": "Test Build 17.4 — Marker Convergence Hotfix",
+  "tag": "v0.5.10-TB17.4",
   "channel": "test",
   "prerelease": true,
   "canonical_source_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
   "unity_asset_path": "Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs",
-  "source_sha256": "8df8a840bfab76e6828f8b09c8da4cbc6fe5225724b5a80cc2a2bc0250c14e80",
+  "source_sha256": "0c4e72b3ba0afbb1238f74d2c6947feb714d5c4ee5d94f20725bef55a558fcdb",
   "minimum_vrchat_avatars_sdk": "3.10.3",
   "recommended_tested_sdk_line": "3.10.5-beta.1",
   "osc_protocol_version": 20,
@@ -19,5 +19,5 @@
     "technick_registry": "registries/TECHNICK_ID_REGISTRY_v1.json",
     "item_registry": "registries/ITEM_ID_REGISTRY_v1.json"
   },
-  "display_version": "Stories OSC Unity Tool v0.5.10 TB17.3"
+  "display_version": "Stories OSC Unity Tool v0.5.10 TB17.4"
 }
