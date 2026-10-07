@@ -31,8 +31,8 @@ namespace StoriesOfYggdrasil.OSC
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
         private const string Version = "0.5.10";
-        private const string BuildNumber = "TB17.3";
-        private const string BuildLabel = "Test Build 17.3 — Marker State-Name Hotfix";
+        private const string BuildNumber = "TB17.4";
+        private const string BuildLabel = "Test Build 17.4 — Marker Convergence Hotfix";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
         private static readonly string[] RaycastTypeNames =
@@ -3205,7 +3205,10 @@ namespace StoriesOfYggdrasil.OSC
                     // the published schema marker is valid. The compatibility marker itself
                     // is ignored by ManagedSchemaCoreIsValid().
                     AuditManagedSystems();
-                    RebuildUnityToolMarkerLayer(ManagedSchemaCoreIsValid());
+                    var coreSchemaValid = ManagedSchemaCoreIsValid();
+                    if (!coreSchemaValid)
+                        operationLog.Insert(0, "Marker remains schema INVALID: " + ManagedSchemaCoreFailureSummary());
+                    RebuildUnityToolMarkerLayer(coreSchemaValid);
 
                     var postMarkerOrphans = CleanupOrphanedAnimatorTransitions(fxController);
                     if (postMarkerOrphans > 0)
@@ -3414,7 +3417,13 @@ namespace StoriesOfYggdrasil.OSC
                     break;
                 case ManagedRepairKind.UnityCompatibilityMarker:
                     var repairedMarkerParameters = RepairUnityMarkerParameterContract();
-                    operationLog.Insert(0, "Repaired Unity compatibility marker parameter contract (" + repairedMarkerParameters + " parameter change(s)). Marker publication is deferred until the complete repair transaction passes its core audit.");
+                    var restoredAnimatorParameters = fxController != null ? AddMissingAnimatorParameters(fxController) : 0;
+                    var restoredExpressionParameters = expressionParameters != null ? AddMissingExpressionParameters(expressionParameters) : 0;
+                    operationLog.Insert(0,
+                        "Repaired Unity compatibility marker contract (" + repairedMarkerParameters +
+                        " marker setting change(s), " + restoredAnimatorParameters +
+                        " missing Animator parameter(s), " + restoredExpressionParameters +
+                        " missing/repaired Expression parameter setting(s)). Marker publication is deferred until the complete repair transaction passes its core audit.");
                     break;
             }
         }
@@ -11649,6 +11658,56 @@ namespace StoriesOfYggdrasil.OSC
             return new[] { tb, revision };
         }
 
+        private string ManagedSchemaCoreFailureSummary()
+        {
+            if (fxController == null)
+                return "FX AnimatorController is not assigned.";
+            if (expressionParameters == null)
+                return "Expression Parameters asset is not assigned.";
+            if (!managedRepairAuditReady)
+                return "Managed-system audit has not completed.";
+
+            var problems = new List<string>();
+            var animatorMap = fxController.parameters
+                .GroupBy(parameter => parameter.name)
+                .ToDictionary(group => group.Key, group => group.First().type, StringComparer.Ordinal);
+            foreach (var spec in BridgeParameters)
+            {
+                AnimatorControllerParameterType animatorType;
+                if (!animatorMap.TryGetValue(spec.Name, out animatorType))
+                    problems.Add("Animator missing " + spec.Name);
+                else if (animatorType != spec.AnimatorType)
+                    problems.Add("Animator " + spec.Name + " is " + animatorType + ", expected " + spec.AnimatorType);
+            }
+
+            var expressionMap = (expressionParameters.parameters ?? Array.Empty<VRCExpressionParameters.Parameter>())
+                .Where(parameter => parameter != null)
+                .GroupBy(parameter => parameter.name)
+                .ToDictionary(group => group.Key, group => group.First().valueType, StringComparer.Ordinal);
+            foreach (var spec in BridgeParameters)
+            {
+                VRCExpressionParameters.ValueType expressionType;
+                if (!expressionMap.TryGetValue(spec.Name, out expressionType))
+                    problems.Add("Expression missing " + spec.Name);
+                else if (expressionType != spec.ExpressionType)
+                    problems.Add("Expression " + spec.Name + " is " + expressionType + ", expected " + spec.ExpressionType);
+            }
+
+            foreach (var finding in managedRepairFindings.Where(finding =>
+                finding.Kind != ManagedRepairKind.UnityCompatibilityMarker &&
+                (finding.State == ManagedRepairState.Outdated ||
+                 finding.State == ManagedRepairState.Repairable ||
+                 finding.State == ManagedRepairState.Broken ||
+                 finding.State == ManagedRepairState.Defunct)).Take(8))
+            {
+                problems.Add((finding.Role ?? finding.Kind.ToString()) + " still requires repair");
+            }
+
+            return problems.Count == 0
+                ? "No core-schema failure detected."
+                : string.Join(" | ", problems.Take(16).ToArray());
+        }
+
         private bool ManagedSchemaCoreIsValid()
         {
             if (fxController == null || expressionParameters == null || !managedRepairAuditReady)
@@ -11814,7 +11873,8 @@ namespace StoriesOfYggdrasil.OSC
                 state.name.IndexOf("Protocol " + OscProtocolVersion, StringComparison.Ordinal) >= 0);
             var hasBeaconA = states.Any(state => state.name.IndexOf("Beacon A", StringComparison.Ordinal) >= 0);
             var hasBeaconB = states.Any(state => state.name.IndexOf("Beacon B", StringComparison.Ordinal) >= 0);
-            var hasInvalidState = states.Any(state => state.name.IndexOf("/ INVALID", StringComparison.Ordinal) >= 0);
+            var hasInvalidState = states.Any(state =>
+                state.name.IndexOf("INVALID", StringComparison.OrdinalIgnoreCase) >= 0);
 
             return animatorBeacon && expressionBeacon && hasCurrentBuild &&
                    ((hasBeaconA && hasBeaconB) || hasInvalidState);
@@ -11948,7 +12008,7 @@ namespace StoriesOfYggdrasil.OSC
                 UnityMarkerLayer);
             DrawTagRow("Schema", markerPresent && schemaValid ? "✓ Valid" : "✕ Update Required", "Legacy/broken Stories-managed Contacts remain blocked by the Desktop runtime");
             EditorGUILayout.HelpBox(
-                "TB17.3 uses Unity-safe marker state names and repairs the periodic Protocol 20 compatibility beacon without slash-delimited Animator state labels.",
+                "TB17.4 closes the marker repair loop: current INVALID markers are recognized correctly, missing Stories bridge parameters are restored during marker repair, and remaining schema failures are logged explicitly.",
                 markerPresent && schemaValid ? MessageType.Info : MessageType.Warning);
             using (new EditorGUI.DisabledScope(avatarDescriptor == null))
             {
