@@ -65,13 +65,13 @@ def main() -> int:
     text = source.read_text(encoding='utf-8-sig')
     checks = {
         'version': version.get('version') == '0.5.10',
-        'build_number': version.get('build_number') == 'TB17.4',
-        'tag': tag == 'v0.5.10-TB17.4',
+        'build_number': version.get('build_number') == 'TB17.5',
+        'tag': tag == 'v0.5.10-TB17.5',
         'protocol_metadata': version.get('osc_protocol_version') == 20,
         'desktop_metadata': version.get('minimum_desktop_version') == '0.8.21-prebuild.4',
         'source_header_version': 'private const string Version = "0.5.10";' in text,
-        'source_header_build': 'private const string BuildNumber = "TB17.4";' in text,
-        'source_header_label': 'Marker Convergence Hotfix' in text,
+        'source_header_build': 'private const string BuildNumber = "TB17.5";' in text,
+        'source_header_label': 'Marker Metadata Contract' in text,
         'source_protocol': 'private const int OscProtocolVersion = 20;' in text,
         'canonical_and_unity_source_identical': source.read_bytes() == unity_source.read_bytes(),
 
@@ -93,6 +93,9 @@ def main() -> int:
         'marker_invalid_state_recognition': 'IndexOf("INVALID", StringComparison.OrdinalIgnoreCase)' in text,
         'marker_restores_bridge_parameters': 'AddMissingAnimatorParameters(fxController)' in text and 'AddMissingExpressionParameters(expressionParameters)' in text,
         'marker_schema_failure_diagnostics': 'ManagedSchemaCoreFailureSummary' in text and 'Marker remains schema INVALID' in text,
+        'marker_driver_metadata_validation': 'MarkerStatePublishes' in text and 'DriverPublishesValue' in text,
+        'marker_fixed_safe_state_names': 'SoY Marker Beacon A' in text and 'SoY Marker Beacon B' in text and 'SoY Marker INVALID' in text,
+        'marker_transition_validation': 'destinationState == stateB' in text and 'destinationState == stateA' in text,
         'migration_ui': 'MIGRATE / VALIDATE AVATAR FOR PROTOCOL ' in text,
         'schema_validation': 'CurrentSchemaIsValid()' in text and 'RebuildUnityToolMarkerLayer' in text,
 
@@ -161,7 +164,7 @@ def main() -> int:
         raise SystemExit(f'Source SHA mismatch: expected {expected}, received {actual}')
 
     contract_data = json.loads(contract.read_text(encoding='utf-8'))
-    if contract_data.get('osc_protocol_version') != 20 or contract_data.get('build_number') != 'TB17.4':
+    if contract_data.get('osc_protocol_version') != 20 or contract_data.get('build_number') != 'TB17.5':
         raise SystemExit('Verification failed: current Unity contract metadata mismatch')
 
     audit_data = json.loads(source_audit.read_text(encoding='utf-8'))
