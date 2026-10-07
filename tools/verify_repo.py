@@ -65,13 +65,13 @@ def main() -> int:
     text = source.read_text(encoding='utf-8-sig')
     checks = {
         'version': version.get('version') == '0.5.10',
-        'build_number': version.get('build_number') == 'TB17.3',
-        'tag': tag == 'v0.5.10-TB17.3',
+        'build_number': version.get('build_number') == 'TB17.4',
+        'tag': tag == 'v0.5.10-TB17.4',
         'protocol_metadata': version.get('osc_protocol_version') == 20,
         'desktop_metadata': version.get('minimum_desktop_version') == '0.8.21-prebuild.4',
         'source_header_version': 'private const string Version = "0.5.10";' in text,
-        'source_header_build': 'private const string BuildNumber = "TB17.3";' in text,
-        'source_header_label': 'Marker State-Name Hotfix' in text,
+        'source_header_build': 'private const string BuildNumber = "TB17.4";' in text,
+        'source_header_label': 'Marker Convergence Hotfix' in text,
         'source_protocol': 'private const int OscProtocolVersion = 20;' in text,
         'canonical_and_unity_source_identical': source.read_bytes() == unity_source.read_bytes(),
 
@@ -90,6 +90,9 @@ def main() -> int:
         'animator_state_name_sanitizer': 'SanitizeAnimatorStateName' in text and 'name.Replace("/", " - ")' in text,
         'marker_legal_state_names': ' - Valid - Beacon A' in text and ' - Valid - Beacon B' in text,
         'repair_convergence_reporting': 'Repair transaction committed, but ' in text and 'Repair Needs Another Look' in text,
+        'marker_invalid_state_recognition': 'IndexOf("INVALID", StringComparison.OrdinalIgnoreCase)' in text,
+        'marker_restores_bridge_parameters': 'AddMissingAnimatorParameters(fxController)' in text and 'AddMissingExpressionParameters(expressionParameters)' in text,
+        'marker_schema_failure_diagnostics': 'ManagedSchemaCoreFailureSummary' in text and 'Marker remains schema INVALID' in text,
         'migration_ui': 'MIGRATE / VALIDATE AVATAR FOR PROTOCOL ' in text,
         'schema_validation': 'CurrentSchemaIsValid()' in text and 'RebuildUnityToolMarkerLayer' in text,
 
@@ -158,7 +161,7 @@ def main() -> int:
         raise SystemExit(f'Source SHA mismatch: expected {expected}, received {actual}')
 
     contract_data = json.loads(contract.read_text(encoding='utf-8'))
-    if contract_data.get('osc_protocol_version') != 20 or contract_data.get('build_number') != 'TB17.3':
+    if contract_data.get('osc_protocol_version') != 20 or contract_data.get('build_number') != 'TB17.4':
         raise SystemExit('Verification failed: current Unity contract metadata mismatch')
 
     audit_data = json.loads(source_audit.read_text(encoding='utf-8'))
