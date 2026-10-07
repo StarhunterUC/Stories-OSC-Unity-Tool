@@ -4456,6 +4456,7 @@ namespace StoriesOfYggdrasil.OSC
             RebuildSpellCastAnimationLayer();
             RebuildActionAnimationLayer(ActionAnimationKind.Technick, "SoY_TechnickType", TechnickCastLayer, animationProfile.technickAnimations);
             RebuildActionAnimationLayer(ActionAnimationKind.Item, "SoY_ItemType", ItemUseLayer, animationProfile.itemAnimations);
+            RebuildAllHelpfulItemInteractions();
             RebuildSpellAlignmentLayer();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -5685,6 +5686,43 @@ namespace StoriesOfYggdrasil.OSC
             if (animationProfile.useGenericEvadeFallback && generic != null)
                 return EvasionDefinitions.OrderBy(x => x.Id).ToArray();
             return EvasionDefinitions.Where(x => ids.Contains(x.Id)).OrderBy(x => x.Id).ToArray();
+        }
+
+        private GameObject FindAvatarObjectByRelativePath(string relativePath)
+        {
+            if (avatarRoot == null || string.IsNullOrWhiteSpace(relativePath))
+                return null;
+            var found = avatarRoot.transform.Find(relativePath);
+            return found != null ? found.gameObject : null;
+        }
+
+        private bool TryStoreHelpfulPropPath(ActionAnimationBinding binding, GameObject prop)
+        {
+            if (binding == null)
+                return false;
+            if (prop == null)
+            {
+                binding.physicalPropPath = string.Empty;
+                return true;
+            }
+            if (avatarRoot == null)
+                return false;
+            var relative = GetRelativePath(avatarRoot.transform, prop.transform);
+            if (relative == null)
+            {
+                EditorUtility.DisplayDialog(
+                    "Helpful Item Prop",
+                    "The selected object must live under the currently loaded avatar root.",
+                    "OK");
+                return false;
+            }
+            binding.physicalPropPath = relative;
+            return true;
+        }
+
+        private static string GestureParameterForHand(HelpfulItemHand hand)
+        {
+            return hand == HelpfulItemHand.Left ? "GestureLeft" : "GestureRight";
         }
 
         private void DrawActionAnimationBuilder(
@@ -9955,6 +9993,9 @@ namespace StoriesOfYggdrasil.OSC
             }
             SyncInstalledActionAnimationProfile(ActionAnimationKind.Item);
             RebuildActionAnimationLayer(ActionAnimationKind.Item, "SoY_ItemType", ItemUseLayer, animationProfile.itemAnimations);
+            var physicalBinding = animationProfile.itemAnimations.FirstOrDefault(binding => binding != null && binding.id == item.Id);
+            if (physicalBinding != null && physicalBinding.physicalHelpful)
+                RebuildHelpfulItemInteraction(physicalBinding);
             RebuildSpellAlignmentLayer();
         }
 
