@@ -27,6 +27,8 @@ jobs:
           base64 -d /tmp/tb17.patch.xz.b64 > /tmp/tb17.patch.xz
           xz -dc /tmp/tb17.patch.xz > /tmp/tb17.patch
           patch -p1 --forward < /tmp/tb17.patch
+          # The verifier's dist ignore check must address the ignored directory form.
+          sed -i "s/git_is_ignored(root, 'dist')/git_is_ignored(root, 'dist\\/')/" tools/verify_repo.py
           rm -rf .tb17-patch
           rm -f .github/workflows/tb17-bootstrap.yml
 
