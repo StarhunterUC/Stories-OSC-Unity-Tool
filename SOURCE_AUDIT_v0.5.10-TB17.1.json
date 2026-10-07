@@ -4,7 +4,7 @@
   "tag": "v0.5.10-TB17.1",
   "osc_protocol_version": 20,
   "minimum_desktop_version": "0.8.21-prebuild.4",
-  "source_sha256": "8d23d73eee75689a7e6cda6c686985ac39ff8f64fdc24fdc1768b4bf0bbcaa96",
+  "source_sha256": "43cf9ba1f08821599c0eadb372d9f92ea470ed3702dc2dd2413ae5341b9d4fea",
   "checks": {
     "build_header": true,
     "protocol_marker": true,
@@ -25,7 +25,9 @@
     "legacy_empty_cast_placeholder_migration": true,
     "generic_evade_fallback": true,
     "external_contact_compatibility_v18": true,
-    "canonical_external_alignment_split": true
+    "canonical_external_alignment_split": true,
+    "marker_parameter_type_repair": true,
+    "marker_intermediate_structure": true
   },
   "sam_py_patch_required": false,
   "desktop_patch_required": true,
