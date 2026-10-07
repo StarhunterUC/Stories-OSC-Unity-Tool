@@ -31,8 +31,8 @@ namespace StoriesOfYggdrasil.OSC
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
         private const string Version = "0.5.10";
-        private const string BuildNumber = "TB17.1";
-        private const string BuildLabel = "Test Build 17.1 — Marker Self-Healing";
+        private const string BuildNumber = "TB17.2";
+        private const string BuildLabel = "Test Build 17.2 — Animator Integrity Hotfix";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
         private static readonly string[] RaycastTypeNames =
@@ -1489,6 +1489,7 @@ namespace StoriesOfYggdrasil.OSC
         private string managedRepairSummary = "Run an audit to inspect Stories-managed contacts.";
         private string managedRepairPreview = "No repair preview generated.";
         private string lastRepairSnapshotPath = string.Empty;
+        private string lastAnimatorIntegrityBackupPath = string.Empty;
         private bool managedRepairAuditReady;
         private bool managedRepairShowHealthy;
         private bool managedRepairShowForeign;
@@ -2614,6 +2615,15 @@ namespace StoriesOfYggdrasil.OSC
             }
             EditorGUILayout.EndHorizontal();
 
+            using (new EditorGUI.DisabledScope(fxController == null))
+            {
+                if (GUILayout.Button("REPAIR ANIMATOR INTEGRITY", GUILayout.Height(largeControls ? 44f : 32f)))
+                    RepairAnimatorControllerIntegrity();
+            }
+            EditorGUILayout.HelpBox(
+                "TB17.2 safety repair: removes only unreachable Animator transition subassets, validates every live layer/state transition, and refuses to save if the live controller graph is still broken. A full controller backup is created before cleanup.",
+                MessageType.Info);
+
             managedRepairConfirmDestructive = EditorGUILayout.ToggleLeft(
                 "Require confirmation before removing defunct or duplicate managed components",
                 managedRepairConfirmDestructive);
@@ -2624,6 +2634,8 @@ namespace StoriesOfYggdrasil.OSC
             EditorGUILayout.LabelField(managedRepairSummary, wrappedLabel);
             if (!string.IsNullOrWhiteSpace(lastRepairSnapshotPath))
                 EditorGUILayout.SelectableLabel("Last snapshot: " + lastRepairSnapshotPath, EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight));
+            if (!string.IsNullOrWhiteSpace(lastAnimatorIntegrityBackupPath))
+                EditorGUILayout.SelectableLabel("Animator backup: " + lastAnimatorIntegrityBackupPath, EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight));
             EndCard();
 
             BeginCard("Repair Preview");
@@ -2763,7 +2775,7 @@ namespace StoriesOfYggdrasil.OSC
                     State = ManagedRepairState.Repairable,
                     Kind = ManagedRepairKind.UnityCompatibilityMarker,
                     Role = "Unity Tool Compatibility Marker",
-                    Summary = "The avatar does not contain the current TB17.1 periodic Protocol 20 marker beacon, or one of its local Expression/Animator parameters is missing.",
+                    Summary = "The avatar does not contain the current " + BuildNumber + " periodic Protocol " + OscProtocolVersion + " marker beacon, or one of its local Expression/Animator parameters is missing.",
                     Action = "Rebuild the marker parameters/layer and install the periodic compatibility beacon so Desktop can rediscover the avatar after either program restarts."
                 });
             }
@@ -3154,6 +3166,9 @@ namespace StoriesOfYggdrasil.OSC
 
             var snapshots = CaptureRepairRuntimeSnapshots(findings.Select(finding => finding.Host).Distinct());
             lastRepairSnapshotPath = WriteRepairTransactionManifest(findings, snapshots);
+            if (fxController != null)
+                lastAnimatorIntegrityBackupPath = CreateAnimatorIntegrityBackup("managed_repair");
+
             Undo.IncrementCurrentGroup();
             var group = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName("Stories OSC Managed-System Repair");
@@ -3163,27 +3178,66 @@ namespace StoriesOfYggdrasil.OSC
             {
                 foreach (var snapshot in snapshots)
                     RegisterRepairUndo(snapshot.Host);
+
+                if (fxController != null)
+                    Undo.RecordObject(fxController, "Preserve Stories FX Controller");
+
                 foreach (var finding in findings)
                     ApplyManagedRepairFinding(finding);
+
                 foreach (var snapshot in snapshots)
                 {
                     RestoreRepairRuntimeSnapshot(snapshot);
                     ValidateRepairRuntimeSnapshot(snapshot);
                 }
 
-                AssetDatabase.SaveAssets();
+                if (fxController != null)
+                {
+                    var preMarkerOrphans = CleanupOrphanedAnimatorTransitions(fxController);
+                    if (preMarkerOrphans > 0)
+                        operationLog.Insert(0, "Removed " + preMarkerOrphans + " unreachable Animator transition subasset(s) before marker publication.");
+
+                    // Re-audit the repaired contact/parameter state before deciding whether
+                    // the published schema marker is valid. The compatibility marker itself
+                    // is ignored by ManagedSchemaCoreIsValid().
+                    AuditManagedSystems();
+                    RebuildUnityToolMarkerLayer(ManagedSchemaCoreIsValid());
+
+                    var postMarkerOrphans = CleanupOrphanedAnimatorTransitions(fxController);
+                    if (postMarkerOrphans > 0)
+                        operationLog.Insert(0, "Removed " + postMarkerOrphans + " unreachable Animator transition subasset(s) after marker publication.");
+
+                    var integrity = InspectAnimatorControllerIntegrity(fxController);
+                    if (!integrity.IsValid)
+                        throw new InvalidOperationException("Animator integrity validation failed before save: " + integrity.Summary);
+                }
+
                 PrefabUtility.RecordPrefabInstancePropertyModifications(avatarRoot.transform);
+                AssetDatabase.SaveAssets();
+
+                // Disk write occurs only after graph validation. If SaveAssets itself throws,
+                // the catch path restores the Undo group and writes the restored controller.
                 Undo.CollapseUndoOperations(group);
                 AuditManagedSystems();
-                if (fxController != null)
-                    RebuildUnityToolMarkerLayer(ManagedSchemaCoreIsValid());
-                managedRepairPreview = "Repair committed successfully. Use Roll Back Last Repair to undo the complete transaction during this Unity session.";
+
+                managedRepairPreview = "Repair committed successfully. Animator graph validation passed before save. Use Roll Back Last Repair to undo the complete transaction during this Unity session.";
                 Log("Managed-system repair completed: " + findings.Count + " action(s). Snapshot: " + lastRepairSnapshotPath);
             }
             catch (Exception exception)
             {
                 Undo.RevertAllDownToGroup(group);
                 lastRepairUndoGroup = -1;
+                try
+                {
+                    if (fxController != null)
+                        EditorUtility.SetDirty(fxController);
+                    AssetDatabase.SaveAssets();
+                }
+                catch (Exception saveException)
+                {
+                    Debug.LogException(saveException);
+                }
+                AuditManagedSystems();
                 managedRepairPreview = "Repair failed and was rolled back: " + exception.Message;
                 Debug.LogException(exception);
                 EditorUtility.DisplayDialog("Stories OSC Repair Rolled Back", managedRepairPreview, "OK");
@@ -3339,8 +3393,7 @@ namespace StoriesOfYggdrasil.OSC
                     break;
                 case ManagedRepairKind.UnityCompatibilityMarker:
                     var repairedMarkerParameters = RepairUnityMarkerParameterContract();
-                    RebuildUnityToolMarkerLayer(false);
-                    operationLog.Insert(0, "Repaired Unity compatibility marker contract (" + repairedMarkerParameters + " parameter change(s)) and rebuilt the marker layer.");
+                    operationLog.Insert(0, "Repaired Unity compatibility marker parameter contract (" + repairedMarkerParameters + " parameter change(s)). Marker publication is deferred until the complete repair transaction passes its core audit.");
                     break;
             }
         }
@@ -11185,12 +11238,353 @@ namespace StoriesOfYggdrasil.OSC
             return clip;
         }
 
+        private sealed class AnimatorIntegrityReport
+        {
+            public int LayerCount;
+            public int ReachableObjectCount;
+            public int OrphanTransitionCount;
+            public readonly List<string> Errors = new List<string>();
+
+            public bool IsValid
+            {
+                get { return OrphanTransitionCount == 0 && Errors.Count == 0; }
+            }
+
+            public string Summary
+            {
+                get
+                {
+                    if (IsValid)
+                        return "Healthy — " + LayerCount + " layer(s), " + ReachableObjectCount + " reachable graph object(s), no orphan transitions.";
+                    var parts = new List<string>();
+                    if (OrphanTransitionCount > 0)
+                        parts.Add(OrphanTransitionCount + " unreachable transition subasset(s)");
+                    if (Errors.Count > 0)
+                        parts.Add(Errors.Count + " live graph error(s): " + string.Join(" | ", Errors.Take(4).ToArray()));
+                    return string.Join("; ", parts.ToArray());
+                }
+            }
+        }
+
+        private static HashSet<UnityEngine.Object> CollectReachableAnimatorObjects(AnimatorController controller)
+        {
+            var reachable = new HashSet<UnityEngine.Object>();
+            if (controller == null)
+                return reachable;
+
+            foreach (var layer in controller.layers)
+                CollectReachableAnimatorObjects(layer.stateMachine, reachable);
+            return reachable;
+        }
+
+        private static void CollectReachableAnimatorObjects(AnimatorStateMachine machine, HashSet<UnityEngine.Object> reachable)
+        {
+            if (machine == null || reachable == null || !reachable.Add(machine))
+                return;
+
+            foreach (var child in machine.states)
+            {
+                var state = child.state;
+                if (state == null)
+                    continue;
+                reachable.Add(state);
+
+                foreach (var behaviour in state.behaviours ?? Array.Empty<StateMachineBehaviour>())
+                    if (behaviour != null)
+                        reachable.Add(behaviour);
+
+                foreach (var transition in state.transitions ?? Array.Empty<AnimatorStateTransition>())
+                    if (transition != null)
+                        reachable.Add(transition);
+            }
+
+            foreach (var transition in machine.anyStateTransitions ?? Array.Empty<AnimatorStateTransition>())
+                if (transition != null)
+                    reachable.Add(transition);
+
+            foreach (var transition in machine.entryTransitions ?? Array.Empty<AnimatorTransition>())
+                if (transition != null)
+                    reachable.Add(transition);
+
+            foreach (var childMachine in machine.stateMachines)
+                if (childMachine.stateMachine != null)
+                    CollectReachableAnimatorObjects(childMachine.stateMachine, reachable);
+        }
+
+        private static List<UnityEngine.Object> FindOrphanedAnimatorTransitions(AnimatorController controller)
+        {
+            var result = new List<UnityEngine.Object>();
+            if (controller == null)
+                return result;
+
+            var path = AssetDatabase.GetAssetPath(controller);
+            if (string.IsNullOrWhiteSpace(path))
+                return result;
+
+            var reachable = CollectReachableAnimatorObjects(controller);
+            foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(path))
+            {
+                if (asset == null || reachable.Contains(asset))
+                    continue;
+                if (asset is AnimatorStateTransition || asset is AnimatorTransition)
+                    result.Add(asset);
+            }
+            return result;
+        }
+
+        private static void ValidateStateMachineIntegrity(
+            AnimatorStateMachine machine,
+            string path,
+            AnimatorIntegrityReport report,
+            HashSet<AnimatorStateMachine> visited)
+        {
+            if (machine == null)
+            {
+                report.Errors.Add(path + " has a missing state machine.");
+                return;
+            }
+            if (!visited.Add(machine))
+                return;
+
+            var directStates = machine.states
+                .Select(child => child.state)
+                .Where(state => state != null)
+                .ToArray();
+
+            if (machine.states.Any(child => child.state == null))
+                report.Errors.Add(path + " contains a missing state reference.");
+
+            if (directStates.Length > 0)
+            {
+                if (machine.defaultState == null)
+                    report.Errors.Add(path + " has states but no default state.");
+                else if (!directStates.Contains(machine.defaultState))
+                    report.Errors.Add(path + " default state is not one of its direct child states.");
+            }
+
+            foreach (var state in directStates)
+            {
+                foreach (var transition in state.transitions ?? Array.Empty<AnimatorStateTransition>())
+                {
+                    if (transition == null)
+                    {
+                        report.Errors.Add(path + "/" + state.name + " contains a missing transition reference.");
+                        continue;
+                    }
+                    if (!transition.isExit && transition.destinationState == null && transition.destinationStateMachine == null)
+                        report.Errors.Add(path + "/" + state.name + " has a transition with no live destination.");
+                }
+            }
+
+            foreach (var transition in machine.anyStateTransitions ?? Array.Empty<AnimatorStateTransition>())
+            {
+                if (transition == null)
+                {
+                    report.Errors.Add(path + " Any State contains a missing transition reference.");
+                    continue;
+                }
+                if (!transition.isExit && transition.destinationState == null && transition.destinationStateMachine == null)
+                    report.Errors.Add(path + " Any State has a transition with no live destination.");
+            }
+
+            foreach (var transition in machine.entryTransitions ?? Array.Empty<AnimatorTransition>())
+            {
+                if (transition == null)
+                {
+                    report.Errors.Add(path + " Entry contains a missing transition reference.");
+                    continue;
+                }
+                if (transition.destinationState == null && transition.destinationStateMachine == null)
+                    report.Errors.Add(path + " Entry has a transition with no live destination.");
+            }
+
+            foreach (var child in machine.stateMachines)
+            {
+                if (child.stateMachine == null)
+                {
+                    report.Errors.Add(path + " contains a missing child state-machine reference.");
+                    continue;
+                }
+                ValidateStateMachineIntegrity(child.stateMachine, path + "/" + child.stateMachine.name, report, visited);
+            }
+        }
+
+        private static AnimatorIntegrityReport InspectAnimatorControllerIntegrity(AnimatorController controller)
+        {
+            var report = new AnimatorIntegrityReport();
+            if (controller == null)
+            {
+                report.Errors.Add("No FX AnimatorController is assigned.");
+                return report;
+            }
+
+            report.LayerCount = controller.layers.Length;
+            var visited = new HashSet<AnimatorStateMachine>();
+            foreach (var layer in controller.layers)
+            {
+                if (layer.stateMachine == null)
+                {
+                    report.Errors.Add("Layer '" + layer.name + "' has no state machine.");
+                    continue;
+                }
+                ValidateStateMachineIntegrity(layer.stateMachine, layer.name, report, visited);
+            }
+
+            report.ReachableObjectCount = CollectReachableAnimatorObjects(controller).Count;
+            report.OrphanTransitionCount = FindOrphanedAnimatorTransitions(controller).Count;
+            return report;
+        }
+
+        private static int CleanupOrphanedAnimatorTransitions(AnimatorController controller)
+        {
+            if (controller == null)
+                return 0;
+
+            var orphaned = FindOrphanedAnimatorTransitions(controller);
+            foreach (var transition in orphaned)
+            {
+                if (transition != null)
+                    Undo.DestroyObjectImmediate(transition);
+            }
+
+            if (orphaned.Count > 0)
+                EditorUtility.SetDirty(controller);
+            return orphaned.Count;
+        }
+
+        private string CreateAnimatorIntegrityBackup(string reason)
+        {
+            if (fxController == null)
+                return string.Empty;
+
+            var sourcePath = AssetDatabase.GetAssetPath(fxController);
+            if (string.IsNullOrWhiteSpace(sourcePath))
+                return string.Empty;
+
+            var folder = CurrentAvatarGeneratedFolder("Backups/Animator Integrity");
+            EnsureAssetFolder(folder);
+            var safeReason = MakeSafeAssetName(string.IsNullOrWhiteSpace(reason) ? "repair" : reason);
+            var targetPath = AssetDatabase.GenerateUniqueAssetPath(
+                folder + "/" + MakeSafeAssetName(fxController.name) + "_pre_" + BuildNumber.Replace(".", "_") + "_" + safeReason + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".controller");
+
+            if (!AssetDatabase.CopyAsset(sourcePath, targetPath))
+                throw new InvalidOperationException("Could not create the Animator integrity backup at '" + targetPath + "'.");
+
+            AssetDatabase.ImportAsset(targetPath, ImportAssetOptions.ForceUpdate);
+            operationLog.Insert(0, "Created full FX controller safety backup: " + targetPath);
+            return targetPath;
+        }
+
+        private void RepairAnimatorControllerIntegrity()
+        {
+            if (fxController == null)
+            {
+                EditorUtility.DisplayDialog("Animator Integrity", "Assign an FX AnimatorController first.", "OK");
+                return;
+            }
+
+            var before = InspectAnimatorControllerIntegrity(fxController);
+            var orphanCount = before.OrphanTransitionCount;
+            if (orphanCount == 0)
+            {
+                EditorUtility.DisplayDialog(
+                    "Animator Integrity",
+                    before.Errors.Count == 0
+                        ? "The controller graph is healthy. No unreachable transition subassets were found."
+                        : "No safe orphan-transition cleanup is available. Live graph errors remain and were not modified:\n\n" + before.Summary,
+                    "OK");
+                return;
+            }
+
+            lastAnimatorIntegrityBackupPath = CreateAnimatorIntegrityBackup("integrity_repair");
+            Undo.IncrementCurrentGroup();
+            var group = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName("Stories OSC Animator Integrity Repair");
+
+            try
+            {
+                Undo.RecordObject(fxController, "Preserve FX Controller Before Integrity Repair");
+                var removed = CleanupOrphanedAnimatorTransitions(fxController);
+                var after = InspectAnimatorControllerIntegrity(fxController);
+                if (!after.IsValid)
+                    throw new InvalidOperationException(after.Summary);
+
+                EditorUtility.SetDirty(fxController);
+                AssetDatabase.SaveAssets();
+                Undo.CollapseUndoOperations(group);
+
+                operationLog.Insert(0, "Animator integrity repair removed " + removed + " unreachable transition subasset(s). Validation passed before save.");
+                managedRepairPreview = "Animator integrity repaired: removed " + removed + " unreachable transition subasset(s). Backup: " + lastAnimatorIntegrityBackupPath;
+                EditorUtility.DisplayDialog(
+                    "Animator Integrity Repaired",
+                    "Removed " + removed + " unreachable transition subasset(s).\n\nThe live Animator graph passed validation before save.\n\nBackup:\n" + lastAnimatorIntegrityBackupPath,
+                    "OK");
+            }
+            catch (Exception exception)
+            {
+                Undo.RevertAllDownToGroup(group);
+                try
+                {
+                    EditorUtility.SetDirty(fxController);
+                    AssetDatabase.SaveAssets();
+                }
+                catch (Exception saveException)
+                {
+                    Debug.LogException(saveException);
+                }
+                Debug.LogException(exception);
+                EditorUtility.DisplayDialog(
+                    "Animator Integrity Repair Rolled Back",
+                    "The controller was not committed because validation still failed.\n\n" + exception.Message + "\n\nBackup:\n" + lastAnimatorIntegrityBackupPath,
+                    "OK");
+            }
+        }
+
+        private static int AnimatorSubAssetDestroyPriority(UnityEngine.Object obj)
+        {
+            if (obj is AnimatorStateTransition || obj is AnimatorTransition) return 0;
+            if (obj is StateMachineBehaviour) return 1;
+            if (obj is AnimatorState) return 2;
+            if (obj is AnimatorStateMachine) return 3;
+            return 4;
+        }
+
         private static void RemoveLayerByName(AnimatorController controller, string layerName)
         {
+            if (controller == null || string.IsNullOrWhiteSpace(layerName))
+                return;
+
             for (var index = controller.layers.Length - 1; index >= 0; index--)
             {
-                if (controller.layers[index].name == layerName)
-                    controller.RemoveLayer(index);
+                var layer = controller.layers[index];
+                if (layer.name != layerName)
+                    continue;
+
+                var ownedGraph = new HashSet<UnityEngine.Object>();
+                CollectReachableAnimatorObjects(layer.stateMachine, ownedGraph);
+                var controllerPath = AssetDatabase.GetAssetPath(controller);
+
+                Undo.RecordObject(controller, "Remove Stories Animator Layer");
+                controller.RemoveLayer(index);
+
+                // A controller layer is only an array entry; removing it does not guarantee
+                // that its embedded states/transitions are removed from the .controller asset.
+                // Destroy only graph objects that became unreachable after the layer was removed.
+                var stillReachable = CollectReachableAnimatorObjects(controller);
+                foreach (var obj in ownedGraph
+                    .Where(obj => obj != null && !stillReachable.Contains(obj))
+                    .OrderBy(AnimatorSubAssetDestroyPriority)
+                    .ToArray())
+                {
+                    if (obj == controller)
+                        continue;
+                    var objectPath = AssetDatabase.GetAssetPath(obj);
+                    if (!string.IsNullOrWhiteSpace(objectPath) &&
+                        string.Equals(objectPath, controllerPath, StringComparison.Ordinal))
+                        Undo.DestroyObjectImmediate(obj);
+                }
+
+                EditorUtility.SetDirty(controller);
             }
         }
 
