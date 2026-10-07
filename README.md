@@ -1,18 +1,31 @@
-# Stories OSC Unity Tool v0.5.10 TB17.2
+# Stories OSC Unity Tool v0.5.10 TB17.3
 
-Current prerelease: **Stories OSC Unity Tool v0.5.10 TB17.2 — Animator Integrity Hotfix**.
+Current prerelease: **Stories OSC Unity Tool v0.5.10 TB17.3 — Animator Integrity Hotfix**.
 
 This repository contains the Unity Editor authoring/repair tool for the Stories Of Yggdrasil OSC Contact System used by VRChat avatars.
 
 ## Install
 
-Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB17.2.unitypackage`, or copy the canonical script to:
+Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB17.3.unitypackage`, or copy the canonical script to:
 
 ```text
 Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs
 ```
 
 Only one `StoriesOfYggdrasilOSCContactSystem` script should exist inside a Unity project's `Assets` folder.
+
+## TB17.3 — marker state-name hotfix
+
+TB17.3 fixes the remaining Protocol 20 marker loop exposed during live Unity testing.
+
+- Unity rejects `/` inside Animator state names. TB17.1/TB17.2 used slash-delimited marker state labels, so marker creation could warn and never converge.
+- All Stories-generated Animator states now pass through a shared sanitizer.
+- Protocol marker states now use Unity-safe ` - ` separators.
+- The compatibility panel distinguishes Missing, Present/Outdated, and Installed/Schema Invalid marker states.
+- Managed repair now reports when repairable findings survive the transaction instead of claiming a clean completion.
+- Audit logging now prints the exact remaining safe repair findings.
+- TB17.2 Animator integrity protection remains intact.
+- Sam.py and OSC Protocol 20 remain unchanged.
 
 ## TB17.2 — Animator integrity hotfix
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.5.10 TB17.3 — Marker State-Name Hotfix
+
+- Fixed Unity rejecting slash-delimited Protocol 20 marker state names.
+- Added shared sanitization for all Stories-generated Animator state names.
+- Marker states now use Unity-safe separators.
+- Compatibility UI now distinguishes missing, outdated, and schema-invalid marker states.
+- Managed Repair now reports unresolved repairable findings instead of falsely reporting a clean success.
+- Audit logs now print exact remaining repair targets.
+- Retains TB17.2 Animator integrity safeguards.
+- Sam.py and OSC Protocol 20 are unchanged.
+
+
 ## v0.5.10 TB17.2 — Animator Integrity Hotfix
 
 - Added a dedicated Animator Integrity repair for TB17.1-damaged controllers.

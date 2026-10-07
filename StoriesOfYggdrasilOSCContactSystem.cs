@@ -31,8 +31,8 @@ namespace StoriesOfYggdrasil.OSC
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
         private const string Version = "0.5.10";
-        private const string BuildNumber = "TB17.2";
-        private const string BuildLabel = "Test Build 17.2 — Animator Integrity Hotfix";
+        private const string BuildNumber = "TB17.3";
+        private const string BuildLabel = "Test Build 17.3 — Marker State-Name Hotfix";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
         private static readonly string[] RaycastTypeNames =
@@ -2791,6 +2791,10 @@ namespace StoriesOfYggdrasil.OSC
                                    " • Foreign / untouched: " + foreign + ".";
             managedRepairPreview = "Audit complete. Press Preview Repair to list the exact safe actions.";
             Log(managedRepairSummary);
+            foreach (var finding in managedRepairFindings.Where(finding => finding.CanAutoRepair).Take(12))
+                Log("Repairable — " + (finding.Role ?? finding.Kind.ToString()) + " — " +
+                    GetHierarchyPath(finding.Host != null ? finding.Host.transform : null) + " — " +
+                    (finding.Action ?? finding.Summary ?? string.Empty));
         }
 
         private static bool IsLegacySpellReceiverTag(string tag)
@@ -3220,8 +3224,25 @@ namespace StoriesOfYggdrasil.OSC
                 Undo.CollapseUndoOperations(group);
                 AuditManagedSystems();
 
-                managedRepairPreview = "Repair committed successfully. Animator graph validation passed before save. Use Roll Back Last Repair to undo the complete transaction during this Unity session.";
-                Log("Managed-system repair completed: " + findings.Count + " action(s). Snapshot: " + lastRepairSnapshotPath);
+                var remainingRepairs = managedRepairFindings.Where(finding => finding.CanAutoRepair).ToList();
+                if (remainingRepairs.Count > 0)
+                {
+                    var details = string.Join(" | ", remainingRepairs.Take(8)
+                        .Select(finding => (finding.Role ?? finding.Kind.ToString()) + ": " + (finding.Action ?? finding.Summary ?? "repair still required"))
+                        .ToArray());
+                    managedRepairPreview = "Repair transaction committed, but " + remainingRepairs.Count +
+                        " safe repair(s) still remain: " + details;
+                    Log("Managed-system repair left " + remainingRepairs.Count + " repairable finding(s): " + details);
+                    EditorUtility.DisplayDialog(
+                        "Stories OSC Repair Needs Another Look",
+                        managedRepairPreview + "\n\nSnapshot: " + lastRepairSnapshotPath,
+                        "OK");
+                }
+                else
+                {
+                    managedRepairPreview = "Repair committed successfully. Animator graph validation passed before save. Use Roll Back Last Repair to undo the complete transaction during this Unity session.";
+                    Log("Managed-system repair completed cleanly: " + findings.Count + " action(s). Snapshot: " + lastRepairSnapshotPath);
+                }
             }
             catch (Exception exception)
             {
@@ -11878,10 +11899,10 @@ namespace StoriesOfYggdrasil.OSC
             if (schemaValid)
             {
                 var stateA = AddHookState(layer.stateMachine,
-                    "Publish v" + Version + " " + BuildNumber + " / Protocol " + OscProtocolVersion + " / Valid / Beacon A",
+                    "Publish v" + Version + " " + BuildNumber + " - Protocol " + OscProtocolVersion + " - Valid - Beacon A",
                     new Vector3(220f, 100f));
                 var stateB = AddHookState(layer.stateMachine,
-                    "Publish v" + Version + " " + BuildNumber + " / Protocol " + OscProtocolVersion + " / Valid / Beacon B",
+                    "Publish v" + Version + " " + BuildNumber + " - Protocol " + OscProtocolVersion + " - Valid - Beacon B",
                     new Vector3(560f, 100f));
                 stateA.motion = CreateOrReplaceTimerClip(folder + "/SOY_UnityMarker_Beacon_A.anim", 2f);
                 stateB.motion = CreateOrReplaceTimerClip(folder + "/SOY_UnityMarker_Beacon_B.anim", 2f);
@@ -11897,7 +11918,7 @@ namespace StoriesOfYggdrasil.OSC
             else
             {
                 var state = AddHookState(layer.stateMachine,
-                    "Publish v" + Version + " " + BuildNumber + " / Protocol " + OscProtocolVersion + " / INVALID",
+                    "Publish v" + Version + " " + BuildNumber + " - Protocol " + OscProtocolVersion + " - INVALID",
                     new Vector3(260f, 120f));
                 layer.stateMachine.defaultState = state;
                 ConfigureUnityMarkerDriver(state, false, 0);
@@ -11914,13 +11935,20 @@ namespace StoriesOfYggdrasil.OSC
         {
             BeginCard("OSC Runtime Compatibility");
             var markerPresent = HasCurrentCompatibilityMarkerLayer();
+            var markerStructurePresent = HasCurrentCompatibilityMarkerStructure();
+            var markerLayerExists = fxController != null &&
+                fxController.layers.Any(layer => layer.name == UnityMarkerLayer && layer.stateMachine != null);
             var schemaValid = managedRepairAuditReady && CurrentSchemaIsValid();
             DrawTagRow("Unity Tool", "v" + Version + " " + BuildNumber, "Written into the avatar marker layer");
             DrawTagRow("OSC Protocol", OscProtocolVersion.ToString(), "Desktop v0.8.21-prebuild.4 requires protocol 20 for Stories-generated gameplay Contacts");
-            DrawTagRow("Marker Layer", markerPresent ? "✓ Installed" : "✕ Missing", UnityMarkerLayer);
+            DrawTagRow("Marker Layer",
+                markerPresent ? "✓ Installed" :
+                markerStructurePresent ? "! Installed / Schema Invalid" :
+                markerLayerExists ? "! Present / Outdated" : "✕ Missing",
+                UnityMarkerLayer);
             DrawTagRow("Schema", markerPresent && schemaValid ? "✓ Valid" : "✕ Update Required", "Legacy/broken Stories-managed Contacts remain blocked by the Desktop runtime");
             EditorGUILayout.HelpBox(
-                "TB17.1 adds a periodic encoded local compatibility beacon. Safe Repair All and Migrate / Validate now repair the marker itself, so Desktop can rediscover Protocol 20 even when the Desktop starts after the avatar.",
+                "TB17.3 uses Unity-safe marker state names and repairs the periodic Protocol 20 compatibility beacon without slash-delimited Animator state labels.",
                 markerPresent && schemaValid ? MessageType.Info : MessageType.Warning);
             using (new EditorGUI.DisabledScope(avatarDescriptor == null))
             {
@@ -12648,9 +12676,21 @@ namespace StoriesOfYggdrasil.OSC
             };
         }
 
+        private static string SanitizeAnimatorStateName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return "Stories State";
+
+            // Unity rejects '/' in Animator state names. TB17.1/TB17.2 used slash-delimited
+            // compatibility-marker labels, which caused AddState warnings and prevented the
+            // marker audit from converging. Sanitize every Stories-generated state at the
+            // common creation point so future builders cannot reintroduce the same failure.
+            return name.Replace("/", " - ").Replace("\\", " - ").Trim();
+        }
+
         private static AnimatorState AddHookState(AnimatorStateMachine machine, string name, Vector3 position)
         {
-            var state = machine.AddState(name, position);
+            var state = machine.AddState(SanitizeAnimatorStateName(name), position);
             state.writeDefaultValues = false;
             return state;
         }
