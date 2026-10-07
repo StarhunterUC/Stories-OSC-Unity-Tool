@@ -1,23 +1,23 @@
 {
-  "product": "Stories Of Yggdrasil OSC Contact System",
-  "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
-  "version": "0.5.10",
-  "build_number": "TB17.5",
-  "build_label": "Test Build 17.5 — Marker Metadata Contract",
-  "tag": "v0.5.10-TB17.5",
-  "channel": "test",
-  "prerelease": true,
-  "canonical_source_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
-  "unity_asset_path": "Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs",
-  "source_sha256": "186503911f618bcbe23bf3c2ee389314e2b5b0aa109b7d9e5283317051e70c10",
-  "minimum_vrchat_avatars_sdk": "3.10.3",
-  "recommended_tested_sdk_line": "3.10.5-beta.1",
-  "osc_protocol_version": 20,
-  "minimum_desktop_version": "0.8.21-prebuild.4",
-  "registries": {
-    "spell_registry": "registries/SPELL_ID_REGISTRY_v2.json",
-    "technick_registry": "registries/TECHNICK_ID_REGISTRY_v1.json",
-    "item_registry": "registries/ITEM_ID_REGISTRY_v1.json"
-  },
-  "display_version": "Stories OSC Unity Tool v0.5.10 TB17.5"
+    "product": "Stories Of Yggdrasil OSC Contact System",
+    "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
+    "version": "0.5.10",
+    "build_number": "TB17.5",
+    "build_label": "Test Build 17.5 — Marker Metadata Contract",
+    "tag": "v0.5.10-TB17.5",
+    "channel": "test",
+    "prerelease": true,
+    "canonical_source_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
+    "unity_asset_path": "Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs",
+    "source_sha256": "186503911f618bcbe23bf3c2ee389314e2b5b0aa109b7d9e5283317051e70c10",
+    "minimum_vrchat_avatars_sdk": "3.10.3",
+    "recommended_tested_sdk_line": "3.10.5-beta.1",
+    "osc_protocol_version": 20,
+    "minimum_desktop_version": "0.8.21-prebuild.4",
+    "registries": {
+        "spell_registry": "registries/SPELL_ID_REGISTRY_v2.json",
+        "technick_registry": "registries/TECHNICK_ID_REGISTRY_v1.json",
+        "item_registry": "registries/ITEM_ID_REGISTRY_v1.json"
+    },
+    "display_version": "Stories OSC Unity Tool v0.5.10 TB17.5"
 }
