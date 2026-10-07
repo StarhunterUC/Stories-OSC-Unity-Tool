@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.5.10 TB17.5 — Marker Metadata Contract
+
+- Replaced marker state-name version/schema parsing with Avatar Parameter Driver metadata validation.
+- Marker states now use fixed Unity-safe names.
+- Valid marker detection checks actual TB revision, Protocol 20, schema-valid flag, and 117/118 beacon values.
+- Added explicit state-name sanitization diagnostics.
+- Retains TB17.4 bridge-parameter restoration and TB17.2 Animator integrity safeguards.
+- Sam.py and OSC Protocol 20 are unchanged.
+
+
 ## v0.5.10 TB17.4 — Marker Convergence Hotfix
 
 - Fixed current INVALID marker states being misclassified as outdated after TB17.3.

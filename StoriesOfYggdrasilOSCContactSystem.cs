@@ -31,8 +31,8 @@ namespace StoriesOfYggdrasil.OSC
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
         private const string Version = "0.5.10";
-        private const string BuildNumber = "TB17.4";
-        private const string BuildLabel = "Test Build 17.4 — Marker Convergence Hotfix";
+        private const string BuildNumber = "TB17.5";
+        private const string BuildLabel = "Test Build 17.5 — Marker Metadata Contract";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
         private static readonly string[] RaycastTypeNames =
@@ -439,6 +439,9 @@ namespace StoriesOfYggdrasil.OSC
         // from legacy/invalid schemas. OSC contract v19 is the first Unity-enforced marker.
         private const int OscProtocolVersion = 20;
         private const string UnityMarkerLayer = "Stories Of Yggdrasil | Unity Tool Marker";
+        private const string UnityMarkerStateA = "SoY Marker Beacon A";
+        private const string UnityMarkerStateB = "SoY Marker Beacon B";
+        private const string UnityMarkerStateInvalid = "SoY Marker INVALID";
         private const string UnityToolPresentParameter = "SoY_UnityToolPresent";
         private const string UnityToolMajorParameter = "SoY_UnityToolMajor";
         private const string UnityToolMinorParameter = "SoY_UnityToolMinor";
@@ -11849,6 +11852,45 @@ namespace StoriesOfYggdrasil.OSC
             return repaired;
         }
 
+        private static bool DriverPublishesValue(
+            VRCAvatarParameterDriver driver,
+            string parameterName,
+            float expectedValue)
+        {
+            if (driver == null || driver.parameters == null)
+                return false;
+            return driver.parameters.Any(parameter =>
+                parameter != null &&
+                string.Equals(parameter.name, parameterName, StringComparison.Ordinal) &&
+                parameter.type == VRC_AvatarParameterDriver.ChangeType.Set &&
+                Mathf.Approximately(parameter.value, expectedValue));
+        }
+
+        private static bool MarkerStatePublishes(AnimatorState state, bool schemaValid, int beaconValue)
+        {
+            if (state == null)
+                return false;
+
+            var driver = state.behaviours
+                .OfType<VRCAvatarParameterDriver>()
+                .FirstOrDefault();
+            if (driver == null || !driver.localOnly)
+                return false;
+
+            var version = CurrentToolVersionParts();
+            var build = CurrentToolBuildParts();
+
+            return DriverPublishesValue(driver, UnityToolPresentParameter, 1f) &&
+                   DriverPublishesValue(driver, UnityToolMajorParameter, version[0]) &&
+                   DriverPublishesValue(driver, UnityToolMinorParameter, version[1]) &&
+                   DriverPublishesValue(driver, UnityToolPatchParameter, version[2]) &&
+                   DriverPublishesValue(driver, UnityToolTbParameter, build[0]) &&
+                   DriverPublishesValue(driver, UnityToolTbRevisionParameter, build[1]) &&
+                   DriverPublishesValue(driver, ProtocolVersionParameter, OscProtocolVersion) &&
+                   DriverPublishesValue(driver, UnitySchemaValidParameter, schemaValid ? 1f : 0f) &&
+                   DriverPublishesValue(driver, UnityMarkerBeaconParameter, beaconValue);
+        }
+
         private bool HasCurrentCompatibilityMarkerStructure()
         {
             if (fxController == null || expressionParameters == null)
@@ -11865,19 +11907,22 @@ namespace StoriesOfYggdrasil.OSC
                 .Any(parameter => parameter != null &&
                     parameter.name == UnityMarkerBeaconParameter &&
                     parameter.valueType == VRCExpressionParameters.ValueType.Int);
+            if (!animatorBeacon || !expressionBeacon)
+                return false;
 
-            var states = layers[0].stateMachine.states.Select(child => child.state)
-                .Where(state => state != null).ToArray();
-            var hasCurrentBuild = states.Any(state =>
-                state.name.IndexOf(BuildNumber, StringComparison.Ordinal) >= 0 &&
-                state.name.IndexOf("Protocol " + OscProtocolVersion, StringComparison.Ordinal) >= 0);
-            var hasBeaconA = states.Any(state => state.name.IndexOf("Beacon A", StringComparison.Ordinal) >= 0);
-            var hasBeaconB = states.Any(state => state.name.IndexOf("Beacon B", StringComparison.Ordinal) >= 0);
-            var hasInvalidState = states.Any(state =>
-                state.name.IndexOf("INVALID", StringComparison.OrdinalIgnoreCase) >= 0);
+            var states = layers[0].stateMachine.states
+                .Select(child => child.state)
+                .Where(state => state != null)
+                .ToArray();
 
-            return animatorBeacon && expressionBeacon && hasCurrentBuild &&
-                   ((hasBeaconA && hasBeaconB) || hasInvalidState);
+            var validA = states.FirstOrDefault(state => state.name == UnityMarkerStateA);
+            var validB = states.FirstOrDefault(state => state.name == UnityMarkerStateB);
+            var invalid = states.FirstOrDefault(state => state.name == UnityMarkerStateInvalid);
+
+            var validPair = MarkerStatePublishes(validA, true, 117) &&
+                            MarkerStatePublishes(validB, true, 118);
+            var invalidMarker = MarkerStatePublishes(invalid, false, 0);
+            return validPair || invalidMarker;
         }
 
         private bool HasCurrentCompatibilityMarkerLayer()
@@ -11896,18 +11941,25 @@ namespace StoriesOfYggdrasil.OSC
                 .Any(parameter => parameter != null &&
                     parameter.name == UnityMarkerBeaconParameter &&
                     parameter.valueType == VRCExpressionParameters.ValueType.Int);
+            if (!animatorBeacon || !expressionBeacon)
+                return false;
 
             var states = layers[0].stateMachine.states
                 .Select(child => child.state)
                 .Where(state => state != null)
                 .ToArray();
-            var hasCurrentBuild = states.Any(state =>
-                state.name.IndexOf(BuildNumber, StringComparison.Ordinal) >= 0 &&
-                state.name.IndexOf("Protocol " + OscProtocolVersion, StringComparison.Ordinal) >= 0);
-            var hasBeaconA = states.Any(state => state.name.IndexOf("Beacon A", StringComparison.Ordinal) >= 0);
-            var hasBeaconB = states.Any(state => state.name.IndexOf("Beacon B", StringComparison.Ordinal) >= 0);
+            var stateA = states.FirstOrDefault(state => state.name == UnityMarkerStateA);
+            var stateB = states.FirstOrDefault(state => state.name == UnityMarkerStateB);
+            if (!MarkerStatePublishes(stateA, true, 117) ||
+                !MarkerStatePublishes(stateB, true, 118))
+                return false;
 
-            return animatorBeacon && expressionBeacon && hasCurrentBuild && hasBeaconA && hasBeaconB;
+            var machine = layers[0].stateMachine;
+            if (machine.defaultState != stateA)
+                return false;
+            var aToB = stateA.transitions != null && stateA.transitions.Any(transition => transition != null && transition.destinationState == stateB);
+            var bToA = stateB.transitions != null && stateB.transitions.Any(transition => transition != null && transition.destinationState == stateA);
+            return aToB && bToA;
         }
 
         private static void ConfigureUnityMarkerDriver(AnimatorState state, bool schemaValid, int beaconValue)
@@ -11958,12 +12010,8 @@ namespace StoriesOfYggdrasil.OSC
 
             if (schemaValid)
             {
-                var stateA = AddHookState(layer.stateMachine,
-                    "Publish v" + Version + " " + BuildNumber + " - Protocol " + OscProtocolVersion + " - Valid - Beacon A",
-                    new Vector3(220f, 100f));
-                var stateB = AddHookState(layer.stateMachine,
-                    "Publish v" + Version + " " + BuildNumber + " - Protocol " + OscProtocolVersion + " - Valid - Beacon B",
-                    new Vector3(560f, 100f));
+                var stateA = AddHookState(layer.stateMachine, UnityMarkerStateA, new Vector3(220f, 100f));
+                var stateB = AddHookState(layer.stateMachine, UnityMarkerStateB, new Vector3(560f, 100f));
                 stateA.motion = CreateOrReplaceTimerClip(folder + "/SOY_UnityMarker_Beacon_A.anim", 2f);
                 stateB.motion = CreateOrReplaceTimerClip(folder + "/SOY_UnityMarker_Beacon_B.anim", 2f);
                 ConfigureUnityMarkerDriver(stateA, true, 117);
@@ -11977,9 +12025,7 @@ namespace StoriesOfYggdrasil.OSC
             }
             else
             {
-                var state = AddHookState(layer.stateMachine,
-                    "Publish v" + Version + " " + BuildNumber + " - Protocol " + OscProtocolVersion + " - INVALID",
-                    new Vector3(260f, 120f));
+                var state = AddHookState(layer.stateMachine, UnityMarkerStateInvalid, new Vector3(260f, 120f));
                 layer.stateMachine.defaultState = state;
                 ConfigureUnityMarkerDriver(state, false, 0);
             }
@@ -12008,7 +12054,7 @@ namespace StoriesOfYggdrasil.OSC
                 UnityMarkerLayer);
             DrawTagRow("Schema", markerPresent && schemaValid ? "✓ Valid" : "✕ Update Required", "Legacy/broken Stories-managed Contacts remain blocked by the Desktop runtime");
             EditorGUILayout.HelpBox(
-                "TB17.4 closes the marker repair loop: current INVALID markers are recognized correctly, missing Stories bridge parameters are restored during marker repair, and remaining schema failures are logged explicitly.",
+                "TB17.5 validates Protocol 20 marker metadata from the local Avatar Parameter Driver itself. Marker state names are now fixed, minimal, and version-agnostic so Unity state-name parsing cannot break compatibility detection.",
                 markerPresent && schemaValid ? MessageType.Info : MessageType.Warning);
             using (new EditorGUI.DisabledScope(avatarDescriptor == null))
             {
@@ -12750,7 +12796,12 @@ namespace StoriesOfYggdrasil.OSC
 
         private static AnimatorState AddHookState(AnimatorStateMachine machine, string name, Vector3 position)
         {
-            var state = machine.AddState(SanitizeAnimatorStateName(name), position);
+            var safeName = SanitizeAnimatorStateName(name);
+            if (!string.Equals(name, safeName, StringComparison.Ordinal))
+                Debug.LogWarning("[Stories OSC Unity Tool] Sanitized Animator state name '" + name + "' -> '" + safeName + "'.");
+            if (safeName.IndexOf('/') >= 0 || safeName.IndexOf('\\') >= 0)
+                throw new InvalidOperationException("Generated Animator state name still contains an illegal path separator: '" + safeName + "'.");
+            var state = machine.AddState(safeName, position);
             state.writeDefaultValues = false;
             return state;
         }
