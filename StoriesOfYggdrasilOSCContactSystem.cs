@@ -966,7 +966,7 @@ namespace StoriesOfYggdrasil.OSC
             new ParameterSpec(UnityToolTbRevisionParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
             new ParameterSpec(ProtocolVersionParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
             new ParameterSpec(UnitySchemaValidParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
-            new ParameterSpec(UnityMarkerBeaconParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(UnityMarkerBeaconParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
             // Evasion selector is synced for remote animation playback; the active flag is local OSC telemetry.
             new ParameterSpec(EvadeTypeParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, true),
             new ParameterSpec(EvadingParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
@@ -11288,11 +11288,11 @@ namespace StoriesOfYggdrasil.OSC
 
             var animatorBeacon = fxController.parameters.Any(parameter =>
                 parameter.name == UnityMarkerBeaconParameter &&
-                parameter.type == AnimatorControllerParameterType.Bool);
+                parameter.type == AnimatorControllerParameterType.Int);
             var expressionBeacon = (expressionParameters.parameters ?? Array.Empty<VRCExpressionParameters.Parameter>())
                 .Any(parameter => parameter != null &&
                     parameter.name == UnityMarkerBeaconParameter &&
-                    parameter.valueType == VRCExpressionParameters.ValueType.Bool);
+                    parameter.valueType == VRCExpressionParameters.ValueType.Int);
 
             var states = layers[0].stateMachine.states
                 .Select(child => child.state)
@@ -11307,7 +11307,7 @@ namespace StoriesOfYggdrasil.OSC
             return animatorBeacon && expressionBeacon && hasCurrentBuild && hasBeaconA && hasBeaconB;
         }
 
-        private static void ConfigureUnityMarkerDriver(AnimatorState state, bool schemaValid, bool beaconValue)
+        private static void ConfigureUnityMarkerDriver(AnimatorState state, bool schemaValid, int beaconValue)
         {
             if (state == null)
                 return;
@@ -11325,7 +11325,7 @@ namespace StoriesOfYggdrasil.OSC
                 new VRC_AvatarParameterDriver.Parameter { name = UnityToolTbRevisionParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = build[1] },
                 new VRC_AvatarParameterDriver.Parameter { name = ProtocolVersionParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = OscProtocolVersion },
                 new VRC_AvatarParameterDriver.Parameter { name = UnitySchemaValidParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = schemaValid ? 1f : 0f },
-                new VRC_AvatarParameterDriver.Parameter { name = UnityMarkerBeaconParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = beaconValue ? 1f : 0f },
+                new VRC_AvatarParameterDriver.Parameter { name = UnityMarkerBeaconParameter, type = VRC_AvatarParameterDriver.ChangeType.Set, value = beaconValue },
             };
         }
 
@@ -11363,8 +11363,8 @@ namespace StoriesOfYggdrasil.OSC
                     new Vector3(560f, 100f));
                 stateA.motion = CreateOrReplaceTimerClip(folder + "/SOY_UnityMarker_Beacon_A.anim", 2f);
                 stateB.motion = CreateOrReplaceTimerClip(folder + "/SOY_UnityMarker_Beacon_B.anim", 2f);
-                ConfigureUnityMarkerDriver(stateA, true, false);
-                ConfigureUnityMarkerDriver(stateB, true, true);
+                ConfigureUnityMarkerDriver(stateA, true, 117);
+                ConfigureUnityMarkerDriver(stateB, true, 118);
                 layer.stateMachine.defaultState = stateA;
 
                 var toB = stateA.AddTransition(stateB);
@@ -11378,7 +11378,7 @@ namespace StoriesOfYggdrasil.OSC
                     "Publish v" + Version + " " + BuildNumber + " / Protocol " + OscProtocolVersion + " / INVALID",
                     new Vector3(260f, 120f));
                 layer.stateMachine.defaultState = state;
-                ConfigureUnityMarkerDriver(state, false, false);
+                ConfigureUnityMarkerDriver(state, false, 0);
             }
 
             fxController.AddLayer(layer);
@@ -11398,7 +11398,7 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow("Marker Layer", markerPresent ? "✓ Installed" : "✕ Missing", UnityMarkerLayer);
             DrawTagRow("Schema", markerPresent && schemaValid ? "✓ Valid" : "✕ Update Required", "Legacy/broken Stories-managed Contacts remain blocked by the Desktop runtime");
             EditorGUILayout.HelpBox(
-                "TB17.1 adds a periodic local compatibility beacon. Safe Repair All and Migrate / Validate now repair the marker itself, so Desktop can rediscover Protocol 20 even when the Desktop starts after the avatar.",
+                "TB17.1 adds a periodic encoded local compatibility beacon. Safe Repair All and Migrate / Validate now repair the marker itself, so Desktop can rediscover Protocol 20 even when the Desktop starts after the avatar.",
                 markerPresent && schemaValid ? MessageType.Info : MessageType.Warning);
             using (new EditorGUI.DisabledScope(avatarDescriptor == null))
             {
