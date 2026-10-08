@@ -9,7 +9,7 @@
     "prerelease": true,
     "canonical_source_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
     "unity_asset_path": "Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs",
-    "source_sha256": "d1c44dc735ac6849b9740ac0eed5b575ccd9cf64c9a4e35cba2e37b9c304e679",
+    "source_sha256": "a944c2987bc895e3c25314d5a1b37b4153e1ac34e677302c0498421be36b696b",
     "minimum_vrchat_avatars_sdk": "3.10.3",
     "recommended_tested_sdk_line": "3.10.5-beta.1",
     "osc_protocol_version": 21,
