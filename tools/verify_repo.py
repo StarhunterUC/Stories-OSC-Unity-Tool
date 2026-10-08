@@ -99,7 +99,7 @@ def main() -> int:
         # TB18 Protocol 21 physical helpful-item interaction.
         'helpful_item_self_touch': 'SoY_HelpItemSelfTouch' in text,
         'helpful_item_other_touch': 'SoY_HelpItemOtherTouch' in text,
-        'helpful_item_bus': 'SoY_HelpItemActive' in text and 'SoY_HelpItemBitParameterPrefix' in text,
+        'helpful_item_bus': 'SoY_HelpItemActive' in text and 'HelpfulItemBitParameterPrefix' in text,
         'helpful_item_results': 'SoY_ItemUseResult' in text and 'SoY_ItemReceiveResult' in text,
         'helpful_item_head_receiver': 'EnsureHelpfulItemHeadReceiverBus' in text and 'HumanBodyBones.Head' in text,
         'helpful_item_gesture_toggle': 'Grab Toggle On — Wait Release' in text and 'Use — Head Contacts Active' in text,
