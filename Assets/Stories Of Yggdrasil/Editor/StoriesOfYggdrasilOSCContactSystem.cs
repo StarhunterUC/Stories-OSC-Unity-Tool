@@ -453,6 +453,15 @@ namespace StoriesOfYggdrasil.OSC
         private const string HelpfulItemOtherTouchParameter = "SoY_HelpItemOtherTouch";
         private const string HelpfulItemUseResultParameter = "SoY_ItemUseResult";
         private const string HelpfulItemReceiveResultParameter = "SoY_ItemReceiveResult";
+        private const string PvpAttemptWeakParameter = "SoY_PvPAttemptWeak";
+        private const string PvpAttemptAverageParameter = "SoY_PvPAttemptAverage";
+        private const string PvpAttemptStrongParameter = "SoY_PvPAttemptStrong";
+        private const string PvpAttemptCriticalParameter = "SoY_PvPAttemptCritical";
+        private static readonly string[] PvpRemoteBodyTags =
+        {
+            "Head", "Torso", "Hand", "HandL", "HandR", "Foot", "FootL", "FootR",
+            "Finger", "FingerL", "FingerR"
+        };
         private const string HelpfulItemLayerPrefix = "Stories Of Yggdrasil | Helpful Item ";
         private const string HelpfulItemHeadReceiverHost = "Stories Helpful Item Head Receiver";
         private const int ActionBitCount = 8;
@@ -1061,6 +1070,10 @@ namespace StoriesOfYggdrasil.OSC
             new ParameterSpec(HelpfulItemBitParameterPrefix + "7", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(HelpfulItemUseResultParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
             new ParameterSpec(HelpfulItemReceiveResultParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
+            new ParameterSpec(PvpAttemptWeakParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(PvpAttemptAverageParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(PvpAttemptStrongParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(PvpAttemptCriticalParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HealingSourceEnemy", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(DamageSourceEnemyParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(ExternalDamageSourceParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
@@ -9792,6 +9805,49 @@ namespace StoriesOfYggdrasil.OSC
             return string.IsNullOrWhiteSpace(cleaned) ? "Avatar" : cleaned;
         }
 
+        private static string PvpAttemptParameterForTier(AttackTier tier)
+        {
+            switch (tier)
+            {
+                case AttackTier.Weak: return PvpAttemptWeakParameter;
+                case AttackTier.Strong: return PvpAttemptStrongParameter;
+                case AttackTier.Critical: return PvpAttemptCriticalParameter;
+                default: return PvpAttemptAverageParameter;
+            }
+        }
+
+        private void ConfigurePvpAttemptReceiver(
+            GameObject host,
+            AttackTier tier,
+            ContactShape shape,
+            float radius,
+            float height,
+            Vector3 boxSize,
+            Vector3 position,
+            Vector3 rotation)
+        {
+            if (host == null)
+                return;
+            var parameter = PvpAttemptParameterForTier(tier);
+            var receiver = EnsureReceiverForTagsAndParameter(
+                host,
+                FindType(ReceiverTypeName),
+                PvpRemoteBodyTags,
+                parameter);
+            if (receiver == null)
+                return;
+
+            ConfigureContact(receiver, shape, radius, height, boxSize, position, rotation, PvpRemoteBodyTags);
+            SetBoolMember(receiver, false, "allowSelf", "AllowSelf");
+            SetBoolMember(receiver, true, "allowOthers", "AllowOthers");
+            SetBoolMember(receiver, true, "localOnly", "LocalOnly");
+            SetStringMember(receiver, parameter, "parameter", "Parameter");
+            SetEnumMember(receiver, "OnEnter", "receiverType", "ReceiverType");
+            SetFloatMember(receiver, 1f, "value", "Value");
+            SetFloatMember(receiver, 0f, "minVelocity", "MinVelocity");
+            FinishContact(receiver);
+        }
+
         private void CreateAttackSenders()
         {
             var tags = GetAttackTags(attackTier).ToList();
@@ -9814,6 +9870,22 @@ namespace StoriesOfYggdrasil.OSC
                     attackShape, attackRadius, attackHeight, attackBoxSize, attackPosition, attackRotation);
                 ConfigureAlignedDamageSender(enemyHost, tags, CasterEnemyTag,
                     attackShape, attackRadius, attackHeight, attackBoxSize, attackPosition, attackRotation);
+
+                // Protocol 21: local attacker-side proof that this exact attack volume
+                // touched another humanoid avatar. Built-in body tags are generated by
+                // VRChat for humanoid avatars, so this does not depend on the target
+                // having the Stories tool installed. The receiver is local-only and
+                // never identifies the target; Sam.py pairs it with the target's
+                // authenticated hit receipt.
+                ConfigurePvpAttemptReceiver(
+                    host,
+                    attackTier,
+                    attackShape,
+                    attackRadius,
+                    attackHeight,
+                    attackBoxSize,
+                    attackPosition,
+                    attackRotation);
 
                 Selection.activeGameObject = host;
                 Log("Attack sender ready on '" + host.name + "' with Ally/Enemy alignment and tags: " + string.Join(", ", tags));
