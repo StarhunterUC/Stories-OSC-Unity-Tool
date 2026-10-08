@@ -1,10 +1,10 @@
-# Raycast Guide — v0.5.10 TB17.5
+# Raycast Guide — v0.5.10 TB18
 
-TB17.5 retains the TB17 Raycast transport, Protocol 20 alignment split, managed action gates, and recovery behavior. TB17.5 keeps Protocol 20 and existing integrity safeguards while validating compatibility marker metadata directly from Avatar Parameter Drivers.
+TB18 retains the TB17 Raycast transport, Protocol 21 alignment split, managed action gates, and recovery behavior. TB18 keeps Protocol 21 and existing integrity safeguards while validating compatibility marker metadata directly from Avatar Parameter Drivers.
 
 ## Before testing Raycasts on an older avatar
 
-Run **MIGRATE / VALIDATE AVATAR FOR PROTOCOL 20** or **Safe Repair All** first. TB17.5 repairs the compatibility marker itself and installs the periodic `SoY_UnityMarkerBeacon`.
+Run **MIGRATE / VALIDATE AVATAR FOR PROTOCOL 20** or **Safe Repair All** first. TB18 repairs the compatibility marker itself and installs the periodic `SoY_UnityMarkerBeacon`.
 
 ## Direct Impact
 
@@ -51,8 +51,8 @@ Stories-generated clip asset names and internal `AnimationClip.name` values are 
 
 ## Outside Contact interaction
 
-Raycast-generated actions still emit the normal Stories Contact bus. `Sword`, `Weapon`, `Hands`, and block/parry aliases affect incoming compatibility only; they do not replace Spell/Technick/Item action IDs or the Protocol 20 marker.
+Raycast-generated actions still emit the normal Stories Contact bus. `Sword`, `Weapon`, `Hands`, and block/parry aliases affect incoming compatibility only; they do not replace Spell/Technick/Item action IDs or the Protocol 21 marker.
 
-## TB17.5 marker beacon retained
+## TB18 marker beacon retained
 
 The marker layer periodically alternates the local unsynced `SoY_UnityMarkerBeacon` between encoded values 117/118. This is compatibility telemetry only; it does not authorize a Raycast or gameplay action.

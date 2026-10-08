@@ -1,10 +1,10 @@
 {
   "contract": "Stories Of Yggdrasil Unity Tool Contact Contract",
   "version": "0.5.10",
-  "build_number": "TB17.5",
-  "tag": "v0.5.10-TB17.5",
+  "build_number": "TB18",
+  "tag": "v0.5.10-TB18",
   "contact_contract_revision": 20,
-  "osc_protocol_version": 20,
+  "osc_protocol_version": 21,
   "minimum_desktop_version": "0.8.21-prebuild.4",
   "unity_authoring_marker": {
     "layer": "Stories Of Yggdrasil | Unity Tool Marker",
@@ -25,15 +25,15 @@
       "minor": 5,
       "patch": 10,
       "tb": 17,
-      "tb_revision": 5,
-      "protocol": 20,
+      "tb_revision": 0,
+      "protocol": 21,
       "beacon_values": [
-        117,
-        118
+        121,
+        122
       ]
     },
     "beacon_policy": "Local unsynced Int alternates 117/118 so a late-start Desktop can rediscover the current Tool/Protocol/schema marker.",
-    "repair_policy": "TB17.5 validates marker identity from VRCAvatarParameterDriver metadata using fixed Unity-safe state names.",
+    "repair_policy": "TB18 retains driver-metadata marker validation and publishes Protocol 21 with the 121/122 local beacon.",
     "schema_valid_policy": "Only true after current managed Animator/Expression parameters and recognized Stories-managed systems validate.",
     "state_names": [
       "SoY Marker Beacon A",
@@ -186,11 +186,12 @@
     "marker_restores_missing_bridge_parameters": true,
     "marker_schema_failure_diagnostics": true,
     "marker_driver_metadata_validation": true,
-    "marker_state_name_version_parsing": false
+    "marker_state_name_version_parsing": false,
+    "protocol21_ambiguous_identity_fails_closed": true
   },
   "updater": {
     "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
-    "test_build_tag": "v0.5.10-TB17.5",
+    "test_build_tag": "v0.5.10-TB18",
     "preferred_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
     "required_checksum_asset": "StoriesOfYggdrasilOSCContactSystem.cs.sha256",
     "zip_fallback_supported": true
@@ -227,5 +228,57 @@
     },
     "legacy_empty_cast_placeholder_policy": "Treat empty TB16-generated Cast placeholders as auto-generated; preserve non-empty edited clips as deliberate overrides.",
     "generic_evade_fallback": true
+  },
+  "physical_helpful_items": {
+    "enabled": true,
+    "helpful_item_ids": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      8,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      28,
+      30,
+      31,
+      37,
+      40,
+      43,
+      50
+    ],
+    "gesture_latched_prop": true,
+    "self_head_contact": true,
+    "other_head_contact": true,
+    "dedicated_head_item_bus": true,
+    "faceemo_modified": false,
+    "result_parameters": [
+      "SoY_ItemUseResult",
+      "SoY_ItemReceiveResult"
+    ]
+  },
+  "pvp_identity": {
+    "automatic_attempt_receivers": true,
+    "builtin_remote_body_tags": true,
+    "attempt_parameters": [
+      "SoY_PvPAttemptWeak",
+      "SoY_PvPAttemptAverage",
+      "SoY_PvPAttemptStrong",
+      "SoY_PvPAttemptCritical"
+    ],
+    "target_identity_not_claimed_by_unity": true,
+    "server_attempt_receipt_pairing": true
   }
 }

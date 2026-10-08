@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.5.10 TB18 — Physical Helpful Items / Protocol 21
+
+- Added gesture-latched physical helpful-item prop authoring.
+- Added Self/Other Head detectors and the dedicated helpful-item ID receiver bus.
+- Added Sam.py result parameters for actor and recipient presentation.
+- Added local attacker-side humanoid touch detection to existing Stories Attack volumes.
+- Added Weak/Average/Strong/Critical Protocol 21 PvP attempt parameters.
+- Changed the compatibility marker to Protocol 21 / 121–122 beacon.
+- Retains TB17.5 metadata marker validation and TB17.2 Animator integrity safeguards.
+- Requires Desktop 0.8.22-prebuild.1 and OSC API 0.8.19 for new Protocol 21 interactions.
+
+
 ## v0.5.10 TB17.5 — Marker Metadata Contract
 
 - Replaced marker state-name version/schema parsing with Avatar Parameter Driver metadata validation.

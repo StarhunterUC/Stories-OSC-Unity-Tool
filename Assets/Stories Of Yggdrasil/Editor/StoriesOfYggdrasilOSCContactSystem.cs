@@ -31,8 +31,8 @@ namespace StoriesOfYggdrasil.OSC
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
         private const string Version = "0.5.10";
-        private const string BuildNumber = "TB17.5";
-        private const string BuildLabel = "Test Build 17.5 — Marker Metadata Contract";
+        private const string BuildNumber = "TB18";
+        private const string BuildLabel = "Test Build 18 — Physical Helpful Items";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
         private static readonly string[] RaycastTypeNames =
@@ -186,6 +186,24 @@ namespace StoriesOfYggdrasil.OSC
             Spell,
             Technick,
             Item
+        }
+
+        private enum HelpfulItemHand
+        {
+            Left,
+            Right
+        }
+
+        private enum HelpfulItemGesture
+        {
+            Neutral = 0,
+            Fist = 1,
+            HandOpen = 2,
+            FingerPoint = 3,
+            Victory = 4,
+            RockNRoll = 5,
+            HandGun = 6,
+            ThumbsUp = 7
         }
 
         private enum ContactPreset
@@ -427,6 +445,25 @@ namespace StoriesOfYggdrasil.OSC
         private const string ItemBitTagPrefix = "SoY Item Bit ";
         private const string ItemActiveParameter = "SoY_ItemActive";
         private const string ItemBitParameterPrefix = "SoY_ItemBit";
+        private const string HelpfulItemActiveTag = "SoY Help Item Active";
+        private const string HelpfulItemBitTagPrefix = "SoY Help Item Bit ";
+        private const string HelpfulItemActiveParameter = "SoY_HelpItemActive";
+        private const string HelpfulItemBitParameterPrefix = "SoY_HelpItemBit";
+        private const string HelpfulItemSelfTouchParameter = "SoY_HelpItemSelfTouch";
+        private const string HelpfulItemOtherTouchParameter = "SoY_HelpItemOtherTouch";
+        private const string HelpfulItemUseResultParameter = "SoY_ItemUseResult";
+        private const string HelpfulItemReceiveResultParameter = "SoY_ItemReceiveResult";
+        private const string PvpAttemptWeakParameter = "SoY_PvPAttemptWeak";
+        private const string PvpAttemptAverageParameter = "SoY_PvPAttemptAverage";
+        private const string PvpAttemptStrongParameter = "SoY_PvPAttemptStrong";
+        private const string PvpAttemptCriticalParameter = "SoY_PvPAttemptCritical";
+        private static readonly string[] PvpRemoteBodyTags =
+        {
+            "Head", "Torso", "Hand", "HandL", "HandR", "Foot", "FootL", "FootR",
+            "Finger", "FingerL", "FingerR"
+        };
+        private const string HelpfulItemLayerPrefix = "Stories Of Yggdrasil | Helpful Item ";
+        private const string HelpfulItemHeadReceiverHost = "Stories Helpful Item Head Receiver";
         private const int ActionBitCount = 8;
         private const string GitHubRepository = "StarhunterUC/Stories-OSC-Unity-Tool";
         private const string GitHubLatestReleaseApi = "https://api.github.com/repos/StarhunterUC/Stories-OSC-Unity-Tool/releases/latest";
@@ -437,7 +474,7 @@ namespace StoriesOfYggdrasil.OSC
         // TB16 avatar/runtime compatibility contract. The Desktop OSC runtime reads these
         // local, unsynced avatar parameters and refuses Stories-generated gameplay input
         // from legacy/invalid schemas. OSC contract v19 is the first Unity-enforced marker.
-        private const int OscProtocolVersion = 20;
+        private const int OscProtocolVersion = 21;
         private const string UnityMarkerLayer = "Stories Of Yggdrasil | Unity Tool Marker";
         private const string UnityMarkerStateA = "SoY Marker Beacon A";
         private const string UnityMarkerStateB = "SoY Marker Beacon B";
@@ -871,6 +908,17 @@ namespace StoriesOfYggdrasil.OSC
             new ActionDefinition(99, "Wither", "Lower one foe's strength."),
         };
 
+        private static readonly HashSet<int> HelpfulPhysicalItemIds = new HashSet<int>
+        {
+            1, 2, 3, 4, 5, 6, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+            28, 30, 31, 37, 40, 43, 50
+        };
+
+        private static bool IsHelpfulPhysicalItem(int id)
+        {
+            return HelpfulPhysicalItemIds.Contains(id);
+        }
+
         private static readonly ActionDefinition[] ItemDefinitions =
         {
             new ActionDefinition(1, "Potion", "Restores 120 HP and removes 1 wound; amount increases with Potion Lore."),
@@ -1009,6 +1057,23 @@ namespace StoriesOfYggdrasil.OSC
             new ParameterSpec(ItemBitParameterPrefix + "5", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(ItemBitParameterPrefix + "6", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(ItemBitParameterPrefix + "7", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemSelfTouchParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemOtherTouchParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemActiveParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "0", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "1", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "2", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "3", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "4", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "5", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "6", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemBitParameterPrefix + "7", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(HelpfulItemUseResultParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
+            new ParameterSpec(HelpfulItemReceiveResultParameter, AnimatorControllerParameterType.Int, VRCExpressionParameters.ValueType.Int, 0f, false, false),
+            new ParameterSpec(PvpAttemptWeakParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(PvpAttemptAverageParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(PvpAttemptStrongParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(PvpAttemptCriticalParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HealingSourceEnemy", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(DamageSourceEnemyParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec(ExternalDamageSourceParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
@@ -1113,6 +1178,17 @@ namespace StoriesOfYggdrasil.OSC
             public bool enabled = true;
             public float recoverySeconds;
             public float contactWindowSeconds = DefaultContactWindowSeconds;
+
+            // TB18 physical helpful-item authoring. Ignored for Technicks.
+            public bool physicalHelpful;
+            public string physicalPropPath;
+            public HelpfulItemHand helpfulHand = HelpfulItemHand.Right;
+            public HelpfulItemGesture grabGesture = HelpfulItemGesture.Fist;
+            public HelpfulItemGesture useGesture = HelpfulItemGesture.HandOpen;
+            public bool helpfulAllowSelf = true;
+            public bool helpfulAllowOthers = true;
+            public string helpfulSuccessClipPath;
+            public string helpfulFailureClipPath;
         }
 
         [Serializable]
@@ -4393,6 +4469,7 @@ namespace StoriesOfYggdrasil.OSC
             RebuildSpellCastAnimationLayer();
             RebuildActionAnimationLayer(ActionAnimationKind.Technick, "SoY_TechnickType", TechnickCastLayer, animationProfile.technickAnimations);
             RebuildActionAnimationLayer(ActionAnimationKind.Item, "SoY_ItemType", ItemUseLayer, animationProfile.itemAnimations);
+            RebuildAllHelpfulItemInteractions();
             RebuildSpellAlignmentLayer();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -5622,6 +5699,43 @@ namespace StoriesOfYggdrasil.OSC
             if (animationProfile.useGenericEvadeFallback && generic != null)
                 return EvasionDefinitions.OrderBy(x => x.Id).ToArray();
             return EvasionDefinitions.Where(x => ids.Contains(x.Id)).OrderBy(x => x.Id).ToArray();
+        }
+
+        private GameObject FindAvatarObjectByRelativePath(string relativePath)
+        {
+            if (avatarRoot == null || string.IsNullOrWhiteSpace(relativePath))
+                return null;
+            var found = avatarRoot.transform.Find(relativePath);
+            return found != null ? found.gameObject : null;
+        }
+
+        private bool TryStoreHelpfulPropPath(ActionAnimationBinding binding, GameObject prop)
+        {
+            if (binding == null)
+                return false;
+            if (prop == null)
+            {
+                binding.physicalPropPath = string.Empty;
+                return true;
+            }
+            if (avatarRoot == null)
+                return false;
+            var relative = GetRelativePath(avatarRoot.transform, prop.transform);
+            if (relative == null)
+            {
+                EditorUtility.DisplayDialog(
+                    "Helpful Item Prop",
+                    "The selected object must live under the currently loaded avatar root.",
+                    "OK");
+                return false;
+            }
+            binding.physicalPropPath = relative;
+            return true;
+        }
+
+        private static string GestureParameterForHand(HelpfulItemHand hand)
+        {
+            return hand == HelpfulItemHand.Left ? "GestureLeft" : "GestureRight";
         }
 
         private void DrawActionAnimationBuilder(
@@ -9691,6 +9805,49 @@ namespace StoriesOfYggdrasil.OSC
             return string.IsNullOrWhiteSpace(cleaned) ? "Avatar" : cleaned;
         }
 
+        private static string PvpAttemptParameterForTier(AttackTier tier)
+        {
+            switch (tier)
+            {
+                case AttackTier.Weak: return PvpAttemptWeakParameter;
+                case AttackTier.Strong: return PvpAttemptStrongParameter;
+                case AttackTier.Critical: return PvpAttemptCriticalParameter;
+                default: return PvpAttemptAverageParameter;
+            }
+        }
+
+        private void ConfigurePvpAttemptReceiver(
+            GameObject host,
+            AttackTier tier,
+            ContactShape shape,
+            float radius,
+            float height,
+            Vector3 boxSize,
+            Vector3 position,
+            Vector3 rotation)
+        {
+            if (host == null)
+                return;
+            var parameter = PvpAttemptParameterForTier(tier);
+            var receiver = EnsureReceiverForTagsAndParameter(
+                host,
+                FindType(ReceiverTypeName),
+                PvpRemoteBodyTags,
+                parameter);
+            if (receiver == null)
+                return;
+
+            ConfigureContact(receiver, shape, radius, height, boxSize, position, rotation, PvpRemoteBodyTags);
+            SetBoolMember(receiver, false, "allowSelf", "AllowSelf");
+            SetBoolMember(receiver, true, "allowOthers", "AllowOthers");
+            SetBoolMember(receiver, true, "localOnly", "LocalOnly");
+            SetStringMember(receiver, parameter, "parameter", "Parameter");
+            SetEnumMember(receiver, "OnEnter", "receiverType", "ReceiverType");
+            SetFloatMember(receiver, 1f, "value", "Value");
+            SetFloatMember(receiver, 0f, "minVelocity", "MinVelocity");
+            FinishContact(receiver);
+        }
+
         private void CreateAttackSenders()
         {
             var tags = GetAttackTags(attackTier).ToList();
@@ -9713,6 +9870,22 @@ namespace StoriesOfYggdrasil.OSC
                     attackShape, attackRadius, attackHeight, attackBoxSize, attackPosition, attackRotation);
                 ConfigureAlignedDamageSender(enemyHost, tags, CasterEnemyTag,
                     attackShape, attackRadius, attackHeight, attackBoxSize, attackPosition, attackRotation);
+
+                // Protocol 21: local attacker-side proof that this exact attack volume
+                // touched another humanoid avatar. Built-in body tags are generated by
+                // VRChat for humanoid avatars, so this does not depend on the target
+                // having the Stories tool installed. The receiver is local-only and
+                // never identifies the target; Sam.py pairs it with the target's
+                // authenticated hit receipt.
+                ConfigurePvpAttemptReceiver(
+                    host,
+                    attackTier,
+                    attackShape,
+                    attackRadius,
+                    attackHeight,
+                    attackBoxSize,
+                    attackPosition,
+                    attackRotation);
 
                 Selection.activeGameObject = host;
                 Log("Attack sender ready on '" + host.name + "' with Ally/Enemy alignment and tags: " + string.Join(", ", tags));
@@ -9871,6 +10044,345 @@ namespace StoriesOfYggdrasil.OSC
             RebuildSpellAlignmentLayer();
         }
 
+        private void ConfigureHelpfulItemReceiver(
+            GameObject host,
+            string parameter,
+            bool allowSelf,
+            bool allowOthers)
+        {
+            if (host == null)
+                return;
+            var receiver = EnsureReceiverForTagsAndParameter(
+                host,
+                FindType(ReceiverTypeName),
+                new[] { "Head" },
+                parameter);
+            if (receiver == null)
+                return;
+            ConfigureContact(
+                receiver,
+                ContactShape.Sphere,
+                0.11f,
+                0.22f,
+                Vector3.one * 0.22f,
+                Vector3.zero,
+                Vector3.zero,
+                new[] { "Head" });
+            SetBoolMember(receiver, allowSelf, "allowSelf", "AllowSelf");
+            SetBoolMember(receiver, allowOthers, "allowOthers", "AllowOthers");
+            SetBoolMember(receiver, true, "localOnly", "LocalOnly");
+            SetStringMember(receiver, parameter, "parameter", "Parameter");
+            SetEnumMember(receiver, "OnEnter", "receiverType", "ReceiverType");
+            SetFloatMember(receiver, 1f, "value", "Value");
+            SetFloatMember(receiver, 0f, "minVelocity", "MinVelocity");
+            FinishContact(receiver);
+        }
+
+        private void ConfigureHelpfulItemBusSender(GameObject host, int itemId)
+        {
+            if (host == null)
+                return;
+            var tags = GetActionBusTags(itemId, HelpfulItemActiveTag, HelpfulItemBitTagPrefix).ToArray();
+            var sender = EnsureContact(host, FindType(SenderTypeName), tags, null);
+            if (sender == null)
+                return;
+            ConfigureContact(
+                sender,
+                ContactShape.Sphere,
+                0.11f,
+                0.22f,
+                Vector3.one * 0.22f,
+                Vector3.zero,
+                Vector3.zero,
+                tags);
+            SetBoolMember(sender, false, "localOnly", "LocalOnly");
+            FinishContact(sender);
+        }
+
+        private bool EnsureHelpfulItemHeadReceiverBus()
+        {
+            if (avatarRoot == null)
+                return false;
+            var animator = avatarRoot.GetComponent<Animator>() ?? avatarRoot.GetComponentInChildren<Animator>();
+            if (animator == null || !animator.isHuman)
+            {
+                EditorUtility.DisplayDialog(
+                    "Helpful Item Head Receiver",
+                    "TB18 requires a Humanoid Animator with a mapped Head bone for physical helpful-item targeting.",
+                    "OK");
+                return false;
+            }
+
+            var head = animator.GetBoneTransform(HumanBodyBones.Head);
+            if (head == null)
+            {
+                EditorUtility.DisplayDialog(
+                    "Helpful Item Head Receiver",
+                    "The Humanoid avatar has no mapped Head bone.",
+                    "OK");
+                return false;
+            }
+
+            var host = CreateContactChild(head.gameObject, HelpfulItemHeadReceiverHost, true);
+            var mappings = new List<ReceiverMapping>
+            {
+                new ReceiverMapping(HelpfulItemActiveTag, HelpfulItemActiveParameter)
+            };
+            for (var bit = 0; bit < ActionBitCount; bit++)
+                mappings.Add(new ReceiverMapping(
+                    HelpfulItemBitTagPrefix + bit,
+                    HelpfulItemBitParameterPrefix + bit));
+
+            var oldSuppress = suppressContactAttachment;
+            suppressContactAttachment = true;
+            try
+            {
+                foreach (var mapping in mappings)
+                {
+                    var tags = mapping.CollisionTags.Distinct(StringComparer.Ordinal).Take(16).ToArray();
+                    var receiver = EnsureReceiverForTagsAndParameter(
+                        host,
+                        FindType(ReceiverTypeName),
+                        tags,
+                        mapping.Parameter);
+                    if (receiver == null)
+                        continue;
+                    ConfigureContact(
+                        receiver,
+                        ContactShape.Sphere,
+                        0.16f,
+                        0.32f,
+                        Vector3.one * 0.32f,
+                        Vector3.zero,
+                        Vector3.zero,
+                        tags);
+                    SetBoolMember(receiver, false, "allowSelf", "AllowSelf");
+                    SetBoolMember(receiver, true, "allowOthers", "AllowOthers");
+                    SetBoolMember(receiver, true, "localOnly", "LocalOnly");
+                    SetStringMember(receiver, mapping.Parameter, "parameter", "Parameter");
+                    SetEnumMember(receiver, "Constant", "receiverType", "ReceiverType");
+                    SetFloatMember(receiver, 1f, "value", "Value");
+                    SetFloatMember(receiver, 0f, "minVelocity", "MinVelocity");
+                    FinishContact(receiver);
+                }
+            }
+            finally
+            {
+                suppressContactAttachment = oldSuppress;
+            }
+
+            return true;
+        }
+
+        private static void AddHelpfulExitTransitions(
+            AnimatorState from,
+            AnimatorState hidden,
+            int itemId)
+        {
+            if (from == null || hidden == null)
+                return;
+
+            var deselect = from.AddTransition(hidden);
+            deselect.hasExitTime = false;
+            deselect.duration = 0f;
+            deselect.AddCondition(AnimatorConditionMode.NotEqual, itemId, "SoY_ItemType");
+
+            var ko = from.AddTransition(hidden);
+            ko.hasExitTime = false;
+            ko.duration = 0f;
+            ko.AddCondition(AnimatorConditionMode.If, 0f, "SoY_KO");
+        }
+
+        private static void AddHelpfulResultTransitions(
+            AnimatorState from,
+            AnimatorState success,
+            AnimatorState failure)
+        {
+            if (from == null)
+                return;
+            var ok = from.AddTransition(success);
+            ok.hasExitTime = false;
+            ok.duration = 0f;
+            ok.AddCondition(AnimatorConditionMode.Equals, 1f, HelpfulItemUseResultParameter);
+
+            for (var result = 2; result <= 6; result++)
+            {
+                var fail = from.AddTransition(failure);
+                fail.hasExitTime = false;
+                fail.duration = 0f;
+                fail.AddCondition(AnimatorConditionMode.Equals, result, HelpfulItemUseResultParameter);
+            }
+        }
+
+        private void RebuildAllHelpfulItemInteractions()
+        {
+            if (animationProfile == null || animationProfile.itemAnimations == null)
+                return;
+            foreach (var binding in animationProfile.itemAnimations
+                .Where(binding => binding != null && binding.physicalHelpful && IsHelpfulPhysicalItem(binding.id))
+                .OrderBy(binding => binding.id)
+                .ToArray())
+            {
+                RebuildHelpfulItemInteraction(binding, false);
+            }
+        }
+
+        private void RebuildHelpfulItemInteraction(ActionAnimationBinding binding, bool showErrors = true)
+        {
+            if (binding == null || !binding.physicalHelpful || !IsHelpfulPhysicalItem(binding.id))
+                return;
+            if (avatarRoot == null || fxController == null || !EnsureSafeFxCopy(showErrors))
+                return;
+
+            var prop = FindAvatarObjectByRelativePath(binding.physicalPropPath);
+            if (prop == null)
+            {
+                if (showErrors)
+                    EditorUtility.DisplayDialog("Physical Helpful Item", "Assign an Item Object / Prop under the avatar first.", "OK");
+                return;
+            }
+            if (binding.grabGesture == binding.useGesture)
+            {
+                if (showErrors)
+                    EditorUtility.DisplayDialog(
+                        "Physical Helpful Item",
+                        "Grab / Toggle Gesture and Use Gesture must be different so the toggle latch and use window cannot fight each other.",
+                        "OK");
+                return;
+            }
+            if (!binding.helpfulAllowSelf && !binding.helpfulAllowOthers)
+                return;
+            if (!EnsureHelpfulItemHeadReceiverBus())
+                return;
+
+            EnsureAnimatorParameter(fxController, "SoY_ItemType", AnimatorControllerParameterType.Int);
+            EnsureAnimatorParameter(fxController, "SoY_KO", AnimatorControllerParameterType.Bool);
+            EnsureAnimatorParameter(fxController, HelpfulItemUseResultParameter, AnimatorControllerParameterType.Int);
+            EnsureAnimatorParameter(fxController, HelpfulItemReceiveResultParameter, AnimatorControllerParameterType.Int);
+            EnsureAnimatorParameter(fxController, "GestureLeft", AnimatorControllerParameterType.Int);
+            EnsureAnimatorParameter(fxController, "GestureRight", AnimatorControllerParameterType.Int);
+
+            var interactionRoot = CreateContactChild(
+                prop,
+                "[SoY Helpful Item Interaction] " + binding.id + " " + binding.name,
+                false);
+            var selfHost = CreateContactChild(interactionRoot, "[SoY Helpful Self Head Detect]", binding.helpfulAllowSelf);
+            var otherHost = CreateContactChild(interactionRoot, "[SoY Helpful Other Head Detect]", binding.helpfulAllowOthers);
+            var senderHost = CreateContactChild(interactionRoot, "[SoY Helpful Item Bus]", binding.helpfulAllowOthers);
+
+            var oldSuppress = suppressContactAttachment;
+            suppressContactAttachment = true;
+            try
+            {
+                if (binding.helpfulAllowSelf)
+                    ConfigureHelpfulItemReceiver(selfHost, HelpfulItemSelfTouchParameter, true, false);
+                if (binding.helpfulAllowOthers)
+                {
+                    ConfigureHelpfulItemReceiver(otherHost, HelpfulItemOtherTouchParameter, false, true);
+                    ConfigureHelpfulItemBusSender(senderHost, binding.id);
+                }
+            }
+            finally
+            {
+                suppressContactAttachment = oldSuppress;
+            }
+
+            var layerName = HelpfulItemLayerPrefix + binding.id + " " + binding.name;
+            RemoveLayerByName(fxController, layerName);
+            var layer = CreateHookLayer(fxController, layerName);
+            var folder = CurrentAvatarGeneratedFolder("Animations/Helpful Items/" + binding.id + "_" + MakeSafeAssetName(binding.name));
+            EnsureAssetFolder(folder);
+
+            var controlled = new[] { prop, interactionRoot };
+            var hidden = AddHookState(layer.stateMachine, "Hidden", new Vector3(100f, 160f));
+            var grabLatch = AddHookState(layer.stateMachine, "Grab Toggle On — Wait Release", new Vector3(400f, 80f));
+            var held = AddHookState(layer.stateMachine, "Held / Ready", new Vector3(700f, 160f));
+            var use = AddHookState(layer.stateMachine, "Use — Head Contacts Active", new Vector3(1000f, 80f));
+            var hideLatch = AddHookState(layer.stateMachine, "Grab Toggle Off — Wait Release", new Vector3(700f, 360f));
+            var success = AddHookState(layer.stateMachine, "Server Result — Success", new Vector3(1000f, 260f));
+            var failure = AddHookState(layer.stateMachine, "Server Result — Failure / Empty", new Vector3(1000f, 430f));
+            var resultWait = AddHookState(layer.stateMachine, "Wait For Result Reset", new Vector3(700f, 520f));
+
+            hidden.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Hidden.anim", controlled, Array.Empty<GameObject>(), 1f / 60f);
+            grabLatch.motion = CreateOrReplaceSelectiveActiveClip(folder + "/GrabLatch.anim", controlled, new[] { prop }, 1f / 60f);
+            held.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Held.anim", controlled, new[] { prop }, 1f / 60f);
+            use.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Use.anim", controlled, new[] { prop, interactionRoot }, 1f / 60f);
+            hideLatch.motion = CreateOrReplaceSelectiveActiveClip(folder + "/HideLatch.anim", controlled, new[] { prop }, 1f / 60f);
+            success.motion = LoadClipFromPath(binding.helpfulSuccessClipPath) ??
+                CreateOrReplaceTimerClip(folder + "/Success.anim", 0.45f);
+            failure.motion = LoadClipFromPath(binding.helpfulFailureClipPath) ??
+                CreateOrReplaceTimerClip(folder + "/Failure.anim", 0.65f);
+            resultWait.motion = CreateOrReplaceSelectiveActiveClip(folder + "/ResultWait.anim", controlled, new[] { prop }, 1f / 60f);
+            layer.stateMachine.defaultState = hidden;
+
+            var gestureParameter = GestureParameterForHand(binding.helpfulHand);
+            var grab = (int)binding.grabGesture;
+            var useGesture = (int)binding.useGesture;
+
+            var equip = hidden.AddTransition(grabLatch);
+            equip.hasExitTime = false;
+            equip.duration = 0f;
+            equip.AddCondition(AnimatorConditionMode.Equals, binding.id, "SoY_ItemType");
+            equip.AddCondition(AnimatorConditionMode.Equals, grab, gestureParameter);
+            equip.AddCondition(AnimatorConditionMode.IfNot, 0f, "SoY_KO");
+
+            var grabReleased = grabLatch.AddTransition(held);
+            grabReleased.hasExitTime = false;
+            grabReleased.duration = 0f;
+            grabReleased.AddCondition(AnimatorConditionMode.NotEqual, grab, gestureParameter);
+
+            var beginUse = held.AddTransition(use);
+            beginUse.hasExitTime = false;
+            beginUse.duration = 0f;
+            beginUse.AddCondition(AnimatorConditionMode.Equals, useGesture, gestureParameter);
+
+            var endUse = use.AddTransition(held);
+            endUse.hasExitTime = false;
+            endUse.duration = 0f;
+            endUse.AddCondition(AnimatorConditionMode.NotEqual, useGesture, gestureParameter);
+
+            var beginHide = held.AddTransition(hideLatch);
+            beginHide.hasExitTime = false;
+            beginHide.duration = 0f;
+            beginHide.AddCondition(AnimatorConditionMode.Equals, grab, gestureParameter);
+
+            var hideReleased = hideLatch.AddTransition(hidden);
+            hideReleased.hasExitTime = false;
+            hideReleased.duration = 0f;
+            hideReleased.AddCondition(AnimatorConditionMode.NotEqual, grab, gestureParameter);
+
+            AddHelpfulResultTransitions(held, success, failure);
+            AddHelpfulResultTransitions(use, success, failure);
+
+            var successDone = success.AddTransition(resultWait);
+            successDone.hasExitTime = true;
+            successDone.exitTime = 1f;
+            successDone.duration = 0f;
+            var failureDone = failure.AddTransition(resultWait);
+            failureDone.hasExitTime = true;
+            failureDone.exitTime = 1f;
+            failureDone.duration = 0f;
+
+            var resetDone = resultWait.AddTransition(held);
+            resetDone.hasExitTime = false;
+            resetDone.duration = 0f;
+            resetDone.AddCondition(AnimatorConditionMode.Equals, 0f, HelpfulItemUseResultParameter);
+
+            foreach (var activeState in new[] { grabLatch, held, use, hideLatch, success, failure, resultWait })
+                AddHelpfulExitTransitions(activeState, hidden, binding.id);
+
+            fxController.AddLayer(layer);
+            EditorUtility.SetDirty(fxController);
+            EditorUtility.SetDirty(prop);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Log(
+                BuildNumber + " built physical helpful item " + binding.id + " — " + binding.name +
+                " using " + binding.helpfulHand + " hand, grab " + binding.grabGesture +
+                ", use " + binding.useGesture + ", Self=" + binding.helpfulAllowSelf +
+                ", Others=" + binding.helpfulAllowOthers + ". FaceEmo assets were not modified.");
+        }
+
         private void CreateItemSenders()
         {
             ActionDefinition item;
@@ -9892,6 +10404,9 @@ namespace StoriesOfYggdrasil.OSC
             }
             SyncInstalledActionAnimationProfile(ActionAnimationKind.Item);
             RebuildActionAnimationLayer(ActionAnimationKind.Item, "SoY_ItemType", ItemUseLayer, animationProfile.itemAnimations);
+            var physicalBinding = animationProfile.itemAnimations.FirstOrDefault(binding => binding != null && binding.id == item.Id);
+            if (physicalBinding != null && physicalBinding.physicalHelpful)
+                RebuildHelpfulItemInteraction(physicalBinding);
             RebuildSpellAlignmentLayer();
         }
 
@@ -11919,8 +12434,8 @@ namespace StoriesOfYggdrasil.OSC
             var validB = states.FirstOrDefault(state => state.name == UnityMarkerStateB);
             var invalid = states.FirstOrDefault(state => state.name == UnityMarkerStateInvalid);
 
-            var validPair = MarkerStatePublishes(validA, true, 117) &&
-                            MarkerStatePublishes(validB, true, 118);
+            var validPair = MarkerStatePublishes(validA, true, 121) &&
+                            MarkerStatePublishes(validB, true, 122);
             var invalidMarker = MarkerStatePublishes(invalid, false, 0);
             return validPair || invalidMarker;
         }
@@ -11950,8 +12465,8 @@ namespace StoriesOfYggdrasil.OSC
                 .ToArray();
             var stateA = states.FirstOrDefault(state => state.name == UnityMarkerStateA);
             var stateB = states.FirstOrDefault(state => state.name == UnityMarkerStateB);
-            if (!MarkerStatePublishes(stateA, true, 117) ||
-                !MarkerStatePublishes(stateB, true, 118))
+            if (!MarkerStatePublishes(stateA, true, 121) ||
+                !MarkerStatePublishes(stateB, true, 122))
                 return false;
 
             var machine = layers[0].stateMachine;
@@ -12014,8 +12529,8 @@ namespace StoriesOfYggdrasil.OSC
                 var stateB = AddHookState(layer.stateMachine, UnityMarkerStateB, new Vector3(560f, 100f));
                 stateA.motion = CreateOrReplaceTimerClip(folder + "/SOY_UnityMarker_Beacon_A.anim", 2f);
                 stateB.motion = CreateOrReplaceTimerClip(folder + "/SOY_UnityMarker_Beacon_B.anim", 2f);
-                ConfigureUnityMarkerDriver(stateA, true, 117);
-                ConfigureUnityMarkerDriver(stateB, true, 118);
+                ConfigureUnityMarkerDriver(stateA, true, 121);
+                ConfigureUnityMarkerDriver(stateB, true, 122);
                 layer.stateMachine.defaultState = stateA;
 
                 var toB = stateA.AddTransition(stateB);
@@ -12046,7 +12561,7 @@ namespace StoriesOfYggdrasil.OSC
                 fxController.layers.Any(layer => layer.name == UnityMarkerLayer && layer.stateMachine != null);
             var schemaValid = managedRepairAuditReady && CurrentSchemaIsValid();
             DrawTagRow("Unity Tool", "v" + Version + " " + BuildNumber, "Written into the avatar marker layer");
-            DrawTagRow("OSC Protocol", OscProtocolVersion.ToString(), "Desktop v0.8.21-prebuild.4 requires protocol 20 for Stories-generated gameplay Contacts");
+            DrawTagRow("OSC Protocol", OscProtocolVersion.ToString(), "Desktop v0.8.22-prebuild.1 requires Protocol 21 for physical helpful-item interactions");
             DrawTagRow("Marker Layer",
                 markerPresent ? "✓ Installed" :
                 markerStructurePresent ? "! Installed / Schema Invalid" :
@@ -12054,7 +12569,7 @@ namespace StoriesOfYggdrasil.OSC
                 UnityMarkerLayer);
             DrawTagRow("Schema", markerPresent && schemaValid ? "✓ Valid" : "✕ Update Required", "Legacy/broken Stories-managed Contacts remain blocked by the Desktop runtime");
             EditorGUILayout.HelpBox(
-                "TB17.5 validates Protocol 20 marker metadata from the local Avatar Parameter Driver itself. Marker state names are now fixed, minimal, and version-agnostic so Unity state-name parsing cannot break compatibility detection.",
+                "TB18 keeps the metadata-based compatibility marker and adds Protocol 21 physical helpful-item interactions. The 121/122 local beacon identifies the TB18 / Protocol 21 schema to Desktop v0.8.22-prebuild.1.",
                 markerPresent && schemaValid ? MessageType.Info : MessageType.Warning);
             using (new EditorGUI.DisabledScope(avatarDescriptor == null))
             {

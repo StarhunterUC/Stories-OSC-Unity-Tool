@@ -55,7 +55,7 @@ def main() -> int:
     raycast_guide = root / f'RAYCAST_GUIDE_{tag}.md'
     source_audit = root / f'SOURCE_AUDIT_{tag}.json'
     test_plan = root / f'TEST_PLAN_{tag}.md'
-    protocol_doc = root / 'OSC_PROTOCOL_v20.md'
+    protocol_doc = root / 'OSC_PROTOCOL_v21.md'
 
     required = [source, unity_source, contract, external_contract, release_notes, raycast_guide, source_audit, test_plan, protocol_doc]
     missing = [str(p.relative_to(root)) for p in required if not p.is_file()]
@@ -65,17 +65,17 @@ def main() -> int:
     text = source.read_text(encoding='utf-8-sig')
     checks = {
         'version': version.get('version') == '0.5.10',
-        'build_number': version.get('build_number') == 'TB17.5',
-        'tag': tag == 'v0.5.10-TB17.5',
-        'protocol_metadata': version.get('osc_protocol_version') == 20,
-        'desktop_metadata': version.get('minimum_desktop_version') == '0.8.21-prebuild.4',
+        'build_number': version.get('build_number') == 'TB18',
+        'tag': tag == 'v0.5.10-TB18',
+        'protocol_metadata': version.get('osc_protocol_version') == 21,
+        'desktop_metadata': version.get('minimum_desktop_version') == '0.8.22-prebuild.1',
         'source_header_version': 'private const string Version = "0.5.10";' in text,
-        'source_header_build': 'private const string BuildNumber = "TB17.5";' in text,
-        'source_header_label': 'Marker Metadata Contract' in text,
-        'source_protocol': 'private const int OscProtocolVersion = 20;' in text,
+        'source_header_build': 'private const string BuildNumber = "TB18";' in text,
+        'source_header_label': 'Physical Helpful Items' in text,
+        'source_protocol': 'private const int OscProtocolVersion = 21;' in text,
         'canonical_and_unity_source_identical': source.read_bytes() == unity_source.read_bytes(),
 
-        # Protocol 20 marker.
+        # Protocol 21 marker.
         'marker_layer': 'Stories Of Yggdrasil | Unity Tool Marker' in text,
         'marker_present': 'SoY_UnityToolPresent' in text,
         'marker_version_fields': all(x in text for x in ('SoY_UnityToolMajor','SoY_UnityToolMinor','SoY_UnityToolPatch','SoY_UnityToolTB','SoY_UnityToolTBRevision')),
@@ -96,6 +96,20 @@ def main() -> int:
         'marker_transition_validation': 'destinationState == stateB' in text and 'destinationState == stateA' in text,
         'migration_ui': 'MIGRATE / VALIDATE AVATAR FOR PROTOCOL ' in text,
         'schema_validation': 'CurrentSchemaIsValid()' in text and 'RebuildUnityToolMarkerLayer' in text,
+        # TB18 Protocol 21 physical helpful-item interaction.
+        'helpful_item_self_touch': 'SoY_HelpItemSelfTouch' in text,
+        'helpful_item_other_touch': 'SoY_HelpItemOtherTouch' in text,
+        'helpful_item_bus': 'SoY_HelpItemActive' in text and 'HelpfulItemBitParameterPrefix' in text,
+        'helpful_item_results': 'SoY_ItemUseResult' in text and 'SoY_ItemReceiveResult' in text,
+        'helpful_item_head_receiver': 'EnsureHelpfulItemHeadReceiverBus' in text and 'HumanBodyBones.Head' in text,
+        'helpful_item_gesture_toggle': 'Grab Toggle On — Wait Release' in text and 'Use — Head Contacts Active' in text,
+        'helpful_item_faceemo_safe': 'FaceEmo assets were not modified' in text,
+        'helpful_item_registry': 'HelpfulPhysicalItemIds' in text,
+        # Protocol 21 authenticated PvP source handshake.
+        'pvp_attempt_parameters': all(x in text for x in ('SoY_PvPAttemptWeak','SoY_PvPAttemptAverage','SoY_PvPAttemptStrong','SoY_PvPAttemptCritical')),
+        'pvp_builtin_body_tags': 'PvpRemoteBodyTags' in text and all(x in text for x in ('"Head"','"Torso"','"Hand"','"Foot"')),
+        'pvp_attempt_receiver': 'ConfigurePvpAttemptReceiver' in text and 'allowOthers' in text and 'localOnly' in text,
+        'protocol21_beacon': 'ConfigureUnityMarkerDriver(stateA, true, 121)' in text and 'ConfigureUnityMarkerDriver(stateB, true, 122)' in text,
 
         # TB15 action gates retained.
         'spell_approved': 'SoY_SpellApproved' in text,
@@ -162,7 +176,7 @@ def main() -> int:
         raise SystemExit(f'Source SHA mismatch: expected {expected}, received {actual}')
 
     contract_data = json.loads(contract.read_text(encoding='utf-8'))
-    if contract_data.get('osc_protocol_version') != 20 or contract_data.get('build_number') != 'TB17.5':
+    if contract_data.get('osc_protocol_version') != 21 or contract_data.get('build_number') != 'TB18':
         raise SystemExit('Verification failed: current Unity contract metadata mismatch')
 
     audit_data = json.loads(source_audit.read_text(encoding='utf-8'))
