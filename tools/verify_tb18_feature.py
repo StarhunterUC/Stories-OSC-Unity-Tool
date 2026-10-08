@@ -27,6 +27,13 @@ required = {
     'others_split': 'allowOthers',
     'faceemo_safety': 'FaceEmo assets were not modified',
     'helpful_registry': 'HelpfulPhysicalItemIds',
+    'pvp_attempt_weak': 'SoY_PvPAttemptWeak',
+    'pvp_attempt_average': 'SoY_PvPAttemptAverage',
+    'pvp_attempt_strong': 'SoY_PvPAttemptStrong',
+    'pvp_attempt_critical': 'SoY_PvPAttemptCritical',
+    'pvp_remote_body_tags': 'PvpRemoteBodyTags',
+    'pvp_attempt_receiver': 'ConfigurePvpAttemptReceiver',
+    'pvp_existing_attack_host': 'ConfigurePvpAttemptReceiver(\n                    host,\n                    attackTier,',
 }
 for label, marker in required.items():
     if marker not in canonical:
