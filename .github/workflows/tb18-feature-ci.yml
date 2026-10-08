@@ -18,3 +18,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: python tools/verify_tb18_feature.py
+      - run: python tools/verify_repo.py --repo-root .
