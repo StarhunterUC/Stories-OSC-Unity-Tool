@@ -1,18 +1,31 @@
-# Stories OSC Unity Tool v0.5.10 TB17.5
+# Stories OSC Unity Tool v0.5.10 TB18
 
-Current prerelease: **Stories OSC Unity Tool v0.5.10 TB17.5 — Animator Integrity Hotfix**.
+Current prerelease: **Stories OSC Unity Tool v0.5.10 TB18 — Physical Helpful Items / Protocol 21**.
 
 This repository contains the Unity Editor authoring/repair tool for the Stories Of Yggdrasil OSC Contact System used by VRChat avatars.
 
 ## Install
 
-Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB17.5.unitypackage`, or copy the canonical script to:
+Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB18.unitypackage`, or copy the canonical script to:
 
 ```text
 Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs
 ```
 
 Only one `StoriesOfYggdrasilOSCContactSystem` script should exist inside a Unity project's `Assets` folder.
+
+## TB18 — physical helpful items + automatic PvP identity
+
+TB18 starts OSC Protocol 21 while retaining TB17.5's hardened marker and Animator-integrity work.
+
+- Helpful items can be bound to a real avatar prop, gesture hand, Grab/Toggle gesture, Use gesture, Self/Others targeting, and optional result animations.
+- The generated prop interaction uses a gesture latch: Grab toggles the prop on/off, while Use enables the Head interaction contacts.
+- A dedicated incoming helpful-item Head bus is generated on the Humanoid Head.
+- FaceEmo is not edited; TB18 only reads VRChat's built-in GestureLeft/GestureRight parameters.
+- Existing Stories Attack volumes gain local-only remote-humanoid contact detection for automatic Protocol 21 PvP source attribution.
+- PvP source identity is resolved by authenticated Desktop/Sam.py attempt + receipt pairing; ambiguous matches fail closed.
+- Protocol 21 marker beacon is 121/122.
+- Matching Desktop test client: v0.8.22-prebuild.1; new server features require OSC API v0.8.19.
 
 ## TB17.5 — marker metadata contract
 
