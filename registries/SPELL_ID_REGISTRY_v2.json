@@ -2,8 +2,8 @@
   "registry": "SPELL_ID_REGISTRY_v2",
   "version": "0.5.9",
   "build_number": "TB3",
-  "unique_id_count": 144,
-  "definition_row_count": 151,
+  "unique_id_count": 149,
+  "definition_row_count": 156,
   "entries": [
     {
       "id": 1,
@@ -720,20 +720,6 @@
       "alternate_school_entries": []
     },
     {
-      "id": 98,
-      "name": "Chakra Heal",
-      "school": "YggdrasilLightMagick",
-      "category": "Healing",
-      "alternate_school_entries": []
-    },
-    {
-      "id": 99,
-      "name": "Aura Shielding",
-      "school": "YggdrasilLightMagick",
-      "category": "Support",
-      "alternate_school_entries": []
-    },
-    {
       "id": 100,
       "name": "I Am... Recovery Atomic",
       "school": "WhiteMagick",
@@ -1059,6 +1045,55 @@
       "name": "Rebirth Bloom",
       "school": "NatureMagick",
       "category": "Revival",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 145,
+      "name": "Light Lance",
+      "school": "LightMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 146,
+      "name": "Radiant Fracture",
+      "school": "LightMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 147,
+      "name": "Light Imbuement",
+      "school": "LightMagick",
+      "category": "Support",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 148,
+      "name": "Dawnfall",
+      "school": "LightMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 149,
+      "name": "Sacred Flame",
+      "school": "LightMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 150,
+      "name": "Radiant Horizon",
+      "school": "LightMagick",
+      "category": "Offensive",
+      "alternate_school_entries": []
+    },
+    {
+      "id": 151,
+      "name": "Light Atomic",
+      "school": "LightMagick",
+      "category": "Offensive",
       "alternate_school_entries": []
     }
   ]

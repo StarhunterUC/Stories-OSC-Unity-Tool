@@ -1,23 +1,23 @@
 {
-    "product": "Stories Of Yggdrasil OSC Contact System",
-    "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
-    "version": "0.5.10",
-    "build_number": "TB18",
-    "build_label": "Test Build 18 — Physical Helpful Items / Protocol 21",
-    "tag": "v0.5.10-TB18",
-    "channel": "test",
-    "prerelease": true,
-    "canonical_source_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
-    "unity_asset_path": "Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs",
-    "source_sha256": "a944c2987bc895e3c25314d5a1b37b4153e1ac34e677302c0498421be36b696b",
-    "minimum_vrchat_avatars_sdk": "3.10.3",
-    "recommended_tested_sdk_line": "3.10.5-beta.1",
-    "osc_protocol_version": 21,
-    "minimum_desktop_version": "0.8.22-prebuild.1",
-    "registries": {
-        "spell_registry": "registries/SPELL_ID_REGISTRY_v2.json",
-        "technick_registry": "registries/TECHNICK_ID_REGISTRY_v1.json",
-        "item_registry": "registries/ITEM_ID_REGISTRY_v1.json"
-    },
-    "display_version": "Stories OSC Unity Tool v0.5.10 TB18"
+  "product": "Stories Of Yggdrasil OSC Contact System",
+  "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
+  "version": "0.5.10",
+  "build_number": "TB18.1",
+  "build_label": "Test Build 18.1 — Light Bearer Magicks / Protocol 21",
+  "tag": "v0.5.10-TB18.1",
+  "channel": "test",
+  "prerelease": true,
+  "canonical_source_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
+  "unity_asset_path": "Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs",
+  "source_sha256": "761a8256e749df55e00195bfaab1f6ded62d58dd96fa6fbaa0b0f31f9357b360",
+  "minimum_vrchat_avatars_sdk": "3.10.3",
+  "recommended_tested_sdk_line": "3.10.5-beta.1",
+  "osc_protocol_version": 21,
+  "minimum_desktop_version": "0.8.22-prebuild.1",
+  "registries": {
+    "spell_registry": "registries/SPELL_ID_REGISTRY_v2.json",
+    "technick_registry": "registries/TECHNICK_ID_REGISTRY_v1.json",
+    "item_registry": "registries/ITEM_ID_REGISTRY_v1.json"
+  },
+  "display_version": "Stories OSC Unity Tool v0.5.10 TB18.1"
 }

@@ -1,4 +1,11 @@
-# Stories OSC Unity Tool v0.5.10 TB18
+# Stories OSC Unity Tool v0.5.10 TB18.1
+
+## Light Bearer Magick correction
+
+- Replace obsolete Yggdrasil Light Magick school with Light Magick.
+- Add Light Lance, Radiant Fracture, Light Imbuement, Dawnfall, Sacred Flame, Radiant Horizon, Light Atomic (IDs 145-151).
+- Retire older Chakra Heal and Aura Shielding IDs 98/99 without reassigning.
+- No OSC protocol changes.
 
 ## Protocol 21 — Physical Helpful Items + Automatic PvP Identity
 
