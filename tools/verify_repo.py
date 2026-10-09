@@ -65,12 +65,12 @@ def main() -> int:
     text = source.read_text(encoding='utf-8-sig')
     checks = {
         'version': version.get('version') == '0.5.10',
-        'build_number': version.get('build_number') == 'TB18',
-        'tag': tag == 'v0.5.10-TB18',
+        'build_number': version.get('build_number') == 'TB18.1',
+        'tag': tag == 'v0.5.10-TB18.1',
         'protocol_metadata': version.get('osc_protocol_version') == 21,
         'desktop_metadata': version.get('minimum_desktop_version') == '0.8.22-prebuild.1',
         'source_header_version': 'private const string Version = "0.5.10";' in text,
-        'source_header_build': 'private const string BuildNumber = "TB18";' in text,
+        'source_header_build': 'private const string BuildNumber = "TB18.1";' in text,
         'source_header_label': 'Physical Helpful Items' in text,
         'source_protocol': 'private const int OscProtocolVersion = 21;' in text,
         'canonical_and_unity_source_identical': source.read_bytes() == unity_source.read_bytes(),
@@ -176,7 +176,7 @@ def main() -> int:
         raise SystemExit(f'Source SHA mismatch: expected {expected}, received {actual}')
 
     contract_data = json.loads(contract.read_text(encoding='utf-8'))
-    if contract_data.get('osc_protocol_version') != 21 or contract_data.get('build_number') != 'TB18':
+    if contract_data.get('osc_protocol_version') != 21 or contract_data.get('build_number') != 'TB18.1':
         raise SystemExit('Verification failed: current Unity contract metadata mismatch')
 
     audit_data = json.loads(source_audit.read_text(encoding='utf-8'))
