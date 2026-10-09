@@ -1,11 +1,11 @@
 {
   "contract": "Stories Of Yggdrasil Unity Tool Contact Contract",
   "version": "0.5.10",
-  "build_number": "TB18",
-  "tag": "v0.5.10-TB18",
+  "build_number": "TB18.1",
+  "tag": "v0.5.10-TB18.1",
   "contact_contract_revision": 20,
   "osc_protocol_version": 21,
-  "minimum_desktop_version": "0.8.21-prebuild.4",
+  "minimum_desktop_version": "0.8.22-prebuild.1",
   "unity_authoring_marker": {
     "layer": "Stories Of Yggdrasil | Unity Tool Marker",
     "local_unsynced": true,
