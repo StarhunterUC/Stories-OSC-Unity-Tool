@@ -299,7 +299,7 @@ namespace StoriesOfYggdrasil.OSC
             NatureMagick,
             ChaosMagick,
             AbyssalCurses,
-            YggdrasilLightMagick
+            LightMagick
         }
 
         private enum SpellCategory
@@ -749,9 +749,14 @@ namespace StoriesOfYggdrasil.OSC
             new SpellDefinition(96, "Worldrend", SpellSchool.AbyssalCurses, SpellCategory.Offensive),
             new SpellDefinition(97, "Memory Bleed", SpellSchool.AbyssalCurses, SpellCategory.Status),
 
-            // Yggdrasil Light Magick
-            new SpellDefinition(98, "Chakra Heal", SpellSchool.YggdrasilLightMagick, SpellCategory.Healing),
-            new SpellDefinition(99, "Aura Shielding", SpellSchool.YggdrasilLightMagick, SpellCategory.Support),
+            // Light Bearer — Light Magick (new IDs; legacy 98/99 retired)
+            new SpellDefinition(145, "Light Lance", SpellSchool.LightMagick, SpellCategory.Offensive),
+            new SpellDefinition(146, "Radiant Fracture", SpellSchool.LightMagick, SpellCategory.Offensive),
+            new SpellDefinition(147, "Light Imbuement", SpellSchool.LightMagick, SpellCategory.Support),
+            new SpellDefinition(148, "Dawnfall", SpellSchool.LightMagick, SpellCategory.Offensive),
+            new SpellDefinition(149, "Sacred Flame", SpellSchool.LightMagick, SpellCategory.Offensive),
+            new SpellDefinition(150, "Radiant Horizon", SpellSchool.LightMagick, SpellCategory.Offensive),
+            new SpellDefinition(151, "Light Atomic", SpellSchool.LightMagick, SpellCategory.Offensive),
 
             // Black Magick
             new SpellDefinition(101, "Fire", SpellSchool.BlackMagick, SpellCategory.Offensive),
@@ -1558,7 +1563,7 @@ namespace StoriesOfYggdrasil.OSC
         private bool incomingNatureSpells;
         private bool incomingChaosSpells;
         private bool incomingAbyssalSpells;
-        private bool incomingYggdrasilLightSpells;
+        private bool incomingLightSpells;
         private bool forceIncomingOnExistingHealth;
         private bool bridgeBlockToOsc = true;
 
@@ -11198,7 +11203,7 @@ namespace StoriesOfYggdrasil.OSC
                 case SpellSchool.NatureMagick: return "Nature Magick";
                 case SpellSchool.ChaosMagick: return "Chaos Magick";
                 case SpellSchool.AbyssalCurses: return "Abyssal Curses";
-                case SpellSchool.YggdrasilLightMagick: return "Yggdrasil Light";
+                case SpellSchool.LightMagick: return "Light Magick";
                 default: return school.ToString();
             }
         }
@@ -11223,7 +11228,7 @@ namespace StoriesOfYggdrasil.OSC
                 case SpellSchool.NatureMagick: return incomingNatureSpells;
                 case SpellSchool.ChaosMagick: return incomingChaosSpells;
                 case SpellSchool.AbyssalCurses: return incomingAbyssalSpells;
-                case SpellSchool.YggdrasilLightMagick: return incomingYggdrasilLightSpells;
+                case SpellSchool.LightMagick: return incomingLightSpells;
                 default: return false;
             }
         }
@@ -11257,7 +11262,7 @@ namespace StoriesOfYggdrasil.OSC
             incomingNatureSpells = value;
             incomingChaosSpells = value;
             incomingAbyssalSpells = value;
-            incomingYggdrasilLightSpells = value;
+            incomingLightSpells = value;
         }
 
 
@@ -12969,7 +12974,7 @@ namespace StoriesOfYggdrasil.OSC
                 {
                     SpellSchool.ChaosMagick,
                     SpellSchool.AbyssalCurses,
-                    SpellSchool.YggdrasilLightMagick
+                    SpellSchool.LightMagick
                 });
 
             Undo.RecordObject(schoolBrowseMenu, "Build Stories School Browser");
