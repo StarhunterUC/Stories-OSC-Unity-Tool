@@ -71,7 +71,7 @@ def main() -> int:
         'desktop_metadata': version.get('minimum_desktop_version') == '0.8.22-prebuild.7',
         'source_header_version': 'private const string Version = "0.5.10";' in text,
         'source_header_build': 'private const string BuildNumber = "TB18.2";' in text,
-        'source_header_label': 'Contact Provenance Isolation' in text,
+        'source_header_label': 'Isolated Contact Provenance' in text,
         'source_protocol': 'private const int OscProtocolVersion = 21;' in text,
         'canonical_and_unity_source_identical': source.read_bytes() == unity_source.read_bytes(),
 
