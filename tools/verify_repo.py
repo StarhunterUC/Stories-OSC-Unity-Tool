@@ -65,13 +65,13 @@ def main() -> int:
     text = source.read_text(encoding='utf-8-sig')
     checks = {
         'version': version.get('version') == '0.5.10',
-        'build_number': version.get('build_number') == 'TB18.1',
-        'tag': tag == 'v0.5.10-TB18.1',
+        'build_number': version.get('build_number') == 'TB18.2',
+        'tag': tag == 'v0.5.10-TB18.2',
         'protocol_metadata': version.get('osc_protocol_version') == 21,
-        'desktop_metadata': version.get('minimum_desktop_version') == '0.8.22-prebuild.1',
+        'desktop_metadata': version.get('minimum_desktop_version') == '0.8.22-prebuild.7',
         'source_header_version': 'private const string Version = "0.5.10";' in text,
-        'source_header_build': 'private const string BuildNumber = "TB18.1";' in text,
-        'source_header_label': 'Physical Helpful Items' in text,
+        'source_header_build': 'private const string BuildNumber = "TB18.2";' in text,
+        'source_header_label': 'Contact Provenance Isolation' in text,
         'source_protocol': 'private const int OscProtocolVersion = 21;' in text,
         'canonical_and_unity_source_identical': source.read_bytes() == unity_source.read_bytes(),
 
@@ -109,6 +109,8 @@ def main() -> int:
         'pvp_attempt_parameters': all(x in text for x in ('SoY_PvPAttemptWeak','SoY_PvPAttemptAverage','SoY_PvPAttemptStrong','SoY_PvPAttemptCritical')),
         'pvp_builtin_body_tags': 'PvpRemoteBodyTags' in text and all(x in text for x in ('"Head"','"Torso"','"Hand"','"Foot"')),
         'pvp_attempt_receiver': 'ConfigurePvpAttemptReceiver' in text and 'allowOthers' in text and 'localOnly' in text,
+        'external_hit_isolation': all(x in text for x in ('ExternalHitWeakParameter', 'ExternalHitAverageParameter', 'ExternalWeakContactTags', 'ExternalAverageContactTags')),
+        'external_receiver_migration': 'ConfigureIncomingReceiverPreservingGeometry(receiver.gameObject' in text,
         'protocol21_beacon': 'ConfigureUnityMarkerDriver(stateA, true, 121)' in text and 'ConfigureUnityMarkerDriver(stateB, true, 122)' in text,
 
         # TB15 action gates retained.
@@ -176,7 +178,7 @@ def main() -> int:
         raise SystemExit(f'Source SHA mismatch: expected {expected}, received {actual}')
 
     contract_data = json.loads(contract.read_text(encoding='utf-8'))
-    if contract_data.get('osc_protocol_version') != 21 or contract_data.get('build_number') != 'TB18.1':
+    if contract_data.get('osc_protocol_version') != 21 or contract_data.get('build_number') != 'TB18.2':
         raise SystemExit('Verification failed: current Unity contract metadata mismatch')
 
     audit_data = json.loads(source_audit.read_text(encoding='utf-8'))

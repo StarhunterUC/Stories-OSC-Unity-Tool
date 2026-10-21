@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.5.10 TB18.2 — Native/External Contact Provenance
+
+- Canonical SoY hit tiers now listen only to Stories-native attack tags.
+- External Sword/Weapon/Hands report on separate local-only `SoY_ExternalHitAverage` / `SoY_ExternalHitWeak` parameters.
+- TB18.1 managed receivers can be migrated without losing their original geometry/placement.
+- Fix mixed native/external tier precedence; preserve existing raycast and Protocol 21 handling.
+- Desktop prebuild.7+ required for external-only Contact support. No server behavior changes.
+
+
 ## v0.5.10 TB18 — Physical Helpful Items / Protocol 21
 
 - Added gesture-latched physical helpful-item prop authoring.

@@ -32,6 +32,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Verify TB18.2 contact isolation
+        run: python tools/verify_tb18_2_contact_routing.py
+
       - name: Verify repository payload
         run: python tools/verify_repo.py --repo-root .
 

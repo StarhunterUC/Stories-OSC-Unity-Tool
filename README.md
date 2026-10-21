@@ -1,18 +1,22 @@
-# Stories OSC Unity Tool v0.5.10 TB18
+# Stories OSC Unity Tool v0.5.10 TB18.2
 
-Current prerelease: **Stories OSC Unity Tool v0.5.10 TB18 — Physical Helpful Items / Protocol 21**.
+Current prerelease: **Stories OSC Unity Tool v0.5.10 TB18.2 — Contact Provenance Isolation / Protocol 21**.
 
 This repository contains the Unity Editor authoring/repair tool for the Stories Of Yggdrasil OSC Contact System used by VRChat avatars.
 
 ## Install
 
-Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB18.unitypackage`, or copy the canonical script to:
+Download the release `Stories-OSC-Unity-Tool-v0.5.10-TB18.2.unitypackage`, or copy the canonical script to:
 
 ```text
 Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs
 ```
 
 Only one `StoriesOfYggdrasilOSCContactSystem` script should exist inside a Unity project's `Assets` folder.
+
+## TB18.2 — isolated native and external damage Contacts
+
+TB18.2 separates third-party `Sword`, `Weapon` and `Hands` compatibility receivers from native Stories PvP hit tiers. It adds local `SoY_ExternalHitWeak/Average` channels; **Desktop prebuild.7 or later is required** to recognize them. Migrate/repair a duplicate avatar first and preserve the live avatar until two-client tests pass.
 
 ## TB18 — physical helpful items + automatic PvP identity
 

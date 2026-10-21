@@ -1,0 +1,28 @@
+name: TB18.2 Contact Isolation CI
+
+on:
+  push:
+    branches:
+      - "tb18.2-contact-isolation"
+  pull_request:
+    paths:
+      - "StoriesOfYggdrasilOSCContactSystem.cs"
+      - "Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Contact provenance tests
+        run: python tools/verify_tb18_2_contact_routing.py
+      - name: Release contract validation
+        run: python tools/verify_repo.py --repo-root .
+      - name: Test release packaging (no release)
+        run: python tools/build_release.py --repo-root .

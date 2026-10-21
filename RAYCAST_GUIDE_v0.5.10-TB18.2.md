@@ -56,3 +56,5 @@ Raycast-generated actions still emit the normal Stories Contact bus. `Sword`, `W
 ## TB18 marker beacon retained
 
 The marker layer periodically alternates the local unsynced `SoY_UnityMarkerBeacon` between encoded values 117/118. This is compatibility telemetry only; it does not authorize a Raycast or gameplay action.
+
+TB18.2 only changes incoming contact receiver provenance. VRCRaycast parameters and state transitions are unchanged.

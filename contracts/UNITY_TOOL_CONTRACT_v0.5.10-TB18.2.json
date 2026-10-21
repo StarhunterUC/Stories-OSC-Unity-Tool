@@ -1,11 +1,11 @@
 {
   "contract": "Stories Of Yggdrasil Unity Tool Contact Contract",
   "version": "0.5.10",
-  "build_number": "TB18.1",
-  "tag": "v0.5.10-TB18.1.1",
-  "contact_contract_revision": 20,
+  "build_number": "TB18.2",
+  "tag": "v0.5.10-TB18.2",
+  "contact_contract_revision": 21,
   "osc_protocol_version": 21,
-  "minimum_desktop_version": "0.8.22-prebuild.1",
+  "minimum_desktop_version": "0.8.22-prebuild.7",
   "unity_authoring_marker": {
     "layer": "Stories Of Yggdrasil | Unity Tool Marker",
     "local_unsynced": true,
@@ -24,15 +24,15 @@
       "major": 0,
       "minor": 5,
       "patch": 10,
-      "tb": 17,
-      "tb_revision": 0,
+      "tb": 18,
+      "tb_revision": 2,
       "protocol": 21,
       "beacon_values": [
         121,
         122
       ]
     },
-    "beacon_policy": "Local unsynced Int alternates 117/118 so a late-start Desktop can rediscover the current Tool/Protocol/schema marker.",
+    "beacon_policy": "Local unsynced 121/122 beacon (Protocol 21) enables late Desktop marker discovery.",
     "repair_policy": "TB18 retains driver-metadata marker validation and publishes Protocol 21 with the 121/122 local beacon.",
     "schema_valid_policy": "Only true after current managed Animator/Expression parameters and recognized Stories-managed systems validate.",
     "state_names": [
@@ -57,22 +57,22 @@
     ]
   },
   "external_contact_compatibility": {
-    "revision": 18,
+    "revision": 21,
     "exact_case_sensitive": true,
     "damage_aliases": {
       "Sword": {
         "tier": "Average",
-        "parameter": "SoY_HitAverage",
+        "parameter": "SoY_ExternalHitAverage",
         "alignment": "hostile_or_unknown"
       },
       "Weapon": {
         "tier": "Average",
-        "parameter": "SoY_HitAverage",
+        "parameter": "SoY_ExternalHitAverage",
         "alignment": "hostile_or_unknown"
       },
       "Hands": {
         "tier": "Weak",
-        "parameter": "SoY_HitWeak",
+        "parameter": "SoY_ExternalHitWeak",
         "alignment": "hostile_or_unknown",
         "warning": "Broad/default VRChat hand tag; passive touching may register as Weak while incoming combat receivers are active."
       }
@@ -93,6 +93,13 @@
         "Weapon",
         "Hands"
       ]
+    },
+    "provenance_separated": true,
+    "canonical_parameters": {
+      "weak": "SoY_HitWeak",
+      "average": "SoY_HitAverage",
+      "strong": "SoY_HitStrong",
+      "critical": "SoY_HitCritical"
     }
   },
   "action_transport": {
@@ -191,7 +198,7 @@
   },
   "updater": {
     "repository": "StarhunterUC/Stories-OSC-Unity-Tool",
-    "test_build_tag": "v0.5.10-TB18.1",
+    "test_build_tag": "v0.5.10-TB18.2",
     "preferred_asset": "StoriesOfYggdrasilOSCContactSystem.cs",
     "required_checksum_asset": "StoriesOfYggdrasilOSCContactSystem.cs.sha256",
     "zip_fallback_supported": true

@@ -35,3 +35,14 @@
 - Resource FX.
 - External Sword/Weapon/Hands compatibility.
 - TB17.5 Animator repair protections.
+
+## TB18.2: Incoming native/external separation
+
+- Confirm FX/Expression parameters include unsynced `SoY_ExternalHitWeak` and `SoY_ExternalHitAverage`.
+- Canonical Weak/Average receivers contain only `Hit By Weak Attack` / `Hit By Average Attack` respectively.
+- `Sword` and `Weapon` are routed exclusively to `SoY_ExternalHitAverage`; `Hands` to `SoY_ExternalHitWeak`.
+- A Strong sender also carrying `Sword` must not emit a canonical Average hit.
+- TB18.1 avatar Safe Repair All converts mixed receiver without changing geometry, parent or foreign Contact components.
+- Desktop prebuild.7+ receives external provenance as external; .6 clients are not compatible with external-only hits.
+- Single- and multi-attacker tests: Sam.py still rejects genuinely ambiguous candidate matches.
+- Confirm spell buses, raycast, helpful items, avatar marker, Animator integrity and preexisting menu functionality remain unaffected.

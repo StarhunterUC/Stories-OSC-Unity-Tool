@@ -1,10 +1,10 @@
 {
   "version": "0.5.10",
-  "build": "TB18.1",
-  "tag": "v0.5.10-TB18.1.1",
+  "build": "TB18.2",
+  "tag": "v0.5.10-TB18.2",
   "osc_protocol_version": 21,
-  "minimum_desktop_version": "0.8.22-prebuild.1",
-  "source_sha256": "761a8256e749df55e00195bfaab1f6ded62d58dd96fa6fbaa0b0f31f9357b360",
+  "minimum_desktop_version": "0.8.22-prebuild.7",
+  "source_sha256": "def4daa6a80985d19dbdc57201889888c003715b915ced57b67c23d4dcede92a",
   "checks": {
     "build_header": true,
     "protocol_marker": true,
@@ -51,10 +51,13 @@
     "helpful_item_result_feedback": true,
     "faceemo_assets_untouched": true,
     "pvp_attack_attempt_receiver": true,
-    "pvp_builtin_body_tag_detection": true
+    "pvp_builtin_body_tag_detection": true,
+    "canonical_external_hit_tier_split": true,
+    "mixed_receiver_safe_repair": true,
+    "canonical_tag_priority": true
   },
   "sam_py_patch_required": false,
   "desktop_patch_required": true,
-  "minimum_desktop": "0.8.22-prebuild.1",
+  "minimum_desktop": "0.8.22-prebuild.7",
   "unity_compile_performed": false
 }
