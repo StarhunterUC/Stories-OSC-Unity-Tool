@@ -31,8 +31,8 @@ namespace StoriesOfYggdrasil.OSC
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
         private const string Version = "0.5.10";
-        private const string BuildNumber = "TB18.1";
-        private const string BuildLabel = "Test Build 18 — Physical Helpful Items";
+        private const string BuildNumber = "TB18.2";
+        private const string BuildLabel = "Test Build 18.2 — Isolated Contact Provenance";
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
         private static readonly string[] RaycastTypeNames =
@@ -66,16 +66,19 @@ namespace StoriesOfYggdrasil.OSC
 
         private static readonly string[] IncomingWeakContactTags =
         {
-            TagWeak,
-            TagExternalHands
+            TagWeak
         };
 
         private static readonly string[] IncomingAverageContactTags =
         {
-            TagAverage,
-            TagExternalSword,
-            TagExternalWeapon
+            TagAverage
         };
+
+        // TB18.2: external Sword/Weapon/Hands MUST NOT write canonical PvP hit parameters.
+        private const string ExternalHitWeakParameter = "SoY_ExternalHitWeak";
+        private const string ExternalHitAverageParameter = "SoY_ExternalHitAverage";
+        private static readonly string[] ExternalWeakContactTags = { TagExternalHands };
+        private static readonly string[] ExternalAverageContactTags = { TagExternalSword, TagExternalWeapon };
 
         private static readonly string[] ExternalDamageContactTags =
         {
@@ -1096,6 +1099,8 @@ namespace StoriesOfYggdrasil.OSC
             new ParameterSpec("SoY_HitAverage", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool),
             new ParameterSpec("SoY_HitStrong", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool),
             new ParameterSpec("SoY_HitCritical", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool),
+            new ParameterSpec(ExternalHitWeakParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec(ExternalHitAverageParameter, AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HitBlocked", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool),
             new ParameterSpec("SoY_DebuffBurn", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool),
             new ParameterSpec("SoY_DebuffSilence", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool),
@@ -3033,21 +3038,30 @@ namespace StoriesOfYggdrasil.OSC
                         requiredTags = IncomingWeakContactTags;
                     else if (string.Equals(parameter, "SoY_HitAverage", StringComparison.Ordinal))
                         requiredTags = IncomingAverageContactTags;
+                    else if (string.Equals(parameter, ExternalHitWeakParameter, StringComparison.Ordinal))
+                        requiredTags = ExternalWeakContactTags;
+                    else if (string.Equals(parameter, ExternalHitAverageParameter, StringComparison.Ordinal))
+                        requiredTags = ExternalAverageContactTags;
 
                     var missing = requiredTags == null
                         ? Array.Empty<string>()
                         : requiredTags.Except(tags, StringComparer.Ordinal).ToArray();
+                    var unexpected = requiredTags == null
+                        ? Array.Empty<string>()
+                        : tags.Except(requiredTags, StringComparer.Ordinal).ToArray();
+                    var needsRepair = missing.Length > 0 || unexpected.Length > 0;
 
                     managedRepairFindings.Add(new ManagedRepairFinding
                     {
                         Host = host,
                         Component = receiver,
-                        State = missing.Length == 0 ? ManagedRepairState.Healthy : ManagedRepairState.Repairable,
-                        Kind = missing.Length == 0 ? ManagedRepairKind.None : ManagedRepairKind.IncomingReceiverMapping,
-                        Role = missing.Length == 0 ? "Incoming Receiver" : "Incoming External Alias Receiver",
-                        Summary = missing.Length == 0
-                            ? "Canonical tag and parameter mapping are valid."
-                            : "The receiver is correctly mapped but is missing TB12 compatibility tag(s): " + string.Join(", ", missing) + ".",
+                        State = needsRepair ? ManagedRepairState.Repairable : ManagedRepairState.Healthy,
+                        Kind = needsRepair ? ManagedRepairKind.IncomingReceiverMapping : ManagedRepairKind.None,
+                        Role = needsRepair ? "Mixed Contact Receiver" : "Incoming Receiver",
+                        Summary = !needsRepair
+                            ? "Receiver tags and parameters have separate native/external provenance."
+                            : "Repair native/external tags. Missing: " + string.Join(", ", missing) +
+                              "; unexpected: " + string.Join(", ", unexpected) + ".",
                         Action = missing.Length == 0
                             ? string.Empty
                             : "Expand the existing receiver collision-tag list in place."
@@ -3131,10 +3145,13 @@ namespace StoriesOfYggdrasil.OSC
         private static bool TryGetCanonicalIncomingParameter(IEnumerable<string> tags, out string parameter)
         {
             var set = new HashSet<string>(tags ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
-            if (set.Contains(TagWeak) || set.Contains(TagExternalHands)) { parameter = "SoY_HitWeak"; return true; }
-            if (set.Contains(TagAverage) || set.Contains(TagExternalSword) || set.Contains(TagExternalWeapon)) { parameter = "SoY_HitAverage"; return true; }
-            if (set.Contains(TagStrong)) { parameter = "SoY_HitStrong"; return true; }
+            // A native tier has precedence on an old mixed receiver.
             if (set.Contains(TagCritical)) { parameter = "SoY_HitCritical"; return true; }
+            if (set.Contains(TagStrong)) { parameter = "SoY_HitStrong"; return true; }
+            if (set.Contains(TagAverage)) { parameter = "SoY_HitAverage"; return true; }
+            if (set.Contains(TagWeak)) { parameter = "SoY_HitWeak"; return true; }
+            if (set.Contains(TagExternalSword) || set.Contains(TagExternalWeapon)) { parameter = ExternalHitAverageParameter; return true; }
+            if (set.Contains(TagExternalHands)) { parameter = ExternalHitWeakParameter; return true; }
             if (set.Contains("Burn")) { parameter = "SoY_DebuffBurn"; return true; }
             if (set.Contains("Silence")) { parameter = "SoY_DebuffSilence"; return true; }
             if (set.Contains("Freeze")) { parameter = "SoY_DebuffFreeze"; return true; }
@@ -3156,10 +3173,12 @@ namespace StoriesOfYggdrasil.OSC
         private static bool TryGetAttackTier(IEnumerable<string> tags, out AttackTier tier)
         {
             var set = new HashSet<string>(tags ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
-            if (set.Contains(TagWeak) || set.Contains(TagExternalHands)) { tier = AttackTier.Weak; return true; }
-            if (set.Contains(TagAverage) || set.Contains(TagExternalSword) || set.Contains(TagExternalWeapon)) { tier = AttackTier.Average; return true; }
-            if (set.Contains(TagStrong)) { tier = AttackTier.Strong; return true; }
             if (set.Contains(TagCritical)) { tier = AttackTier.Critical; return true; }
+            if (set.Contains(TagStrong)) { tier = AttackTier.Strong; return true; }
+            if (set.Contains(TagAverage)) { tier = AttackTier.Average; return true; }
+            if (set.Contains(TagWeak)) { tier = AttackTier.Weak; return true; }
+            if (set.Contains(TagExternalSword) || set.Contains(TagExternalWeapon)) { tier = AttackTier.Average; return true; }
+            if (set.Contains(TagExternalHands)) { tier = AttackTier.Weak; return true; }
             tier = AttackTier.Average;
             return false;
         }
@@ -3670,6 +3689,35 @@ namespace StoriesOfYggdrasil.OSC
             {
                 SetStringMember(receiver, ExternalDamageSourceParameter, "parameter", "Parameter");
                 SetCollisionTags(receiver, ExternalDamageContactTags);
+                SetBoolMember(receiver, true, "localOnly", "LocalOnly");
+                FinishContact(receiver);
+                return;
+            }
+
+            // Migrate TB18.1's old mixed receiver in-place, preserving geometry.
+            if (string.Equals(currentParameter, "SoY_HitWeak", StringComparison.Ordinal) ||
+                string.Equals(currentParameter, "SoY_HitAverage", StringComparison.Ordinal))
+            {
+                var weak = string.Equals(currentParameter, "SoY_HitWeak", StringComparison.Ordinal);
+                var nativeTags = weak ? IncomingWeakContactTags : IncomingAverageContactTags;
+                var aliases = weak ? ExternalWeakContactTags : ExternalAverageContactTags;
+                var newParam = weak ? ExternalHitWeakParameter : ExternalHitAverageParameter;
+                var geometry = CaptureContactGeometry(receiver);
+                var hadAliases = tags.Any(alias => aliases.Contains(alias));
+                SetCollisionTags(receiver, nativeTags);
+                SetBoolMember(receiver, true, "localOnly", "LocalOnly");
+                FinishContact(receiver);
+                if (hadAliases)
+                    ConfigureIncomingReceiverPreservingGeometry(receiver.gameObject,
+                        new ReceiverMapping(aliases, newParam), geometry);
+                return;
+            }
+            if (string.Equals(currentParameter, ExternalHitWeakParameter, StringComparison.Ordinal) ||
+                string.Equals(currentParameter, ExternalHitAverageParameter, StringComparison.Ordinal))
+            {
+                SetCollisionTags(receiver,
+                    string.Equals(currentParameter, ExternalHitWeakParameter, StringComparison.Ordinal)
+                        ? ExternalWeakContactTags : ExternalAverageContactTags);
                 SetBoolMember(receiver, true, "localOnly", "LocalOnly");
                 FinishContact(receiver);
                 return;
@@ -10459,11 +10507,15 @@ namespace StoriesOfYggdrasil.OSC
             var itemMappings = new List<ReceiverMapping>();
             if (incomingHits)
             {
+                // Distinct native and third-party receiver parameters prevent
+                // a Strong+Sword sender from manufacturing an Average PvP hit.
                 // One receiver per damage parameter, with compatibility aliases grouped into its
                 // collision-tag OR list. This avoids multiple Contact Receivers fighting over the
                 // same Bool when an outside sender carries more than one compatible tag.
                 damageMappings.Add(new ReceiverMapping(IncomingWeakContactTags, "SoY_HitWeak"));
                 damageMappings.Add(new ReceiverMapping(IncomingAverageContactTags, "SoY_HitAverage"));
+                damageMappings.Add(new ReceiverMapping(ExternalWeakContactTags, ExternalHitWeakParameter));
+                damageMappings.Add(new ReceiverMapping(ExternalAverageContactTags, ExternalHitAverageParameter));
                 damageMappings.Add(new ReceiverMapping(TagStrong, "SoY_HitStrong"));
                 damageMappings.Add(new ReceiverMapping(TagCritical, "SoY_HitCritical"));
             }
