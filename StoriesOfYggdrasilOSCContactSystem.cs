@@ -1580,6 +1580,13 @@ namespace StoriesOfYggdrasil.OSC
         private string lastRepairSnapshotPath = string.Empty;
         private string lastAnimatorIntegrityBackupPath = string.Empty;
         private bool managedRepairAuditReady;
+        // Read-only managed audit results are scoped to the active avatar assets.
+        // Unity window reloads and tab changes must not turn an unaudited marker into "broken".
+        private bool managedRepairAuditAttempted;
+        private bool compatibilityCardWasVisible;
+        private GameObject managedRepairAuditedRoot;
+        private AnimatorController managedRepairAuditedFx;
+        private VRCExpressionParameters managedRepairAuditedParameters;
         private bool managedRepairShowHealthy;
         private bool managedRepairShowForeign;
         private bool managedRepairConfirmDestructive = true;
@@ -1782,6 +1789,8 @@ namespace StoriesOfYggdrasil.OSC
             EditorGUILayout.BeginVertical(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
             scroll = EditorGUILayout.BeginScrollView(scroll);
             DrawProjectFields();
+            if (tab != StudioTab.Setup)
+                compatibilityCardWasVisible = false;
             DrawActiveWorkspace();
             EditorGUILayout.EndScrollView();
             EditorGUILayout.EndVertical();
@@ -2801,6 +2810,10 @@ namespace StoriesOfYggdrasil.OSC
         {
             managedRepairFindings.Clear();
             managedRepairAuditReady = false;
+            managedRepairAuditAttempted = true;
+            managedRepairAuditedRoot = avatarRoot;
+            managedRepairAuditedFx = fxController;
+            managedRepairAuditedParameters = expressionParameters;
             if (avatarRoot == null)
             {
                 managedRepairSummary = "Assign an Avatar Descriptor or Avatar Root before auditing.";
@@ -2856,7 +2869,9 @@ namespace StoriesOfYggdrasil.OSC
                 }
             }
 
-            if (fxController != null && expressionParameters != null && !HasCurrentCompatibilityMarkerStructure())
+            // A schema-invalid marker is structurally present, but still requires repair.
+            // Audit the complete periodic 121/122 marker, not only the layer's existence.
+            if (fxController != null && expressionParameters != null && !HasCurrentCompatibilityMarkerLayer())
             {
                 managedRepairFindings.Add(new ManagedRepairFinding
                 {
@@ -12611,6 +12626,17 @@ namespace StoriesOfYggdrasil.OSC
 
         private void DrawProtocolCompatibilityCard()
         {
+            // The editor can lose transient audit state after a domain reload, or
+            // keep findings from a different controller when switching avatar tabs.
+            // Refresh only when entering Setup or when asset references change.
+            if (avatarRoot != null && fxController != null && expressionParameters != null &&
+                (!compatibilityCardWasVisible || !managedRepairAuditAttempted ||
+                 managedRepairAuditedRoot != avatarRoot ||
+                 managedRepairAuditedFx != fxController ||
+                 managedRepairAuditedParameters != expressionParameters))
+                AuditManagedSystems();
+            compatibilityCardWasVisible = true;
+
             BeginCard("OSC Runtime Compatibility");
             var markerPresent = HasCurrentCompatibilityMarkerLayer();
             var markerStructurePresent = HasCurrentCompatibilityMarkerStructure();
@@ -12624,7 +12650,17 @@ namespace StoriesOfYggdrasil.OSC
                 markerStructurePresent ? "! Installed / Schema Invalid" :
                 markerLayerExists ? "! Present / Outdated" : "✕ Missing",
                 UnityMarkerLayer);
-            DrawTagRow("Schema", markerPresent && schemaValid ? "✓ Valid" : "✕ Update Required", "Legacy/broken Stories-managed Contacts remain blocked by the Desktop runtime");
+            var schemaDetail = !managedRepairAuditReady
+                ? "Audit pending or unavailable; check avatar context and VRChat SDK."
+                : !markerPresent
+                    ? "Periodic marker missing or invalid. Review the managed repair audit."
+                    : schemaValid
+                        ? "Verified current schema and periodic 121/122 beacon."
+                        : ManagedSchemaCoreFailureSummary();
+            DrawTagRow("Schema",
+                !managedRepairAuditReady ? "! Audit Pending" :
+                (markerPresent && schemaValid ? "✓ Valid" : "✕ Update Required"),
+                schemaDetail);
             EditorGUILayout.HelpBox(
                 "TB18 keeps the metadata-based compatibility marker and adds Protocol 21 physical helpful-item interactions. The 121/122 local beacon identifies the TB18 / Protocol 21 schema to Desktop v0.8.22-prebuild.1.",
                 markerPresent && schemaValid ? MessageType.Info : MessageType.Warning);
