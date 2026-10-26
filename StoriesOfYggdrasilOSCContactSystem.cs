@@ -9210,6 +9210,55 @@ namespace StoriesOfYggdrasil.OSC
                 .ToArray();
         }
 
+        private string BuildContactProvenanceReport()
+        {
+            if (avatarRoot == null)
+                return "No avatar root is selected.";
+            var senderType = FindType(SenderTypeName);
+            var receiverType = FindType(ReceiverTypeName);
+            if (senderType == null || receiverType == null)
+                return "The VRChat SDK Contact Sender/Receiver types are unavailable.";
+
+            var report = new System.Text.StringBuilder();
+            report.AppendLine("Stories Of Yggdrasil - Read-only Contact Provenance");
+            report.AppendLine("Avatar: " + avatarRoot.name);
+            report.AppendLine("Tool: " + Version + " " + BuildNumber);
+            report.AppendLine("No Contacts or menu assets were modified.");
+
+            foreach (var kind in new[] { "Sender", "Receiver" })
+            {
+                var type = kind == "Sender" ? senderType : receiverType;
+                var components = avatarRoot.GetComponentsInChildren(type, true)
+                    .Cast<Component>()
+                    .Where(item => item != null)
+                    .OrderBy(item => GetHierarchyPath(item.transform), StringComparer.Ordinal)
+                    .ToArray();
+                report.AppendLine(kind + " count: " + components.Length);
+                foreach (var component in components)
+                {
+                    var tags = ReadCollisionTags(component)
+                        .Where(tag => !string.IsNullOrEmpty(tag))
+                        .Distinct(StringComparer.Ordinal).ToArray();
+                    var parameter = ReadStringMember(component, "parameter", "Parameter");
+                    var localOnly = ReadMember(component, "localOnly", "LocalOnly");
+                    var managed = IsStrictlyStoriesManagedHost(component.gameObject);
+                    report.AppendLine("- " + kind + " " + GetHierarchyPath(component.transform));
+                    report.AppendLine("    ownership=" + (managed ? "Stories-managed" : "foreign/unknown")
+                        + " enabled=" + (component is Behaviour behaviour && behaviour.enabled)
+                        + " active=" + component.gameObject.activeInHierarchy
+                        + " localOnly=" + (localOnly == null ? "unknown" : localOnly.ToString())
+                        + " parameter=" + (string.IsNullOrEmpty(parameter) ? "(none)" : parameter));
+                    report.AppendLine("    exactTags=[" + string.Join(", ", tags) + "]");
+                    if (tags.Contains(CasterAllyTag) && tags.Contains(CasterEnemyTag))
+                        report.AppendLine("    WARNING: Ally and Enemy tags both present.");
+                    if (parameter == DamageSourceEnemyParameter &&
+                        tags.Any(tag => ExternalDamageContactTags.Contains(tag)))
+                        report.AppendLine("    WARNING: external and native Enemy provenance mixed.");
+                }
+            }
+            return report.ToString();
+        }
+
         private void DrawDiagnostics()
         {
             DrawHealthSafetyCard();
@@ -9220,6 +9269,11 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow("Schema", managedRepairAuditReady && CurrentSchemaIsValid() ? "✓ Valid" : "! Audit / migration required", "Run Avatar Setup → Migrate / Validate");
             EndCard();
             BeginCard("SDK / Contact Diagnostics");
+            if (GUILayout.Button("COPY READ-ONLY CONTACT PROVENANCE REPORT", GUILayout.Height(28f)))
+            {
+                EditorGUIUtility.systemCopyBuffer = BuildContactProvenanceReport();
+                operationLog.Insert(0, "Copied Contact provenance; no avatar assets modified.");
+            }
             var senderType = FindType(SenderTypeName);
             var receiverType = FindType(ReceiverTypeName);
             EditorGUILayout.LabelField("VRCContactSender", senderType != null ? "Available" : "NOT FOUND");
@@ -12709,13 +12763,10 @@ namespace StoriesOfYggdrasil.OSC
                 EditorUtility.SetDirty(expressionParameters);
             }
 
-            var menuCount = 0;
-            if (expressionsMenu != null)
-            {
-                Undo.RecordObject(expressionsMenu, "Install Stories Of Yggdrasil Combat Toggle");
-                menuCount = AddCombatToggle(expressionsMenu);
-                EditorUtility.SetDirty(expressionsMenu);
-            }
+            // Menu asset ownership is explicit. Installing or repairing FX and
+            // Contacts must never rewrite existing Expressions Menus.
+            // The legacy generated-menu action remains opt-in until the
+            // full manual hierarchical editor is ready.
 
             if (avatarRoot != null)
             {
@@ -12733,7 +12784,7 @@ namespace StoriesOfYggdrasil.OSC
                           layerCount + " hook layer(s), " +
                           expressionCount + " SoY Expression parameter(s), " +
                           compatibleExpressionCount + " existing OSC binding(s), and " +
-                          menuCount + " Stories RP sub-menu link(s).";
+                          "0 menu changes (existing Expressions Menus preserved).";
             operationLog.Insert(0, summary);
             EditorUtility.DisplayDialog(
                 "Stories Of Yggdrasil OSC",
