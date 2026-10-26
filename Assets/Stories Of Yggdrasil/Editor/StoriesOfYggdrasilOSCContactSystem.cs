@@ -1401,6 +1401,9 @@ namespace StoriesOfYggdrasil.OSC
         private const int ManualMenuCapacity = 8;
 
         private string backupStatus = "No backup action performed.";
+        private string lastManualMenuBackupPath = string.Empty;
+        private bool showManagedTechnicalRepairs;
+        private bool showAdvancedBackupActions;
         private ContactPreset contactPreset = ContactPreset.Custom;
         private RaycastCollisionTarget raycastCollisionTarget = RaycastCollisionTarget.RemotePlayersOnly;
         private RaycastDeliveryStyle raycastDeliveryStyle = RaycastDeliveryStyle.DirectImpact;
@@ -2486,12 +2489,12 @@ namespace StoriesOfYggdrasil.OSC
                     animationPage = AnimationPage.Evasion;
                     tab = StudioTab.AnimatorSetup;
                 });
-                DrawSidebarButton("Layer Setup", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Setup, () =>
+                DrawSidebarButton("FX Layers & Movement", tab == StudioTab.AnimatorSetup && animationPage == AnimationPage.Setup, () =>
                 {
                     animationPage = AnimationPage.Setup;
                     tab = StudioTab.AnimatorSetup;
                 });
-                DrawSidebarButton("Menu Builder", tab == StudioTab.MenuBuilder, () => tab = StudioTab.MenuBuilder);
+                DrawSidebarButton("Manual Menu Editor", tab == StudioTab.MenuBuilder, () => tab = StudioTab.MenuBuilder);
             }
 
             DrawSidebarCategory("MAINTENANCE", ref navMaintenanceExpanded);
@@ -2502,7 +2505,7 @@ namespace StoriesOfYggdrasil.OSC
                     toolsPage = ToolsPage.Status;
                     tab = StudioTab.Tools;
                 });
-                DrawSidebarButton("Managed Repair", tab == StudioTab.Tools && toolsPage == ToolsPage.Repair, () =>
+                DrawSidebarButton("Repair Center", tab == StudioTab.Tools && toolsPage == ToolsPage.Repair, () =>
                 {
                     toolsPage = ToolsPage.Repair;
                     tab = StudioTab.Tools;
@@ -2512,7 +2515,7 @@ namespace StoriesOfYggdrasil.OSC
                     toolsPage = ToolsPage.Display;
                     tab = StudioTab.Tools;
                 });
-                DrawSidebarButton("Backups", tab == StudioTab.Tools && toolsPage == ToolsPage.Backups, () =>
+                DrawSidebarButton("Backups & Restore", tab == StudioTab.Tools && toolsPage == ToolsPage.Backups, () =>
                 {
                     toolsPage = ToolsPage.Backups;
                     tab = StudioTab.Tools;
@@ -2714,6 +2717,9 @@ namespace StoriesOfYggdrasil.OSC
         private void DrawManagedRepairCenter()
         {
             BeginCard("Managed-System Repair Center");
+            EditorGUILayout.HelpBox(
+                "One place for targeted repairs. First run Audit and Preview. Advanced parameter/Animator repairs are collapsed by default. Backups and recovery are under Backups & Restore.",
+                MessageType.Info);
             EditorGUILayout.LabelField(
                 "Audits only Stories Of Yggdrasil-owned Contacts. Repairs preserve the existing GameObject, parent, sibling order, local/world transform, active state, prefab overrides, and every detected constraint component. Foreign avatar systems are reported but never changed.",
                 wrappedLabel);
@@ -2740,14 +2746,50 @@ namespace StoriesOfYggdrasil.OSC
             }
             EditorGUILayout.EndHorizontal();
 
-            using (new EditorGUI.DisabledScope(fxController == null))
+            showManagedTechnicalRepairs = EditorGUILayout.Foldout(
+                showManagedTechnicalRepairs, "Advanced parameter and Animator repairs", true);
+            if (showManagedTechnicalRepairs)
             {
-                if (GUILayout.Button("REPAIR ANIMATOR INTEGRITY", GUILayout.Height(largeControls ? 44f : 32f)))
-                    RepairAnimatorControllerIntegrity();
+                EditorGUILayout.HelpBox(
+                    "These operations are for specific diagnosed faults. The standard Prepare / Repair workflow is in Setup & Preflight. FX mutations require a safe copy.",
+                    MessageType.Warning);
+                EditorGUILayout.BeginHorizontal();
+                using (new EditorGUI.DisabledScope(!IsSafeFxCopy(fxController)))
+                {
+                    if (GUILayout.Button("REPAIR FX PARAMETERS", GUILayout.Height(largeControls ? 44f : 32f)) &&
+                        EditorUtility.DisplayDialog("Repair FX parameters?",
+                            "Add missing SoY Animator parameters to the safe FX copy. Existing values are preserved.",
+                            "Repair", "Cancel"))
+                    {
+                        Undo.RecordObject(fxController, "Repair Stories OSC FX Parameters");
+                        AddMissingAnimatorParameters(fxController);
+                        EditorUtility.SetDirty(fxController);
+                        AssetDatabase.SaveAssets();
+                    }
+                }
+                using (new EditorGUI.DisabledScope(expressionParameters == null))
+                {
+                    if (GUILayout.Button("REPAIR EXPRESSION PARAMETERS", GUILayout.Height(largeControls ? 44f : 32f)) &&
+                        EditorUtility.DisplayDialog("Repair Expression parameters?",
+                            "Add or repair the Stories OSC Expression Parameter contract. This modifies the assigned asset.",
+                            "Repair", "Cancel"))
+                    {
+                        Undo.RecordObject(expressionParameters, "Repair Stories OSC Expression Parameters");
+                        AddMissingExpressionParameters(expressionParameters);
+                        EditorUtility.SetDirty(expressionParameters);
+                        AssetDatabase.SaveAssets();
+                    }
+                }
+                EditorGUILayout.EndHorizontal();
+                using (new EditorGUI.DisabledScope(!IsSafeFxCopy(fxController)))
+                {
+                    if (GUILayout.Button("REPAIR ANIMATOR INTEGRITY", GUILayout.Height(largeControls ? 44f : 32f)))
+                        RepairAnimatorControllerIntegrity();
+                }
+                EditorGUILayout.HelpBox(
+                    "Animator integrity repair backs up the controller before removing unreachable transition subassets. Third-party systems remain untouched.",
+                    MessageType.Info);
             }
-            EditorGUILayout.HelpBox(
-                "TB17.2 safety repair: removes only unreachable Animator transition subassets, validates every live layer/state transition, and refuses to save if the live controller graph is still broken. A full controller backup is created before cleanup.",
-                MessageType.Info);
 
             managedRepairConfirmDestructive = EditorGUILayout.ToggleLeft(
                 "Require confirmation before removing defunct or duplicate managed components",
@@ -5525,7 +5567,7 @@ namespace StoriesOfYggdrasil.OSC
                         if (GUILayout.Button("INSTALL / REPAIR OSC HOOKS")) InstallAllBridgeHooks();
                     break;
                 case WizardStep.Menus:
-                    EditorGUILayout.LabelField("Choose a menu layout, configure Quick Access favorites, then generate the Stories RP menu tree.", wrappedLabel);
+                    EditorGUILayout.LabelField("Open Manual Menu Editor, select the destination asset, stage controls, preview changes, and apply with a menu backup.", wrappedLabel);
                     if (GUILayout.Button("OPEN MENU BUILDER")) tab = StudioTab.MenuBuilder;
                     break;
                 case WizardStep.Animations:
@@ -6036,6 +6078,10 @@ namespace StoriesOfYggdrasil.OSC
             var editable = !string.IsNullOrEmpty(assetPath) &&
                 assetPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase);
             EditorGUILayout.LabelField("Asset", string.IsNullOrEmpty(assetPath) ? "(unsaved)" : assetPath);
+            DrawTagRow("Menu Backups", CurrentAvatarGeneratedFolder("Backups/Menus"),
+                "Original menus remain where they are; previous adjacent backups are not moved.");
+            if (GUILayout.Button("OPEN MENU BACKUPS", GUILayout.Height(28f)))
+                OpenGeneratedBackupFolder("Backups/Menus");
             if (!editable)
                 EditorGUILayout.HelpBox("Choose an editable .asset under Assets/. Packages and unsaved assets cannot be changed.", MessageType.Warning);
 
@@ -6146,7 +6192,7 @@ namespace StoriesOfYggdrasil.OSC
                 EditorGUILayout.HelpBox(issue, MessageType.Warning);
             else
                 EditorGUILayout.HelpBox(
-                    "Ready to apply. A timestamped .asset backup of the destination will be created first. " +
+                    "Ready to apply. A timestamped .asset backup will be saved under this avatar's Backups/Menus directory first. " +
                     "Only this selected menu is changed; a new submenu asset is created only if staged.",
                     MessageType.Info);
             EditorGUILayout.BeginHorizontal();
@@ -6158,7 +6204,8 @@ namespace StoriesOfYggdrasil.OSC
                 if (GUILayout.Button("APPLY TO SELECTED MENU", GUILayout.Height(34f)) &&
                     EditorUtility.DisplayDialog("Apply Manual Menu Changes?",
                         "Apply the staged " + manualMenuDraft.Count + " controls to:\n" + assetPath +
-                        "\nA timestamped .asset backup will be created before writing. Continue?",
+                        "\nA backup will be saved in " + CurrentAvatarGeneratedFolder("Backups/Menus") +
+                        " before writing. Continue?",
                         "Apply with Backup", "Cancel"))
                     ApplyManualMenuDraft();
             }
@@ -6373,14 +6420,22 @@ namespace StoriesOfYggdrasil.OSC
                 return;
             }
 
+            // Keep manual menu snapshots out of the original menu's directory.
+            // The asset GUID in the name ties a backup to its original menu even
+            // when several destination menus share the same display name.
+            var menuBackupFolder = CurrentAvatarGeneratedFolder("Backups/Menus");
+            EnsureAssetFolder(menuBackupFolder);
+            var menuName = MakeSafeAssetName(Path.GetFileNameWithoutExtension(targetPath));
+            var menuGuid = AssetDatabase.AssetPathToGUID(targetPath);
             var backupPath = AssetDatabase.GenerateUniqueAssetPath(
-                targetPath.Substring(0, targetPath.Length - 6) +
-                "_SoYManualBackup_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
+                menuBackupFolder + "/" + menuName + "_" + menuGuid +
+                "_backup_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
             if (!AssetDatabase.CopyAsset(targetPath, backupPath))
             {
                 EditorUtility.DisplayDialog("Backup failed", "No edits were applied. Check asset permissions.", "OK");
                 return;
             }
+            lastManualMenuBackupPath = backupPath;
 
             var undoGroup = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName("Apply Manual SoY Menu");
@@ -6531,12 +6586,14 @@ namespace StoriesOfYggdrasil.OSC
                 EditorGUILayout.LabelField(desiredSync ? ExpressionParameterCost(spec.ExpressionType) + " bits" : "Local", GUILayout.Width(60f));
                 EditorGUILayout.EndHorizontal();
             }
-            EditorGUILayout.BeginHorizontal();
-            using (new EditorGUI.DisabledScope(fxController == null))
-                if (GUILayout.Button("REPAIR ANIMATOR PARAMETERS")) { AddMissingAnimatorParameters(fxController); AssetDatabase.SaveAssets(); }
-            using (new EditorGUI.DisabledScope(expressionParameters == null))
-                if (GUILayout.Button("REPAIR EXPRESSION FLAGS")) { Undo.RecordObject(expressionParameters, "Repair Stories OSC Parameters"); AddMissingExpressionParameters(expressionParameters); EditorUtility.SetDirty(expressionParameters); AssetDatabase.SaveAssets(); }
-            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.HelpBox(
+                "This page is a read-only parameter inspector. Targeted repairs are consolidated in Maintenance > Repair Center > Advanced parameter and Animator repairs.",
+                MessageType.Info);
+            if (GUILayout.Button("OPEN REPAIR CENTER"))
+            {
+                tab = StudioTab.Tools;
+                toolsPage = ToolsPage.Repair;
+            }
             EndCard();
         }
 
@@ -6679,41 +6736,94 @@ namespace StoriesOfYggdrasil.OSC
             EndCard();
         }
 
+        private void OpenGeneratedBackupFolder(string category)
+        {
+            var folder = CurrentAvatarGeneratedFolder(category);
+            EnsureAssetFolder(folder);
+            var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(folder);
+            if (asset != null)
+            {
+                Selection.activeObject = asset;
+                EditorGUIUtility.PingObject(asset);
+            }
+            else
+            {
+                EditorUtility.RevealInFinder(Path.GetFullPath(folder));
+            }
+        }
+
         private void DrawBackupCenter()
         {
-            BeginCard("Backup & Rollback Center");
-            EditorGUILayout.LabelField("Major installer actions create manifests for FX and managed-system migrations. Repair snapshots include hierarchy, transforms, active state, constraint serialization, and planned component changes. Restores never modify third-party health layers.", wrappedLabel);
+            BeginCard("Backups & Restore");
+            EditorGUILayout.LabelField(
+                "Recovery assets are grouped by avatar. Backups created before this update remain in their existing folders; none are moved automatically.",
+                wrappedLabel);
+            DrawTagRow("Menu Snapshots", CurrentAvatarGeneratedFolder("Backups/Menus"),
+                "Copies of original Expressions Menu assets, saved before a manual Apply");
+            if (!string.IsNullOrWhiteSpace(lastManualMenuBackupPath))
+                EditorGUILayout.SelectableLabel("Latest menu backup: " + lastManualMenuBackupPath,
+                    EditorStyles.textField, GUILayout.Height(EditorGUIUtility.singleLineHeight));
             EditorGUILayout.LabelField(backupStatus, wrappedLabel);
+
             EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("OPEN MENU BACKUPS"))
+                OpenGeneratedBackupFolder("Backups/Menus");
+            if (GUILayout.Button("OPEN TOOL BACKUPS"))
+                OpenGeneratedBackupFolder("Backups/Unity Tool");
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("OPEN MIGRATION SNAPSHOTS"))
+                OpenGeneratedBackupFolder("Backups/Migrations");
             using (new EditorGUI.DisabledScope(avatarDescriptor == null || fxController == null))
-                if (GUILayout.Button("CREATE BACKUP MANIFEST")) CreateBackupManifest();
-            if (GUILayout.Button("OPEN BACKUP FOLDER"))
             {
-                EnsureAssetFolder(CurrentAvatarGeneratedFolder("Backups/Unity Tool"));
-                var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(CurrentAvatarGeneratedFolder("Backups/Unity Tool"));
-                Selection.activeObject = asset; EditorGUIUtility.PingObject(asset);
+                if (GUILayout.Button("CREATE BACKUP MANIFEST"))
+                    CreateBackupManifest();
             }
             EditorGUILayout.EndHorizontal();
-            if (GUILayout.Button("OPEN MIGRATION SNAPSHOT FOLDER"))
+
+            showAdvancedBackupActions = EditorGUILayout.Foldout(
+                showAdvancedBackupActions, "Advanced recovery: layer removal and FX restoration", true);
+            if (showAdvancedBackupActions)
             {
-                EnsureAssetFolder(CurrentAvatarGeneratedFolder("Backups/Migrations"));
-                var migrationAsset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(CurrentAvatarGeneratedFolder("Backups/Migrations"));
-                Selection.activeObject = migrationAsset;
-                EditorGUIUtility.PingObject(migrationAsset);
-            }
-            using (new EditorGUI.DisabledScope(fxController == null))
-            {
-                if (GUILayout.Button("REMOVE GENERATED SPELL / TECHNICK / ITEM LAYERS"))
+                EditorGUILayout.HelpBox(
+                    "Destructive operations are deliberately separate from ordinary backup browsing. Only Stories-managed layers can be removed, and the active FX must be a safe copy.",
+                    MessageType.Warning);
+                using (new EditorGUI.DisabledScope(!IsSafeFxCopy(fxController)))
                 {
-                    RemoveLayerByName(fxController, SpellCastLayer); RemoveLayerByName(fxController, TechnickCastLayer); RemoveLayerByName(fxController, ItemUseLayer);
-                    EditorUtility.SetDirty(fxController); AssetDatabase.SaveAssets(); backupStatus = "Removed generated action animation layers.";
+                    if (GUILayout.Button("REMOVE GENERATED ACTION ANIMATION LAYERS") &&
+                        EditorUtility.DisplayDialog("Remove generated action layers?",
+                            "Remove the SoY Spell, Technick, and Item presentation layers from the working FX copy? This does not change registered spells or menu assets.",
+                            "Remove Layers", "Cancel"))
+                    {
+                        Undo.RegisterCompleteObjectUndo(fxController, "Remove SoY Generated Action Layers");
+                        RemoveLayerByName(fxController, SpellCastLayer);
+                        RemoveLayerByName(fxController, TechnickCastLayer);
+                        RemoveLayerByName(fxController, ItemUseLayer);
+                        EditorUtility.SetDirty(fxController);
+                        AssetDatabase.SaveAssets();
+                        backupStatus = "Removed generated action animation layers from safe FX copy.";
+                    }
+                    if (GUILayout.Button("REMOVE GENERATED HEALTH LAYER") &&
+                        EditorUtility.DisplayDialog("Remove SoY health layer?",
+                            "Remove the Stories-managed Vital layer from the working FX copy? Health display animations may stop until rebuilt.",
+                            "Remove Layer", "Cancel"))
+                    {
+                        Undo.RegisterCompleteObjectUndo(fxController, "Remove SoY Generated Vital Layer");
+                        RemoveLayerByName(fxController, VitalLayer);
+                        EditorUtility.SetDirty(fxController);
+                        AssetDatabase.SaveAssets();
+                        backupStatus = "Removed Stories-managed Vital layer from safe FX copy.";
+                    }
                 }
-                if (GUILayout.Button("REMOVE GENERATED HEALTH LAYER"))
+                using (new EditorGUI.DisabledScope(avatarDescriptor == null))
                 {
-                    RemoveLayerByName(fxController, VitalLayer); EditorUtility.SetDirty(fxController); AssetDatabase.SaveAssets(); backupStatus = "Removed the Stories-managed Vital layer.";
+                    if (GUILayout.Button("RESTORE ORIGINAL FX ASSIGNMENT FROM LATEST MANIFEST") &&
+                        EditorUtility.DisplayDialog("Restore original FX assignment?",
+                            "Change the avatar's assigned FX controller back to the original recorded in the latest manifest? Review the manifest before continuing.",
+                            "Restore FX", "Cancel"))
+                        RestoreOriginalFxFromLatestManifest();
                 }
             }
-            if (avatarDescriptor != null && GUILayout.Button("RESTORE ORIGINAL FX ASSIGNMENT FROM LATEST MANIFEST")) RestoreOriginalFxFromLatestManifest();
             EndCard();
         }
 
@@ -9245,7 +9355,7 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow("Menus", "<Avatar>/Menus", "Stories RP menus and menu pages");
             DrawTagRow("Animations", "<Avatar>/Animations", "Contact, Raycast, I-Frame, status, and helper clips");
             DrawTagRow("Profiles", "<Avatar>/Profiles", "Animation/profile metadata");
-            DrawTagRow("Backups", "<Avatar>/Backups", "Manifests, migrations, and repair snapshots");
+            DrawTagRow("Backups", "<Avatar>/Backups", "Menu snapshots, manifests, migrations, and repair snapshots");
             EndCard();
 
             BeginCard("Raycast — Direct Impact");
