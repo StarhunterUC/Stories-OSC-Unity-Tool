@@ -6215,54 +6215,103 @@ namespace StoriesOfYggdrasil.OSC
             EndCard();
         }
 
-        // Browse only menus reachable from the avatar's assigned root Expressions Menu.
-        // Never change menu assets while browsing; selecting a destination retains
-        // the Manual Menu Editor's existing unsaved-draft confirmation.
+        // Visual Expressions Menu-style navigation. Browsing is read-only:
+        // the existing manual draft and backup workflow owns all writes.
         private void DrawInstalledMenuBrowser()
         {
+            EditorGUILayout.Space(6f);
+            EditorGUILayout.LabelField("Avatar Menu Navigator", cardTitleStyle);
             if (expressionsMenu == null)
             {
                 EditorGUILayout.HelpBox(
-                    "This avatar has no assigned root Expressions Menu. Assign one on the Avatar Descriptor, or select an asset manually.",
+                    "No root Expressions Menu is assigned to this avatar. Choose a destination asset manually.",
                     MessageType.None);
                 return;
             }
 
             var menus = new List<VRCExpressionsMenu>();
             var paths = new List<string>();
-            var visited = new HashSet<int>();
-            CollectInstalledMenuPages(expressionsMenu, "Root: " + expressionsMenu.name,
-                menus, paths, visited, 0);
-
-            if (menus.Count == 0)
+            var parents = new List<int>();
+            CollectInstalledMenuPages(expressionsMenu, "Root", -1,
+                menus, paths, parents, new HashSet<int>(), 0);
+            int current = menus.FindIndex(menu => menu == manualMenuTarget);
+            if (current < 0)
+            {
+                EditorGUILayout.HelpBox(
+                    "The current destination is outside the avatar's linked menu tree. " +
+                    "Use Open Avatar Root to browse installed menus, or continue editing the manually selected asset.",
+                    MessageType.None);
+                if (GUILayout.Button("OPEN AVATAR ROOT", GUILayout.Height(30f)))
+                    SelectManualMenuTarget(expressionsMenu);
                 return;
+            }
 
-            var currentIndex = menus.FindIndex(menu => menu == manualMenuTarget);
-            var labels = new List<string> { "Choose an installed menu..." };
-            labels.AddRange(paths.Select(path => path.Length > 145 ? path.Substring(0, 142) + "..." : path));
-            var next = EditorGUILayout.Popup("Browse Avatar Menus", currentIndex + 1, labels.ToArray());
-            if (next > 0 && next != currentIndex + 1)
-                SelectManualMenuTarget(menus[next - 1]);
+            EditorGUILayout.BeginHorizontal();
+            using (new EditorGUI.DisabledScope(parents[current] < 0))
+            {
+                if (GUILayout.Button("◀ BACK", GUILayout.Width(92f), GUILayout.Height(30f)))
+                    SelectManualMenuTarget(menus[parents[current]]);
+            }
+            if (GUILayout.Button("ROOT", GUILayout.Width(65f), GUILayout.Height(30f)))
+                SelectManualMenuTarget(expressionsMenu);
+            EditorGUILayout.LabelField(paths[current], EditorStyles.boldLabel);
+            EditorGUILayout.EndHorizontal();
+
+            var selected = menus[current];
+            var controls = selected.controls;
+            if (controls == null || controls.Count == 0)
+            {
+                EditorGUILayout.HelpBox("This menu is empty. Use Stage a Control to add entries.", MessageType.None);
+                return;
+            }
 
             EditorGUILayout.HelpBox(
-                "Lists menus linked from the avatar's assigned root, including nested pages. " +
-                "Selecting a page only changes the editing destination; Apply still requires preview and backup. " +
-                "Unlinked menu assets can still be dragged into Destination Menu Asset.",
-                MessageType.None);
+                "Click a submenu tile to open it for editing. Other controls are shown for context. " +
+                "Browsing does not modify assets; switching pages still warns about unsaved staged changes.",
+                MessageType.Info);
+            for (int i = 0; i < controls.Count; i += 2)
+            {
+                EditorGUILayout.BeginHorizontal();
+                DrawInstalledMenuTile(controls[i], menus);
+                if (i + 1 < controls.Count)
+                    DrawInstalledMenuTile(controls[i + 1], menus);
+                else
+                    GUILayout.FlexibleSpace();
+                EditorGUILayout.EndHorizontal();
+            }
+        }
+
+        private void DrawInstalledMenuTile(
+            VRCExpressionsMenu.Control control, List<VRCExpressionsMenu> installed)
+        {
+            var isSubmenu = control != null &&
+                control.type == VRCExpressionsMenu.Control.ControlType.SubMenu;
+            var child = isSubmenu ? control.subMenu : null;
+            var navigable = child != null && installed.Contains(child);
+            var title = control == null ? "(Empty)" :
+                (string.IsNullOrWhiteSpace(control.name) ? "(Unnamed)" : control.name);
+            var suffix = control == null ? "" : navigable ? "  ▶" :
+                isSubmenu ? "  (missing or unlinked)" : "  [" + control.type + "]";
+            using (new EditorGUI.DisabledScope(!navigable))
+            {
+                if (GUILayout.Button(new GUIContent(title + suffix, control != null ? control.icon : null),
+                    GUILayout.MinWidth(120f), GUILayout.ExpandWidth(true), GUILayout.Height(51f)))
+                    SelectManualMenuTarget(child);
+            }
         }
 
         private static void CollectInstalledMenuPages(
-            VRCExpressionsMenu menu, string path,
+            VRCExpressionsMenu menu, string path, int parentIndex,
             List<VRCExpressionsMenu> menus, List<string> paths,
-            HashSet<int> visited, int depth)
+            List<int> parents, HashSet<int> visited, int depth)
         {
             if (menu == null || depth > 16 || menus.Count >= 128 ||
                 !visited.Add(menu.GetInstanceID()))
                 return;
-
+            int thisIndex = menus.Count;
             menus.Add(menu);
             paths.Add(path);
-
+            parents.Add(parentIndex);
             if (menu.controls == null)
                 return;
             foreach (var control in menu.controls)
@@ -6272,7 +6321,7 @@ namespace StoriesOfYggdrasil.OSC
                     continue;
                 var label = string.IsNullOrWhiteSpace(control.name) ? "(unnamed page)" : control.name;
                 CollectInstalledMenuPages(control.subMenu, path + " / " + label,
-                    menus, paths, visited, depth + 1);
+                    thisIndex, menus, paths, parents, visited, depth + 1);
             }
         }
 
