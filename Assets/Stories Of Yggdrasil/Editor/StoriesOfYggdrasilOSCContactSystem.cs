@@ -6061,6 +6061,8 @@ namespace StoriesOfYggdrasil.OSC
                 MessageType.Info);
             if (GUILayout.Button("USE AVATAR ROOT MENU AS DESTINATION"))
                 SelectManualMenuTarget(expressionsMenu);
+            DrawInstalledMenuBrowser();
+
 
             var target = (VRCExpressionsMenu)EditorGUILayout.ObjectField(
                 "Destination Menu Asset", manualMenuTarget, typeof(VRCExpressionsMenu), false);
@@ -6211,6 +6213,67 @@ namespace StoriesOfYggdrasil.OSC
             }
             EditorGUILayout.EndHorizontal();
             EndCard();
+        }
+
+        // Browse only menus reachable from the avatar's assigned root Expressions Menu.
+        // Never change menu assets while browsing; selecting a destination retains
+        // the Manual Menu Editor's existing unsaved-draft confirmation.
+        private void DrawInstalledMenuBrowser()
+        {
+            if (expressionsMenu == null)
+            {
+                EditorGUILayout.HelpBox(
+                    "This avatar has no assigned root Expressions Menu. Assign one on the Avatar Descriptor, or select an asset manually.",
+                    MessageType.None);
+                return;
+            }
+
+            var menus = new List<VRCExpressionsMenu>();
+            var paths = new List<string>();
+            var visited = new HashSet<int>();
+            CollectInstalledMenuPages(expressionsMenu, "Root: " + expressionsMenu.name,
+                menus, paths, visited, 0);
+
+            if (menus.Count == 0)
+                return;
+
+            var currentIndex = menus.FindIndex(menu => menu == manualMenuTarget);
+            var labels = new List<string> { "Choose an installed menu..." };
+            labels.AddRange(paths.Select(path => path.Length > 145 ? path.Substring(0, 142) + "..." : path));
+            var next = EditorGUILayout.Popup("Browse Avatar Menus", currentIndex + 1, labels.ToArray());
+            if (next > 0 && next != currentIndex + 1)
+                SelectManualMenuTarget(menus[next - 1]);
+
+            EditorGUILayout.HelpBox(
+                "Lists menus linked from the avatar's assigned root, including nested pages. " +
+                "Selecting a page only changes the editing destination; Apply still requires preview and backup. " +
+                "Unlinked menu assets can still be dragged into Destination Menu Asset.",
+                MessageType.None);
+        }
+
+        private static void CollectInstalledMenuPages(
+            VRCExpressionsMenu menu, string path,
+            List<VRCExpressionsMenu> menus, List<string> paths,
+            HashSet<int> visited, int depth)
+        {
+            if (menu == null || depth > 16 || menus.Count >= 128 ||
+                !visited.Add(menu.GetInstanceID()))
+                return;
+
+            menus.Add(menu);
+            paths.Add(path);
+
+            if (menu.controls == null)
+                return;
+            foreach (var control in menu.controls)
+            {
+                if (control == null || control.type != VRCExpressionsMenu.Control.ControlType.SubMenu ||
+                    control.subMenu == null)
+                    continue;
+                var label = string.IsNullOrWhiteSpace(control.name) ? "(unnamed page)" : control.name;
+                CollectInstalledMenuPages(control.subMenu, path + " / " + label,
+                    menus, paths, visited, depth + 1);
+            }
         }
 
         private void SelectManualMenuTarget(VRCExpressionsMenu target)
