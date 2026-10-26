@@ -33,6 +33,16 @@ namespace StoriesOfYggdrasil.OSC
         private const string Version = "0.5.10";
         private const string BuildNumber = "TB18.2";
         private const string BuildLabel = "Test Build 18.2 — Isolated Contact Provenance";
+        // Opt-in only; deliberately NOT part of InstallAllBridgeHooks().
+        private const string MovementLockLayer = "Stories Of Yggdrasil | Movement Lock";
+        private const string MovementLockParameter = "SoY_MovementLocked";
+        private static readonly string[] LocomotionControlTypeNames =
+        {
+            "VRC.SDK3.Avatars.Components.VRCAnimatorLocomotionControl",
+            "VRC.SDKBase.VRC_AnimatorLocomotionControl",
+            "VRC.SDKBase.VRCAnimatorLocomotionControl"
+        };
+
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
         private static readonly string[] RaycastTypeNames =
@@ -8677,6 +8687,8 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow("Animator", missingAnimator == 0 ? "✓ Ready" : "! " + missingAnimator + " missing", "SoY parameters");
             DrawTagRow("Expressions", missingExpression == 0 ? "✓ Ready" : "! " + missingExpression + " missing", "OSC parameters");
 
+            DrawMovementLockAuthoring();
+
             if (GUILayout.Button("OPEN AVATAR SETUP / REPAIR", GUILayout.Height(largeControls ? 44f : 34f)))
                 tab = StudioTab.Setup;
 
@@ -8711,6 +8723,119 @@ namespace StoriesOfYggdrasil.OSC
                 }
             }
             EndCard();
+        }
+
+        // TB19: Author this layer only from an explicit user action. It must
+        // never run as part of contact/FX repair, avatar scan, or auto menus.
+        private static Type FindLocomotionControlBehaviour()
+        {
+            foreach (var fullName in LocomotionControlTypeNames)
+            {
+                var candidate = FindType(fullName);
+                if (candidate != null && typeof(StateMachineBehaviour).IsAssignableFrom(candidate))
+                    return candidate;
+            }
+            return null;
+        }
+
+        private void DrawMovementLockAuthoring()
+        {
+            EditorGUILayout.Space(8f);
+            var exists = fxController != null &&
+                fxController.layers.Any(layer => layer.name == MovementLockLayer);
+            var safe = IsSafeFxCopy(fxController);
+            var parameterValid = expressionParameters != null &&
+                expressionParameters.parameters != null &&
+                expressionParameters.parameters.Any(parameter => parameter != null &&
+                    parameter.name == MovementLockParameter &&
+                    parameter.valueType == VRCExpressionParameters.ValueType.Bool);
+            var existingAnimatorParameter = fxController != null
+                ? fxController.parameters.FirstOrDefault(parameter => parameter.name == MovementLockParameter)
+                : null;
+            var animatorParameterValid = existingAnimatorParameter == null ||
+                existingAnimatorParameter.type == AnimatorControllerParameterType.Bool;
+            var controlType = FindLocomotionControlBehaviour();
+            var behaviourInstallerAvailable = typeof(AnimatorState).GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                .Any(method => method.Name == "AddStateMachineBehaviour" &&
+                    !method.IsGenericMethod && method.GetParameters().Length == 1 &&
+                    method.GetParameters()[0].ParameterType == typeof(Type));
+
+            EditorGUILayout.LabelField("Movement Lock (opt-in)", cardTitleStyle);
+            DrawTagRow("FX Layer", exists ? "Installed" : "Not installed", MovementLockLayer);
+            DrawTagRow("Parameter", parameterValid ? "Ready" : "Missing / wrong type",
+                MovementLockParameter + " must be a Bool in Expressions Parameters");
+            EditorGUILayout.HelpBox(
+                "Creates an isolated FX state machine: Unlocked by default, Locked while SoY_MovementLocked is true. " +
+                "This only controls VRChat locomotion (not walk speed). The Desktop must explicitly set and clear " +
+                "the parameter from confirmed statuses. Roomscale movement is not blocked. " +
+                "Use a manual Expressions Menu toggle to set the parameter false as an emergency recovery control.",
+                MessageType.Info);
+            if (exists)
+            {
+                EditorGUILayout.HelpBox(
+                    "Existing movement layer is preserved. No automatic rebuilding or replacement is performed.",
+                    MessageType.None);
+                return;
+            }
+            using (new EditorGUI.DisabledScope(!safe || !parameterValid ||
+                !animatorParameterValid || controlType == null || !behaviourInstallerAvailable))
+            {
+                if (GUILayout.Button("INSTALL MOVEMENT LOCK LAYER (OPT-IN)", GUILayout.Height(36f)) &&
+                    EditorUtility.DisplayDialog(
+                        "Install SoY Movement Lock?",
+                        "This creates TWO states on the safe FX copy. Locked disables joystick locomotion. " +
+                        "Unlocked explicitly restores it. You must provide an emergency manual unlock control " +
+                        "and make sure your Desktop status driver releases the parameter. Continue?",
+                        "Install on FX Copy", "Cancel"))
+                    InstallMovementLockLayer(controlType);
+            }
+            if (!safe || !parameterValid || !animatorParameterValid ||
+                controlType == null || !behaviourInstallerAvailable)
+                EditorGUILayout.HelpBox(
+                    "Installation requires a safe FX copy, SoY_MovementLocked Bool Expression parameter, " +
+                    "a compatible Animator Bool, and the SDK's locomotion State Behaviour. " +
+                    "Use Setup / Repair for missing parameters; do not alter original controllers.",
+                    MessageType.Warning);
+        }
+
+        private void InstallMovementLockLayer(Type behaviourType)
+        {
+            if (fxController == null || !IsSafeFxCopy(fxController) ||
+                fxController.layers.Any(layer => layer.name == MovementLockLayer))
+                return;
+            if (behaviourType == null || !typeof(StateMachineBehaviour).IsAssignableFrom(behaviourType))
+                throw new InvalidOperationException("VRChat locomotion State Behaviour is unavailable.");
+
+            var property = behaviourType.GetField("disableLocomotion",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var installer = typeof(AnimatorState).GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                .FirstOrDefault(method => method.Name == "AddStateMachineBehaviour" &&
+                    !method.IsGenericMethod && method.GetParameters().Length == 1 &&
+                    method.GetParameters()[0].ParameterType == typeof(Type));
+            if (property == null || property.FieldType != typeof(bool) || installer == null)
+                throw new InvalidOperationException("SDK locomotion State Behaviour API is incompatible.");
+
+            Undo.RegisterCompleteObjectUndo(fxController, "Install Stories Movement Lock");
+            EnsureAnimatorParameter(fxController, MovementLockParameter, AnimatorControllerParameterType.Bool);
+            var layer = CreateHookLayer(fxController, MovementLockLayer);
+            var unlocked = AddHookState(layer.stateMachine, "Unlocked - Restore Locomotion", new Vector3(240f, 100f));
+            var locked = AddHookState(layer.stateMachine, "Locked - Disable Locomotion", new Vector3(560f, 100f));
+            layer.stateMachine.defaultState = unlocked;
+            foreach (var state in new[] { unlocked, locked })
+            {
+                var behaviour = installer.Invoke(state, new object[] { behaviourType }) as StateMachineBehaviour;
+                if (behaviour == null)
+                    throw new InvalidOperationException("Could not install SDK locomotion behaviour.");
+                property.SetValue(behaviour, state == locked);
+                EditorUtility.SetDirty(behaviour);
+            }
+            AddBoolTransition(unlocked, locked, MovementLockParameter, true);
+            AddBoolTransition(locked, unlocked, MovementLockParameter, false);
+            fxController.AddLayer(layer);
+            EditorUtility.SetDirty(fxController);
+            AssetDatabase.SaveAssets();
+            Log("Installed opt-in SoY Movement Lock layer on safe FX copy. Default = locomotion enabled; " +
+                "no Contacts, menus, or external FX layers changed.");
         }
 
         private void DrawHelp()
