@@ -33,6 +33,16 @@ namespace StoriesOfYggdrasil.OSC
         private const string Version = "0.5.10";
         private const string BuildNumber = "TB18.2";
         private const string BuildLabel = "Test Build 18.2 — Isolated Contact Provenance";
+        // Opt-in only; deliberately NOT part of InstallAllBridgeHooks().
+        private const string MovementLockLayer = "Stories Of Yggdrasil | Movement Lock";
+        private const string MovementLockParameter = "SoY_MovementLocked";
+        private static readonly string[] LocomotionControlTypeNames =
+        {
+            "VRC.SDK3.Avatars.Components.VRCAnimatorLocomotionControl",
+            "VRC.SDKBase.VRC_AnimatorLocomotionControl",
+            "VRC.SDKBase.VRCAnimatorLocomotionControl"
+        };
+
         private const string SenderTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactSender";
         private const string ReceiverTypeName = "VRC.SDK3.Dynamics.Contact.Components.VRCContactReceiver";
         private static readonly string[] RaycastTypeNames =
@@ -1373,6 +1383,23 @@ namespace StoriesOfYggdrasil.OSC
         private string globalSearch = string.Empty;
         private string parameterSearch = string.Empty;
         private string menuBuilderSearch = string.Empty;
+        // TB19 manual menu editing uses an in-memory draft until explicit Apply.
+        private VRCExpressionsMenu manualMenuTarget;
+        private readonly List<VRCExpressionsMenu.Control> manualMenuDraft = new List<VRCExpressionsMenu.Control>();
+        private readonly HashSet<VRCExpressionsMenu.Control> manualMenuAdded = new HashSet<VRCExpressionsMenu.Control>();
+        private VRCExpressionsMenu.Control manualMenuPendingPage;
+        private string manualMenuBaseline = string.Empty;
+        private bool manualMenuHasDraft;
+        private int manualMenuControlKind;
+        private int manualMenuParameterIndex;
+        private int manualMenuActionIndex;
+        private float manualMenuButtonValue = 1f;
+        private string manualMenuLabel = string.Empty;
+        private string manualMenuPageLabel = "New Submenu";
+        private VRCExpressionsMenu manualMenuLinkedPage;
+        private Texture2D manualMenuIcon;
+        private const int ManualMenuCapacity = 8;
+
         private string backupStatus = "No backup action performed.";
         private ContactPreset contactPreset = ContactPreset.Custom;
         private RaycastCollisionTarget raycastCollisionTarget = RaycastCollisionTarget.RemotePlayersOnly;
@@ -3866,18 +3893,14 @@ namespace StoriesOfYggdrasil.OSC
             EditorGUILayout.HelpBox("VRChat controls the Expressions Menu font size. Large-label mode therefore shortens labels and adds category symbols rather than attempting to change VRChat's fixed font.", MessageType.Info);
             EndCard();
 
-            BeginCard("Generated Menu Navigation");
-            EditorGUILayout.LabelField("Combined: purpose shortcuts plus school groups. School First: traditional Magick groups. Purpose First: Healing, Damage, Support, Status, Cleanse, and Utility first.", wrappedLabel);
-            using (new EditorGUI.DisabledScope(expressionsMenu == null))
-            {
-                if (GUILayout.Button("REBUILD STORIES RP MENUS", GUILayout.Height(largeControls ? 46f : 34f)))
-                {
-                    Undo.RecordObject(expressionsMenu, "Rebuild Accessible Stories RP Menus");
-                    AddCombatToggle(expressionsMenu);
-                    EditorUtility.SetDirty(expressionsMenu);
-                    AssetDatabase.SaveAssets();
-                }
-            }
+            BeginCard("Legacy Generated Menus");
+            EditorGUILayout.HelpBox(
+                "The automatic menu generator is disabled. Existing generated menus remain intact. " +
+                "Open Menu Builder to manually select a destination and stage controls, " +
+                "then Apply with a backup.",
+                MessageType.Info);
+            if (GUILayout.Button("OPEN MANUAL MENU EDITOR"))
+                tab = StudioTab.MenuBuilder;
             EndCard();
         }
 
@@ -5984,56 +6007,428 @@ namespace StoriesOfYggdrasil.OSC
             Log(BuildNumber + " built automated " + kind + " presentation for " + bindings.Count + " installed action(s). Functional approval remains owned by the Contact/Raycast gate.");
         }
 
+        // Explicit menu asset selection and draft-based editing. No generated
+        // menu builder is called by this workspace or by Install All Hooks.
         private void DrawMenuBuilder()
         {
-            BeginCard("VRChat Menu Builder");
-            menuNavigationMode = (MenuNavigationMode)EditorGUILayout.EnumPopup("Navigation Layout", menuNavigationMode);
-            shortVrchatLabels = EditorGUILayout.ToggleLeft("Use short accessibility labels", shortVrchatLabels);
-            var installedSpells = GetInstalledSpellDefinitions();
-            var installedTechnicks = GetInstalledTechnickDefinitions();
-            var installedItems = GetInstalledItemDefinitions();
-            DrawTagRow("Installed Contacts", installedSpells.Length + " Spells • " + installedTechnicks.Length + " Technicks • " + installedItems.Length + " Items", "Only these managed Contact actions are added to generated menus");
-            EditorGUILayout.LabelField("Menus are install-aware: action buttons are generated only when matching Stories-managed Contacts exist on this avatar. Empty action categories are omitted instead of filling the menu with catalog entries the model cannot use.", wrappedLabel);
-            EditorGUILayout.LabelField("Layouts: Combined, School First, Purpose First, Favorites First, and Compact Combat. Generated pages reserve Previous/Next slots and never exceed eight controls.", wrappedLabel);
+            BeginCard("Manual VRChat Expressions Menu Editor");
+            EditorGUILayout.HelpBox(
+                "Choose the EXACT menu asset to edit. All changes are staged until Apply. " +
+                "No automatic menu creation, replacement, or menu reassignment occurs. " +
+                "Existing automatic menus are retained as-is for migration.",
+                MessageType.Info);
+            if (GUILayout.Button("USE AVATAR ROOT MENU AS DESTINATION"))
+                SelectManualMenuTarget(expressionsMenu);
+
+            var target = (VRCExpressionsMenu)EditorGUILayout.ObjectField(
+                "Destination Menu Asset", manualMenuTarget, typeof(VRCExpressionsMenu), false);
+            if (target != manualMenuTarget)
+                SelectManualMenuTarget(target);
+
+            if (manualMenuTarget == null)
+            {
+                EditorGUILayout.HelpBox("Select a saved menu asset or use the avatar's root menu.", MessageType.Warning);
+                EndCard();
+                return;
+            }
+
+            var assetPath = AssetDatabase.GetAssetPath(manualMenuTarget);
+            var editable = !string.IsNullOrEmpty(assetPath) &&
+                assetPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase);
+            EditorGUILayout.LabelField("Asset", string.IsNullOrEmpty(assetPath) ? "(unsaved)" : assetPath);
+            if (!editable)
+                EditorGUILayout.HelpBox("Choose an editable .asset under Assets/. Packages and unsaved assets cannot be changed.", MessageType.Warning);
+
+            if (!manualMenuHasDraft)
+                LoadManualMenuDraft();
+            var sourceChanged = !string.Equals(
+                manualMenuBaseline, EditorJsonUtility.ToJson(manualMenuTarget), StringComparison.Ordinal);
+            if (sourceChanged)
+                EditorGUILayout.HelpBox(
+                    "The destination changed outside this editor. Apply is disabled. Reload the draft to avoid overwriting another editor's changes.",
+                    MessageType.Error);
+
+            var rows = manualMenuDraft.Count;
+            DrawTagRow("Slots", rows + " / " + ManualMenuCapacity,
+                rows > ManualMenuCapacity ? "OVER CAPACITY — remove controls before applying" : "8 VRChat controls per menu page");
+            EditorGUILayout.LabelField("Preview of the selected destination (staged; not saved)", cardTitleStyle);
+            for (var index = 0; index < manualMenuDraft.Count; index++)
+            {
+                var entry = manualMenuDraft[index];
+                EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
+                var pending = ReferenceEquals(entry, manualMenuPendingPage);
+                var title = entry == null ? "(invalid / null control)" :
+                    (index + 1) + ". " + (entry.name ?? "(unnamed)") +
+                    " [" + entry.type + "]" + (pending ? " (new page pending)" : "");
+                EditorGUILayout.LabelField(title, GUILayout.MinWidth(190f));
+                using (new EditorGUI.DisabledScope(index == 0))
+                    if (GUILayout.Button("▲", GUILayout.Width(28f)))
+                        MoveManualMenuEntry(index, -1);
+                using (new EditorGUI.DisabledScope(index >= manualMenuDraft.Count - 1))
+                    if (GUILayout.Button("▼", GUILayout.Width(28f)))
+                        MoveManualMenuEntry(index, 1);
+                if (GUILayout.Button("Remove", GUILayout.Width(69f)))
+                {
+                    manualMenuAdded.Remove(entry);
+                    if (ReferenceEquals(entry, manualMenuPendingPage)) manualMenuPendingPage = null;
+                    manualMenuDraft.RemoveAt(index);
+                    index--;
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+            if (manualMenuDraft.Count == 0)
+                EditorGUILayout.HelpBox("This page has no controls. Choose an action below.", MessageType.None);
             EndCard();
 
-            BeginCard("Quick Access Favorites");
-            menuBuilderSearch = EditorGUILayout.TextField("Search actions", menuBuilderSearch);
-            if (string.IsNullOrWhiteSpace(menuBuilderSearch))
+            BeginCard("Stage a Control");
+            string[] kinds = {
+                "Toggle (Bool)", "Button (existing parameter)", "Existing Submenu",
+                "New Submenu Page", "Installed Spell", "Installed Technick", "Installed Item"
+            };
+            manualMenuControlKind = EditorGUILayout.Popup("Control Type", manualMenuControlKind, kinds);
+            manualMenuLabel = EditorGUILayout.TextField("Custom Label (optional)", manualMenuLabel);
+            manualMenuIcon = (Texture2D)EditorGUILayout.ObjectField("Icon (optional)", manualMenuIcon, typeof(Texture2D), false);
+
+            var parameters = expressionParameters != null && expressionParameters.parameters != null
+                ? expressionParameters.parameters.Where(p => p != null && !string.IsNullOrWhiteSpace(p.name))
+                    .OrderBy(p => p.name, StringComparer.Ordinal).ToArray()
+                : Array.Empty<VRCExpressionParameters.Parameter>();
+            VRCExpressionParameters.Parameter chosenParameter = null;
+            if (manualMenuControlKind == 0 || manualMenuControlKind == 1)
             {
-                EditorGUILayout.LabelField("Type a name or numeric ID from the actions currently installed as managed Contacts on this avatar.", wrappedLabel);
+                if (parameters.Length == 0)
+                    EditorGUILayout.HelpBox("Expression Parameters asset has no selectable parameters.", MessageType.Warning);
+                else
+                {
+                    manualMenuParameterIndex = Mathf.Clamp(manualMenuParameterIndex, 0, parameters.Length - 1);
+                    manualMenuParameterIndex = EditorGUILayout.Popup("Parameter", manualMenuParameterIndex,
+                        parameters.Select(p => p.name + " (" + p.valueType + ")").ToArray());
+                    chosenParameter = parameters[Mathf.Clamp(manualMenuParameterIndex, 0, parameters.Length - 1)];
+                }
+                if (manualMenuControlKind == 1)
+                    manualMenuButtonValue = EditorGUILayout.FloatField("Button Value", manualMenuButtonValue);
+                if (manualMenuControlKind == 0 && chosenParameter != null &&
+                    chosenParameter.valueType != VRCExpressionParameters.ValueType.Bool)
+                    EditorGUILayout.HelpBox("A Toggle requires a Bool parameter.", MessageType.Warning);
+            }
+            if (manualMenuControlKind == 2)
+                manualMenuLinkedPage = (VRCExpressionsMenu)EditorGUILayout.ObjectField(
+                    "Link Existing Page", manualMenuLinkedPage, typeof(VRCExpressionsMenu), false);
+            if (manualMenuControlKind == 3)
+                manualMenuPageLabel = EditorGUILayout.TextField("New Page Asset Name", manualMenuPageLabel);
+
+            var actions = GetManualMenuInstalledActions(manualMenuControlKind);
+            if (manualMenuControlKind >= 4)
+            {
+                if (actions.Count == 0)
+                    EditorGUILayout.HelpBox("No matching installed Stories-managed action is available.", MessageType.Warning);
+                else
+                {
+                    manualMenuActionIndex = Mathf.Clamp(manualMenuActionIndex, 0, actions.Count - 1);
+                    manualMenuActionIndex = EditorGUILayout.Popup("Installed Action", manualMenuActionIndex,
+                        actions.Select(a => a.Value + " (ID " + a.Key + ")").ToArray());
+                }
+            }
+            using (new EditorGUI.DisabledScope(!editable || sourceChanged || manualMenuDraft.Count >= ManualMenuCapacity))
+            {
+                if (GUILayout.Button("STAGE CONTROL (NO ASSET CHANGES)", GUILayout.Height(35f)))
+                {
+                    var problem = StageManualMenuControl(chosenParameter, actions);
+                    if (!string.IsNullOrEmpty(problem))
+                        EditorUtility.DisplayDialog("Cannot stage control", problem, "OK");
+                }
+            }
+            EndCard();
+
+            BeginCard("Review and Apply");
+            var issue = ValidateManualMenuDraft();
+            if (!string.IsNullOrEmpty(issue))
+                EditorGUILayout.HelpBox(issue, MessageType.Warning);
+            else
+                EditorGUILayout.HelpBox(
+                    "Ready to apply. A timestamped .asset backup of the destination will be created first. " +
+                    "Only this selected menu is changed; a new submenu asset is created only if staged.",
+                    MessageType.Info);
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("DISCARD / RELOAD DRAFT", GUILayout.Height(34f)))
+                LoadManualMenuDraft();
+            using (new EditorGUI.DisabledScope(!editable || sourceChanged ||
+                !string.IsNullOrEmpty(issue) || !ManualMenuHasChanges()))
+            {
+                if (GUILayout.Button("APPLY TO SELECTED MENU", GUILayout.Height(34f)) &&
+                    EditorUtility.DisplayDialog("Apply Manual Menu Changes?",
+                        "Apply the staged " + manualMenuDraft.Count + " controls to:\n" + assetPath +
+                        "\nA timestamped .asset backup will be created before writing. Continue?",
+                        "Apply with Backup", "Cancel"))
+                    ApplyManualMenuDraft();
+            }
+            EditorGUILayout.EndHorizontal();
+            EndCard();
+        }
+
+        private void SelectManualMenuTarget(VRCExpressionsMenu target)
+        {
+            if (manualMenuTarget == target)
+                return;
+            if (ManualMenuHasChanges() &&
+                !EditorUtility.DisplayDialog("Discard staged menu edits?",
+                    "Changing destination discards unsaved changes. No menu assets were modified.",
+                    "Discard and Switch", "Keep Editing"))
+                return;
+            manualMenuTarget = target;
+            LoadManualMenuDraft();
+        }
+
+        private void LoadManualMenuDraft()
+        {
+            manualMenuDraft.Clear();
+            manualMenuAdded.Clear();
+            manualMenuPendingPage = null;
+            manualMenuBaseline = manualMenuTarget == null ? string.Empty : EditorJsonUtility.ToJson(manualMenuTarget);
+            if (manualMenuTarget != null && manualMenuTarget.controls != null)
+                manualMenuDraft.AddRange(manualMenuTarget.controls);
+            manualMenuHasDraft = manualMenuTarget != null;
+        }
+
+        private bool ManualMenuHasChanges()
+        {
+            if (manualMenuTarget == null) return false;
+            var original = manualMenuTarget.controls ?? new List<VRCExpressionsMenu.Control>();
+            if (manualMenuDraft.Count != original.Count) return true;
+            for (var i = 0; i < original.Count; i++)
+                if (!ReferenceEquals(manualMenuDraft[i], original[i])) return true;
+            return false;
+        }
+
+        private void MoveManualMenuEntry(int index, int direction)
+        {
+            var next = index + direction;
+            if (index < 0 || next < 0 || index >= manualMenuDraft.Count || next >= manualMenuDraft.Count)
+                return;
+            var temp = manualMenuDraft[index];
+            manualMenuDraft[index] = manualMenuDraft[next];
+            manualMenuDraft[next] = temp;
+        }
+
+        private List<KeyValuePair<int, string>> GetManualMenuInstalledActions(int kind)
+        {
+            if (kind == 4)
+                return GetInstalledSpellDefinitions().Select(x => new KeyValuePair<int, string>(x.Id, x.Name)).ToList();
+            if (kind == 5)
+                return GetInstalledTechnickDefinitions().Select(x => new KeyValuePair<int, string>(x.Id, x.Name)).ToList();
+            if (kind == 6)
+                return GetInstalledItemDefinitions().Select(x => new KeyValuePair<int, string>(x.Id, x.Name)).ToList();
+            return new List<KeyValuePair<int, string>>();
+        }
+
+        private static bool ManualMenuReaches(VRCExpressionsMenu start, VRCExpressionsMenu target,
+            HashSet<VRCExpressionsMenu> visited = null)
+        {
+            if (start == null || target == null) return false;
+            if (start == target) return true;
+            if (visited == null) visited = new HashSet<VRCExpressionsMenu>();
+            if (!visited.Add(start)) return false;
+            return (start.controls ?? new List<VRCExpressionsMenu.Control>())
+                .Any(c => c != null && c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                    c.subMenu != null && ManualMenuReaches(c.subMenu, target, visited));
+        }
+
+        private string StageManualMenuControl(VRCExpressionParameters.Parameter chosen,
+            List<KeyValuePair<int, string>> actions)
+        {
+            if (manualMenuTarget == null) return "Choose a destination.";
+            if (manualMenuDraft.Count >= ManualMenuCapacity) return "The selected menu is full (8 controls).";
+            var customLabel = (manualMenuLabel ?? string.Empty).Trim();
+            var label = customLabel;
+            var control = new VRCExpressionsMenu.Control { icon = manualMenuIcon };
+            if (manualMenuControlKind == 0 || manualMenuControlKind == 1)
+            {
+                if (chosen == null) return "Choose a valid Expression Parameter.";
+                if (manualMenuControlKind == 0 &&
+                    chosen.valueType != VRCExpressionParameters.ValueType.Bool)
+                    return "Toggle controls require Bool parameters.";
+                if (manualMenuControlKind == 1 && (float.IsNaN(manualMenuButtonValue) ||
+                    float.IsInfinity(manualMenuButtonValue)))
+                    return "Button value must be finite.";
+                control.type = manualMenuControlKind == 0
+                    ? VRCExpressionsMenu.Control.ControlType.Toggle
+                    : VRCExpressionsMenu.Control.ControlType.Button;
+                control.parameter = new VRCExpressionsMenu.Control.Parameter { name = chosen.name };
+                control.value = manualMenuControlKind == 0 ? 1f : manualMenuButtonValue;
+                if (string.IsNullOrWhiteSpace(label)) label = chosen.name;
+            }
+            else if (manualMenuControlKind == 2)
+            {
+                if (manualMenuLinkedPage == null) return "Choose a saved submenu asset.";
+                if (ManualMenuReaches(manualMenuLinkedPage, manualMenuTarget))
+                    return "This submenu creates a cycle back to the destination. Choose another.";
+                control.type = VRCExpressionsMenu.Control.ControlType.SubMenu;
+                control.subMenu = manualMenuLinkedPage;
+                if (string.IsNullOrWhiteSpace(label)) label = manualMenuLinkedPage.name;
+            }
+            else if (manualMenuControlKind == 3)
+            {
+                if (manualMenuPendingPage != null)
+                    return "Apply or discard the existing pending new submenu before adding another.";
+                if (string.IsNullOrWhiteSpace(manualMenuPageLabel))
+                    return "Enter a name for the new submenu asset.";
+                control.type = VRCExpressionsMenu.Control.ControlType.SubMenu;
+                if (string.IsNullOrWhiteSpace(label)) label = manualMenuPageLabel.Trim();
+                manualMenuPendingPage = control;
             }
             else
             {
-                var spells = GetInstalledSpellDefinitions().Where(x => x.Name.IndexOf(menuBuilderSearch, StringComparison.OrdinalIgnoreCase) >= 0 || x.Id.ToString() == menuBuilderSearch.Trim()).Take(5).ToArray();
-                foreach (var spell in spells)
-                    if (GUILayout.Button("+ Spell " + spell.Id + " — " + spell.Name)) AddFavorite("spell", spell.Id, spell.Name);
-                foreach (var action in GetInstalledTechnickDefinitions().Where(x => x.Name.IndexOf(menuBuilderSearch, StringComparison.OrdinalIgnoreCase) >= 0 || x.Id.ToString() == menuBuilderSearch.Trim()).Take(5))
-                    if (GUILayout.Button("+ Technick " + action.Id + " — " + action.Name)) AddFavorite("technick", action.Id, action.Name);
-                foreach (var action in GetInstalledItemDefinitions().Where(x => x.Name.IndexOf(menuBuilderSearch, StringComparison.OrdinalIgnoreCase) >= 0 || x.Id.ToString() == menuBuilderSearch.Trim()).Take(5))
-                    if (GUILayout.Button("+ Item " + action.Id + " — " + action.Name)) AddFavorite("item", action.Id, action.Name);
+                if (actions == null || actions.Count == 0) return "No installed actions of that kind were found.";
+                var action = actions[Mathf.Clamp(manualMenuActionIndex, 0, actions.Count - 1)];
+                var parameterName = manualMenuControlKind == 4 ? "SoY_SpellType" :
+                    manualMenuControlKind == 5 ? "SoY_TechnickType" : "SoY_ItemType";
+                var parameter = expressionParameters != null && expressionParameters.parameters != null
+                    ? expressionParameters.parameters.FirstOrDefault(p => p != null && p.name == parameterName)
+                    : null;
+                if (parameter == null || parameter.valueType != VRCExpressionParameters.ValueType.Int)
+                    return "Action parameter " + parameterName + " is missing or not Int. Run parameter setup first.";
+                control.type = VRCExpressionsMenu.Control.ControlType.Button;
+                control.parameter = new VRCExpressionsMenu.Control.Parameter { name = parameterName };
+                control.value = action.Key;
+                if (string.IsNullOrWhiteSpace(label)) label = action.Value;
+            }
+            if (label.Length > 32) return "Control label must be 32 characters or shorter.";
+            control.name = label;
+            if (manualMenuDraft.Any(existing => existing != null &&
+                existing.type == control.type &&
+                ((control.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                    ((existing.subMenu != null && existing.subMenu == control.subMenu) ||
+                    (existing == manualMenuPendingPage && control == manualMenuPendingPage))) ||
+                 (control.type != VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                  existing.parameter != null && control.parameter != null &&
+                  existing.parameter.name == control.parameter.name && existing.value == control.value))))
+                return "An equivalent control already exists on this page.";
+            manualMenuDraft.Add(control);
+            manualMenuAdded.Add(control);
+            return string.Empty;
+        }
+
+        private string ValidateManualMenuDraft()
+        {
+            if (manualMenuTarget == null) return "No destination menu selected.";
+            if (manualMenuDraft.Count > ManualMenuCapacity) return "Too many controls (maximum 8).";
+            if (manualMenuDraft.Any(control => control == null)) return "Remove invalid null controls.";
+            if (manualMenuPendingPage != null && !manualMenuDraft.Contains(manualMenuPendingPage))
+                return "Staged new submenu is missing; reload the draft.";
+            foreach (var control in manualMenuAdded)
+            {
+                if (!manualMenuDraft.Contains(control)) continue;
+                if (control.type == VRCExpressionsMenu.Control.ControlType.SubMenu)
+                {
+                    if (control == manualMenuPendingPage) continue;
+                    if (control.subMenu == null || ManualMenuReaches(control.subMenu, manualMenuTarget))
+                        return "A staged submenu is missing or would create a cycle.";
+                }
+                else
+                {
+                    var name = control.parameter == null ? string.Empty : control.parameter.name;
+                    var parameter = expressionParameters != null && expressionParameters.parameters != null
+                        ? expressionParameters.parameters.FirstOrDefault(p => p != null && p.name == name)
+                        : null;
+                    if (parameter == null) return "Parameter '" + name + "' is no longer installed.";
+                    if (control.type == VRCExpressionsMenu.Control.ControlType.Toggle &&
+                        parameter.valueType != VRCExpressionParameters.ValueType.Bool)
+                        return "Toggle parameter '" + name + "' must be Bool.";
+                    if ((name == "SoY_SpellType" || name == "SoY_TechnickType" || name == "SoY_ItemType") &&
+                        parameter.valueType != VRCExpressionParameters.ValueType.Int)
+                        return "Action bus '" + name + "' must be Int.";
+                    if (name == "SoY_SpellType" &&
+                        !GetInstalledSpellDefinitions().Any(x => x.Id == (int)control.value))
+                        return "A staged Spell is no longer installed.";
+                    if (name == "SoY_TechnickType" &&
+                        !GetInstalledTechnickDefinitions().Any(x => x.Id == (int)control.value))
+                        return "A staged Technick is no longer installed.";
+                    if (name == "SoY_ItemType" &&
+                        !GetInstalledItemDefinitions().Any(x => x.Id == (int)control.value))
+                        return "A staged Item is no longer installed.";
+                }
+            }
+            if (manualMenuPendingPage != null &&
+                string.IsNullOrWhiteSpace(manualMenuPageLabel))
+                return "Enter the new submenu asset's name.";
+            return string.Empty;
+        }
+
+        private void ApplyManualMenuDraft()
+        {
+            var error = ValidateManualMenuDraft();
+            if (!string.IsNullOrEmpty(error))
+            {
+                EditorUtility.DisplayDialog("Manual Menu Validation", error, "OK");
+                return;
+            }
+            var targetPath = AssetDatabase.GetAssetPath(manualMenuTarget);
+            if (string.IsNullOrEmpty(targetPath) ||
+                !targetPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(EditorJsonUtility.ToJson(manualMenuTarget), manualMenuBaseline,
+                    StringComparison.Ordinal))
+            {
+                EditorUtility.DisplayDialog("Menu source changed",
+                    "The destination is not an editable Assets/ asset or it changed since staging. Reload first.", "OK");
+                return;
             }
 
-            EditorGUILayout.LabelField("Current Quick Access (maximum seven actions)", cardTitleStyle);
-            foreach (var favorite in animationProfile.favorites.Take(7).ToList())
+            var backupPath = AssetDatabase.GenerateUniqueAssetPath(
+                targetPath.Substring(0, targetPath.Length - 6) +
+                "_SoYManualBackup_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
+            if (!AssetDatabase.CopyAsset(targetPath, backupPath))
             {
-                EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
-                EditorGUILayout.LabelField(favorite.kind.ToUpperInvariant() + " " + favorite.id + " — " + favorite.name);
-                if (GUILayout.Button("▲", GUILayout.Width(28f))) MoveFavorite(favorite, -1);
-                if (GUILayout.Button("▼", GUILayout.Width(28f))) MoveFavorite(favorite, 1);
-                if (GUILayout.Button("Remove", GUILayout.Width(70f))) { animationProfile.favorites.Remove(favorite); SaveAnimationProfile(); EditorGUILayout.EndHorizontal(); break; }
-                EditorGUILayout.EndHorizontal();
+                EditorUtility.DisplayDialog("Backup failed", "No edits were applied. Check asset permissions.", "OK");
+                return;
             }
-            if (animationProfile.favorites.Count > 7)
-                EditorGUILayout.HelpBox("Only the first seven favorites are generated. Move or remove entries to change the live menu.", MessageType.Warning);
-            using (new EditorGUI.DisabledScope(expressionsMenu == null))
-                if (GUILayout.Button("GENERATE / REPAIR STORIES RP MENUS", GUILayout.Height(largeControls ? 50f : 38f)))
+
+            var undoGroup = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName("Apply Manual SoY Menu");
+            VRCExpressionsMenu createdPage = null;
+            try
+            {
+                if (manualMenuPendingPage != null)
                 {
-                    AddCombatToggle(expressionsMenu);
-                    SaveEditorPreferences();
+                    var avatarName = MakeSafeAssetName(avatarDescriptor != null ?
+                        avatarDescriptor.gameObject.name : "Avatar");
+                    var folder = AvatarGeneratedFolder(avatarName, "Menus");
+                    EnsureAssetFolder(folder);
+                    var label = MakeSafeAssetName(manualMenuPageLabel.Trim());
+                    var newPagePath = AssetDatabase.GenerateUniqueAssetPath(
+                        folder + "/" + label + ".asset");
+                    createdPage = ScriptableObject.CreateInstance<VRCExpressionsMenu>();
+                    createdPage.controls = new List<VRCExpressionsMenu.Control>();
+                    AssetDatabase.CreateAsset(createdPage, newPagePath);
+                    Undo.RegisterCreatedObjectUndo(createdPage, "Create Manual SoY Submenu");
                 }
-            DrawMenuPreview();
-            EndCard();
+                var finalControls = manualMenuDraft.Select(control =>
+                {
+                    if (ReferenceEquals(control, manualMenuPendingPage))
+                        return new VRCExpressionsMenu.Control
+                        {
+                            name = control.name,
+                            type = VRCExpressionsMenu.Control.ControlType.SubMenu,
+                            subMenu = createdPage,
+                            icon = control.icon
+                        };
+                    return control;
+                }).ToList();
+                Undo.RecordObject(manualMenuTarget, "Edit Selected SoY Expressions Menu");
+                manualMenuTarget.controls = finalControls;
+                EditorUtility.SetDirty(manualMenuTarget);
+                AssetDatabase.SaveAssets();
+                Undo.CollapseUndoOperations(undoGroup);
+                operationLog.Insert(0, "Manual menu applied to " + targetPath +
+                    ". Backup: " + backupPath + ". " + finalControls.Count + " controls.");
+                LoadManualMenuDraft();
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError("[SoY Menu Editor] Apply failed: " + exception);
+                EditorUtility.DisplayDialog("Menu apply interrupted",
+                    "An error occurred. Review the backup at:\n" + backupPath +
+                    "\nUse Undo or restore the saved backup before retrying.", "OK");
+            }
         }
 
         private void AddFavorite(string kind, int id, string name)
@@ -8677,6 +9072,8 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow("Animator", missingAnimator == 0 ? "✓ Ready" : "! " + missingAnimator + " missing", "SoY parameters");
             DrawTagRow("Expressions", missingExpression == 0 ? "✓ Ready" : "! " + missingExpression + " missing", "OSC parameters");
 
+            DrawMovementLockAuthoring();
+
             if (GUILayout.Button("OPEN AVATAR SETUP / REPAIR", GUILayout.Height(largeControls ? 44f : 34f)))
                 tab = StudioTab.Setup;
 
@@ -8713,13 +9110,126 @@ namespace StoriesOfYggdrasil.OSC
             EndCard();
         }
 
+        // TB19: Author this layer only from an explicit user action. It must
+        // never run as part of contact/FX repair, avatar scan, or auto menus.
+        private static Type FindLocomotionControlBehaviour()
+        {
+            foreach (var fullName in LocomotionControlTypeNames)
+            {
+                var candidate = FindType(fullName);
+                if (candidate != null && typeof(StateMachineBehaviour).IsAssignableFrom(candidate))
+                    return candidate;
+            }
+            return null;
+        }
+
+        private void DrawMovementLockAuthoring()
+        {
+            EditorGUILayout.Space(8f);
+            var exists = fxController != null &&
+                fxController.layers.Any(layer => layer.name == MovementLockLayer);
+            var safe = IsSafeFxCopy(fxController);
+            var parameterValid = expressionParameters != null &&
+                expressionParameters.parameters != null &&
+                expressionParameters.parameters.Any(parameter => parameter != null &&
+                    parameter.name == MovementLockParameter &&
+                    parameter.valueType == VRCExpressionParameters.ValueType.Bool);
+            var existingAnimatorParameter = fxController != null
+                ? fxController.parameters.FirstOrDefault(parameter => parameter.name == MovementLockParameter)
+                : null;
+            var animatorParameterValid = existingAnimatorParameter == null ||
+                existingAnimatorParameter.type == AnimatorControllerParameterType.Bool;
+            var controlType = FindLocomotionControlBehaviour();
+            var behaviourInstallerAvailable = typeof(AnimatorState).GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                .Any(method => method.Name == "AddStateMachineBehaviour" &&
+                    !method.IsGenericMethod && method.GetParameters().Length == 1 &&
+                    method.GetParameters()[0].ParameterType == typeof(Type));
+
+            EditorGUILayout.LabelField("Movement Lock (opt-in)", cardTitleStyle);
+            DrawTagRow("FX Layer", exists ? "Installed" : "Not installed", MovementLockLayer);
+            DrawTagRow("Parameter", parameterValid ? "Ready" : "Missing / wrong type",
+                MovementLockParameter + " must be a Bool in Expressions Parameters");
+            EditorGUILayout.HelpBox(
+                "Creates an isolated FX state machine: Unlocked by default, Locked while SoY_MovementLocked is true. " +
+                "This only controls VRChat locomotion (not walk speed). The Desktop must explicitly set and clear " +
+                "the parameter from confirmed statuses. Roomscale movement is not blocked. " +
+                "Use a manual Expressions Menu toggle to set the parameter false as an emergency recovery control.",
+                MessageType.Info);
+            if (exists)
+            {
+                EditorGUILayout.HelpBox(
+                    "Existing movement layer is preserved. No automatic rebuilding or replacement is performed.",
+                    MessageType.None);
+                return;
+            }
+            using (new EditorGUI.DisabledScope(!safe || !parameterValid ||
+                !animatorParameterValid || controlType == null || !behaviourInstallerAvailable))
+            {
+                if (GUILayout.Button("INSTALL MOVEMENT LOCK LAYER (OPT-IN)", GUILayout.Height(36f)) &&
+                    EditorUtility.DisplayDialog(
+                        "Install SoY Movement Lock?",
+                        "This creates TWO states on the safe FX copy. Locked disables joystick locomotion. " +
+                        "Unlocked explicitly restores it. You must provide an emergency manual unlock control " +
+                        "and make sure your Desktop status driver releases the parameter. Continue?",
+                        "Install on FX Copy", "Cancel"))
+                    InstallMovementLockLayer(controlType);
+            }
+            if (!safe || !parameterValid || !animatorParameterValid ||
+                controlType == null || !behaviourInstallerAvailable)
+                EditorGUILayout.HelpBox(
+                    "Installation requires a safe FX copy, SoY_MovementLocked Bool Expression parameter, " +
+                    "a compatible Animator Bool, and the SDK's locomotion State Behaviour. " +
+                    "Use Setup / Repair for missing parameters; do not alter original controllers.",
+                    MessageType.Warning);
+        }
+
+        private void InstallMovementLockLayer(Type behaviourType)
+        {
+            if (fxController == null || !IsSafeFxCopy(fxController) ||
+                fxController.layers.Any(layer => layer.name == MovementLockLayer))
+                return;
+            if (behaviourType == null || !typeof(StateMachineBehaviour).IsAssignableFrom(behaviourType))
+                throw new InvalidOperationException("VRChat locomotion State Behaviour is unavailable.");
+
+            var property = behaviourType.GetField("disableLocomotion",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var installer = typeof(AnimatorState).GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                .FirstOrDefault(method => method.Name == "AddStateMachineBehaviour" &&
+                    !method.IsGenericMethod && method.GetParameters().Length == 1 &&
+                    method.GetParameters()[0].ParameterType == typeof(Type));
+            if (property == null || property.FieldType != typeof(bool) || installer == null)
+                throw new InvalidOperationException("SDK locomotion State Behaviour API is incompatible.");
+
+            Undo.RegisterCompleteObjectUndo(fxController, "Install Stories Movement Lock");
+            EnsureAnimatorParameter(fxController, MovementLockParameter, AnimatorControllerParameterType.Bool);
+            var layer = CreateHookLayer(fxController, MovementLockLayer);
+            var unlocked = AddHookState(layer.stateMachine, "Unlocked - Restore Locomotion", new Vector3(240f, 100f));
+            var locked = AddHookState(layer.stateMachine, "Locked - Disable Locomotion", new Vector3(560f, 100f));
+            layer.stateMachine.defaultState = unlocked;
+            foreach (var state in new[] { unlocked, locked })
+            {
+                var behaviour = installer.Invoke(state, new object[] { behaviourType }) as StateMachineBehaviour;
+                if (behaviour == null)
+                    throw new InvalidOperationException("Could not install SDK locomotion behaviour.");
+                property.SetValue(behaviour, state == locked);
+                EditorUtility.SetDirty(behaviour);
+            }
+            AddBoolTransition(unlocked, locked, MovementLockParameter, true);
+            AddBoolTransition(locked, unlocked, MovementLockParameter, false);
+            fxController.AddLayer(layer);
+            EditorUtility.SetDirty(fxController);
+            AssetDatabase.SaveAssets();
+            Log("Installed opt-in SoY Movement Lock layer on safe FX copy. Default = locomotion enabled; " +
+                "no Contacts, menus, or external FX layers changed.");
+        }
+
         private void DrawHelp()
         {
             BeginCard("Start Here — Recommended Workflow");
             EditorGUILayout.LabelField("1. Assign the avatar's VRC Avatar Descriptor and press Load From Avatar.", wrappedLabel);
             EditorGUILayout.LabelField("2. Open Setup and press Prepare / Repair. The tool creates and assigns a safe FX copy; the original FX controller is never edited.", wrappedLabel);
             EditorGUILayout.LabelField("3. Use Contacts for physical/contact senders and receivers. Use Raycast Studio for bullets, arrows, projectiles, and ground-placed spells.", wrappedLabel);
-            EditorGUILayout.LabelField("4. Build or repair the generated Stories RP menu. The menu is grouped into Combat, Spells, Actions, Targeting, Status, and optional Quick Access.", wrappedLabel);
+            EditorGUILayout.LabelField("4. Open Manual Menu Builder, choose your exact destination asset, preview staged controls, and apply with a backup. No auto-generated menus are created.", wrappedLabel);
             EditorGUILayout.LabelField("5. Run Build & Test / Audit before uploading the avatar.", wrappedLabel);
             EndCard();
 
