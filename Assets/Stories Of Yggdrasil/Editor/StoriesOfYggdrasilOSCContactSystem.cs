@@ -6055,9 +6055,9 @@ namespace StoriesOfYggdrasil.OSC
         {
             BeginCard("Manual VRChat Expressions Menu Editor");
             EditorGUILayout.HelpBox(
-                "Choose the EXACT menu asset to edit. All changes are staged until Apply. " +
-                "No automatic menu creation, replacement, or menu reassignment occurs. " +
-                "Existing automatic menus are retained as-is for migration.",
+                "Edit the selected Expressions Menu directly. Add, remove, and reorder operations " +
+                "create a backup and register Unity Undo (Ctrl+Z / Ctrl+Y). " +
+                "Browsing menus never changes their contents.",
                 MessageType.Info);
             if (GUILayout.Button("USE AVATAR ROOT MENU AS DESTINATION"))
                 SelectManualMenuTarget(expressionsMenu);
@@ -6082,24 +6082,20 @@ namespace StoriesOfYggdrasil.OSC
             EditorGUILayout.LabelField("Asset", string.IsNullOrEmpty(assetPath) ? "(unsaved)" : assetPath);
             DrawTagRow("Menu Backups", CurrentAvatarGeneratedFolder("Backups/Menus"),
                 "Original menus remain where they are; previous adjacent backups are not moved.");
-            if (GUILayout.Button("OPEN MENU BACKUPS", GUILayout.Height(28f)))
-                OpenGeneratedBackupFolder("Backups/Menus");
             if (!editable)
                 EditorGUILayout.HelpBox("Choose an editable .asset under Assets/. Packages and unsaved assets cannot be changed.", MessageType.Warning);
 
-            if (!manualMenuHasDraft)
+            // Unity Undo and external inspectors may change the target asset.
+            // Reload the private transaction buffer whenever it differs from the asset.
+            if (!manualMenuHasDraft || manualMenuTarget == null ||
+                !string.Equals(manualMenuBaseline, EditorJsonUtility.ToJson(manualMenuTarget),
+                    StringComparison.Ordinal))
                 LoadManualMenuDraft();
-            var sourceChanged = !string.Equals(
-                manualMenuBaseline, EditorJsonUtility.ToJson(manualMenuTarget), StringComparison.Ordinal);
-            if (sourceChanged)
-                EditorGUILayout.HelpBox(
-                    "The destination changed outside this editor. Apply is disabled. Reload the draft to avoid overwriting another editor's changes.",
-                    MessageType.Error);
 
             var rows = manualMenuDraft.Count;
             DrawTagRow("Slots", rows + " / " + ManualMenuCapacity,
                 rows > ManualMenuCapacity ? "OVER CAPACITY — remove controls before applying" : "8 VRChat controls per menu page");
-            EditorGUILayout.LabelField("Preview of the selected destination (staged; not saved)", cardTitleStyle);
+            EditorGUILayout.LabelField("Current Menu Controls", cardTitleStyle);
             for (var index = 0; index < manualMenuDraft.Count; index++)
             {
                 var entry = manualMenuDraft[index];
@@ -6109,18 +6105,30 @@ namespace StoriesOfYggdrasil.OSC
                     (index + 1) + ". " + (entry.name ?? "(unnamed)") +
                     " [" + entry.type + "]" + (pending ? " (new page pending)" : "");
                 EditorGUILayout.LabelField(title, GUILayout.MinWidth(190f));
-                using (new EditorGUI.DisabledScope(index == 0))
+                using (new EditorGUI.DisabledScope(!editable || index == 0))
                     if (GUILayout.Button("▲", GUILayout.Width(28f)))
+                    {
                         MoveManualMenuEntry(index, -1);
-                using (new EditorGUI.DisabledScope(index >= manualMenuDraft.Count - 1))
+                        ApplyManualMenuDraft();
+                        GUIUtility.ExitGUI();
+                    }
+                using (new EditorGUI.DisabledScope(!editable || index >= manualMenuDraft.Count - 1))
                     if (GUILayout.Button("▼", GUILayout.Width(28f)))
+                    {
                         MoveManualMenuEntry(index, 1);
-                if (GUILayout.Button("Remove", GUILayout.Width(69f)))
+                        ApplyManualMenuDraft();
+                        GUIUtility.ExitGUI();
+                    }
+                using (new EditorGUI.DisabledScope(!editable))
                 {
-                    manualMenuAdded.Remove(entry);
-                    if (ReferenceEquals(entry, manualMenuPendingPage)) manualMenuPendingPage = null;
-                    manualMenuDraft.RemoveAt(index);
-                    index--;
+                    if (GUILayout.Button("Remove", GUILayout.Width(69f)))
+                    {
+                        manualMenuAdded.Remove(entry);
+                        if (ReferenceEquals(entry, manualMenuPendingPage)) manualMenuPendingPage = null;
+                        manualMenuDraft.RemoveAt(index);
+                        ApplyManualMenuDraft();
+                        GUIUtility.ExitGUI();
+                    }
                 }
                 EditorGUILayout.EndHorizontal();
             }
@@ -6128,7 +6136,7 @@ namespace StoriesOfYggdrasil.OSC
                 EditorGUILayout.HelpBox("This page has no controls. Choose an action below.", MessageType.None);
             EndCard();
 
-            BeginCard("Stage a Control");
+            BeginCard("Add a Control");
             string[] kinds = {
                 "Toggle (Bool)", "Button (existing parameter)", "Existing Submenu",
                 "New Submenu Page", "Installed Spell", "Installed Technick", "Installed Item"
@@ -6177,46 +6185,31 @@ namespace StoriesOfYggdrasil.OSC
                         actions.Select(a => a.Value + " (ID " + a.Key + ")").ToArray());
                 }
             }
-            using (new EditorGUI.DisabledScope(!editable || sourceChanged || manualMenuDraft.Count >= ManualMenuCapacity))
+            using (new EditorGUI.DisabledScope(!editable || manualMenuDraft.Count >= ManualMenuCapacity))
             {
-                if (GUILayout.Button("STAGE CONTROL (NO ASSET CHANGES)", GUILayout.Height(35f)))
+                if (GUILayout.Button("ADD CONTROL", GUILayout.Height(35f)))
                 {
                     var problem = StageManualMenuControl(chosenParameter, actions);
                     if (!string.IsNullOrEmpty(problem))
-                        EditorUtility.DisplayDialog("Cannot stage control", problem, "OK");
+                        EditorUtility.DisplayDialog("Cannot add control", problem, "OK");
+                    else
+                    {
+                        ApplyManualMenuDraft();
+                        GUIUtility.ExitGUI();
+                    }
                 }
             }
-            EndCard();
-
-            BeginCard("Review and Apply");
-            var issue = ValidateManualMenuDraft();
-            if (!string.IsNullOrEmpty(issue))
-                EditorGUILayout.HelpBox(issue, MessageType.Warning);
-            else
-                EditorGUILayout.HelpBox(
-                    "Ready to apply. A timestamped .asset backup will be saved under this avatar's Backups/Menus directory first. " +
-                    "Only this selected menu is changed; a new submenu asset is created only if staged.",
-                    MessageType.Info);
-            EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("DISCARD / RELOAD DRAFT", GUILayout.Height(34f)))
-                LoadManualMenuDraft();
-            using (new EditorGUI.DisabledScope(!editable || sourceChanged ||
-                !string.IsNullOrEmpty(issue) || !ManualMenuHasChanges()))
-            {
-                if (GUILayout.Button("APPLY TO SELECTED MENU", GUILayout.Height(34f)) &&
-                    EditorUtility.DisplayDialog("Apply Manual Menu Changes?",
-                        "Apply the staged " + manualMenuDraft.Count + " controls to:\n" + assetPath +
-                        "\nA backup will be saved in " + CurrentAvatarGeneratedFolder("Backups/Menus") +
-                        " before writing. Continue?",
-                        "Apply with Backup", "Cancel"))
-                    ApplyManualMenuDraft();
-            }
-            EditorGUILayout.EndHorizontal();
+            if (GUILayout.Button("OPEN MENU BACKUPS", GUILayout.Height(30f)))
+                OpenGeneratedBackupFolder("Backups/Menus");
+            EditorGUILayout.HelpBox(
+                "Changes are applied immediately with a timestamped menu backup. " +
+                "Use Unity Edit > Undo (Ctrl+Z) or Edit > Redo (Ctrl+Y). " +
+                "A newly created submenu asset may need manual cleanup after Undo.",
+                MessageType.Info);
             EndCard();
         }
 
-        // Visual Expressions Menu-style navigation. Browsing is read-only:
-        // the existing manual draft and backup workflow owns all writes.
+        // Visual Expressions Menu-style navigation. Browsing itself is read-only.
         private void DrawInstalledMenuBrowser()
         {
             EditorGUILayout.Space(6f);
@@ -6261,13 +6254,13 @@ namespace StoriesOfYggdrasil.OSC
             var controls = selected.controls;
             if (controls == null || controls.Count == 0)
             {
-                EditorGUILayout.HelpBox("This menu is empty. Use Stage a Control to add entries.", MessageType.None);
+                EditorGUILayout.HelpBox("This menu is empty. Use Add a Control to add entries.", MessageType.None);
                 return;
             }
 
             EditorGUILayout.HelpBox(
                 "Click a submenu tile to open it for editing. Other controls are shown for context. " +
-                "Browsing does not modify assets; switching pages still warns about unsaved staged changes.",
+                "Browsing does not modify assets. Edits are saved immediately with Undo and backups.",
                 MessageType.Info);
             for (int i = 0; i < controls.Count; i += 2)
             {
@@ -6328,11 +6321,6 @@ namespace StoriesOfYggdrasil.OSC
         private void SelectManualMenuTarget(VRCExpressionsMenu target)
         {
             if (manualMenuTarget == target)
-                return;
-            if (ManualMenuHasChanges() &&
-                !EditorUtility.DisplayDialog("Discard staged menu edits?",
-                    "Changing destination discards unsaved changes. No menu assets were modified.",
-                    "Discard and Switch", "Keep Editing"))
                 return;
             manualMenuTarget = target;
             LoadManualMenuDraft();
@@ -6549,8 +6537,9 @@ namespace StoriesOfYggdrasil.OSC
             }
             lastManualMenuBackupPath = backupPath;
 
+            Undo.IncrementCurrentGroup();
             var undoGroup = Undo.GetCurrentGroup();
-            Undo.SetCurrentGroupName("Apply Manual SoY Menu");
+            Undo.SetCurrentGroupName("Edit SoY Expressions Menu");
             VRCExpressionsMenu createdPage = null;
             try
             {
