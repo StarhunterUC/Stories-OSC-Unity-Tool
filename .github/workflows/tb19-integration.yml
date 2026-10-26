@@ -1,0 +1,32 @@
+name: TB19 integration preflight
+on:
+  pull_request:
+    paths:
+      - "StoriesOfYggdrasilOSCContactSystem.cs"
+      - "Assets/Stories Of Yggdrasil/Editor/StoriesOfYggdrasilOSCContactSystem.cs"
+      - "tools/verify_tb19_integration.py"
+      - ".github/workflows/tb19-integration.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tb19-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: TB18.2 contact provenance compatibility
+        run: python tools/verify_tb18_2_contact_routing.py
+      - name: TB19 integration invariants
+        run: python tools/verify_tb19_integration.py
+      - name: Check no release metadata was changed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          v=json.loads(Path("version.json").read_text())
+          assert v["build_number"]=="TB18.2", "TB19 is not a published release"
+          print("Pre-release only. Published version metadata unchanged.")
+          PY
