@@ -7277,6 +7277,14 @@ namespace StoriesOfYggdrasil.OSC
             runtimeTestLightCorruptionApplicable = EditorGUILayout.Toggle("Light Corruption Applicable", runtimeTestLightCorruptionApplicable);
             runtimeTestLightCorruptionPercent = EditorGUILayout.Slider("Light Corruption Percent", runtimeTestLightCorruptionPercent, 0f, 1f);
             EditorGUILayout.LabelField("Light Corruption Stage", GetLightCorruptionStageName(runtimeTestLightCorruptionPercent), EditorStyles.miniLabel);
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("0%")) SelectLightCorruptionPreview(0f);
+            if (GUILayout.Button("10%")) SelectLightCorruptionPreview(0.10f);
+            if (GUILayout.Button("25%")) SelectLightCorruptionPreview(0.25f);
+            if (GUILayout.Button("50%")) SelectLightCorruptionPreview(0.50f);
+            if (GUILayout.Button("80%")) SelectLightCorruptionPreview(0.80f);
+            if (GUILayout.Button("100%")) SelectLightCorruptionPreview(1f);
+            EditorGUILayout.EndHorizontal();
             runtimeTestArousalDischargeReady = EditorGUILayout.Toggle("Arousal Discharge Ready", runtimeTestArousalDischargeReady);
             if (GUILayout.Button("APPLY RESOURCE TEST")) ApplyRuntimeResourceTest();
             EditorGUILayout.BeginHorizontal();
@@ -7286,6 +7294,13 @@ namespace StoriesOfYggdrasil.OSC
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.LabelField(runtimeTestSummary, wrappedLabel);
             EndCard();
+        }
+
+        private void SelectLightCorruptionPreview(float normalizedValue)
+        {
+            runtimeTestLightCorruptionPercent = Mathf.Clamp01(normalizedValue);
+            runtimeTestLightCorruptionApplicable = runtimeTestLightCorruptionPercent > 0f;
+            ApplyRuntimeResourceTest();
         }
 
         private Animator RuntimeAnimator()
@@ -7362,6 +7377,16 @@ namespace StoriesOfYggdrasil.OSC
                 animator.SetInteger("SoY_TechnickType", 0);
                 animator.SetInteger("SoY_ItemType", 0);
             }
+            runtimeTestHpPercent = 1f;
+            runtimeTestMpPercent = 1f;
+            runtimeTestMistPercent = 0f;
+            runtimeTestDiablosPercent = 0f;
+            runtimeTestArousalPercent = 0f;
+            runtimeTestLightCorruptionPercent = 0f;
+            runtimeTestDiablosApplicable = false;
+            runtimeTestArousalApplicable = false;
+            runtimeTestLightCorruptionApplicable = false;
+            runtimeTestArousalDischargeReady = false;
             runtimeTestSummary = "Runtime test parameters reset.";
         }
 
