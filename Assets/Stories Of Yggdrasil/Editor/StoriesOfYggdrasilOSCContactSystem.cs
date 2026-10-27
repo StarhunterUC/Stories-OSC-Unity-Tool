@@ -312,7 +312,8 @@ namespace StoriesOfYggdrasil.OSC
             NatureMagick,
             ChaosMagick,
             AbyssalCurses,
-            LightMagick
+            LightMagick,
+            BloodMagick
         }
 
         private enum SpellCategory
@@ -771,6 +772,38 @@ namespace StoriesOfYggdrasil.OSC
             new SpellDefinition(149, "Sacred Flame", SpellSchool.LightMagick, SpellCategory.Offensive),
             new SpellDefinition(150, "Radiant Horizon", SpellSchool.LightMagick, SpellCategory.Offensive),
             new SpellDefinition(151, "Light Atomic", SpellSchool.LightMagick, SpellCategory.Offensive),
+
+            // Sanguifex — Blood Magick (registry v2 IDs 152-181; catalog-only in Unity)
+            new SpellDefinition(152, "Sanguine Thread", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(153, "Crimson Needle", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(154, "Hematic Sense", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(155, "Sanguine Blade", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(156, "Crimson Aegis", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(157, "Coagulate", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(158, "Vessel Bind", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(159, "Crimson Lance", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(160, "Pulse Mending", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(161, "Blood Marionette", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(162, "Scarlet Arsenal", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(163, "Sanguine Reversal", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(164, "Vascular Compression", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(165, "Crimson Tempest", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(166, "Sanguine Renewal", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(167, "Silent Puppetry", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(168, "Scarlet Bastion", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(169, "Blood Echo", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(170, "Circulatory Arrest", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(171, "Crimson Execution", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(172, "Blood Communion", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(173, "Scarlet Sanctuary", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(174, "Hematic Severance", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(175, "Sanguine Doppelganger", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(176, "Blood Sovereign’s Decree", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(177, "Thousand Scarlet Spears", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(178, "Hematic Restoration", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(179, "Crimson Dominion", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(180, "Rex Sanguinis", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(181, "Perfect Circulation", SpellSchool.BloodMagick, SpellCategory.Utility),
 
             // Black Magick
             new SpellDefinition(101, "Fire", SpellSchool.BlackMagick, SpellCategory.Offensive),
@@ -1437,8 +1470,10 @@ namespace StoriesOfYggdrasil.OSC
         private float runtimeTestMistPercent;
         private float runtimeTestDiablosPercent;
         private float runtimeTestArousalPercent;
+        private float runtimeTestLightCorruptionPercent;
         private bool runtimeTestDiablosApplicable;
         private bool runtimeTestArousalApplicable;
+        private bool runtimeTestLightCorruptionApplicable;
         private bool runtimeTestArousalDischargeReady;
         private string runtimeTestSummary = "Not tested.";
         private VRCAvatarDescriptor avatarDescriptor;
@@ -1603,6 +1638,7 @@ namespace StoriesOfYggdrasil.OSC
         private bool incomingChaosSpells;
         private bool incomingAbyssalSpells;
         private bool incomingLightSpells;
+        private bool incomingBloodSpells;
         private bool forceIncomingOnExistingHealth;
         private bool bridgeBlockToOsc = true;
 
@@ -4232,12 +4268,70 @@ namespace StoriesOfYggdrasil.OSC
                     points.Add(new ResourceBlendPoint { enabled = true, label = "Warning 98%", threshold = 0.98f });
                     points.Add(new ResourceBlendPoint { enabled = true, label = "Maximum", threshold = 1.00f });
                     break;
+                case ResourceGaugeKind.LightCorruption:
+                    points.Add(new ResourceBlendPoint { enabled = true, label = "Clear", threshold = 0f });
+                    points.Add(new ResourceBlendPoint { enabled = true, label = "Initial Contamination", threshold = 0.10f });
+                    points.Add(new ResourceBlendPoint { enabled = true, label = "Heightened Instincts", threshold = 0.25f });
+                    points.Add(new ResourceBlendPoint { enabled = true, label = "Instinctual Dominance", threshold = 0.50f });
+                    points.Add(new ResourceBlendPoint { enabled = true, label = "Primal Surrender", threshold = 0.80f });
+                    points.Add(new ResourceBlendPoint { enabled = true, label = "Complete Transformation", threshold = 1.00f });
+                    break;
                 default:
                     points.Add(new ResourceBlendPoint { enabled = true, label = "Empty", threshold = 0f });
                     points.Add(new ResourceBlendPoint { enabled = true, label = "Full", threshold = 1f });
                     break;
             }
             return points;
+        }
+
+        private static string GetLightCorruptionStageName(float normalizedValue)
+        {
+            var value = Mathf.Clamp01(normalizedValue);
+            if (value >= 1.00f) return "Complete Transformation";
+            if (value >= 0.80f) return "Primal Surrender";
+            if (value >= 0.50f) return "Instinctual Dominance";
+            if (value >= 0.25f) return "Heightened Instincts";
+            if (value >= 0.10f) return "Initial Contamination";
+            return "Below Initial Contamination";
+        }
+
+        private static bool IsLegacyLightCorruptionPlaceholder(List<ResourceBlendPoint> points)
+        {
+            if (points == null) return false;
+            var enabled = points.Where(point => point != null && point.enabled)
+                .OrderBy(point => point.threshold).ToList();
+            if (enabled.Count != 2) return false;
+            return Mathf.Abs(enabled[0].threshold) < 0.0001f &&
+                   Mathf.Abs(enabled[1].threshold - 1f) < 0.0001f &&
+                   string.Equals(enabled[0].label, "Empty", StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(enabled[1].label, "Full", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void UpgradeLegacyLightCorruptionPlaceholder(ResourceGaugeProfile config)
+        {
+            if (config == null || !IsLegacyLightCorruptionPlaceholder(config.blendPoints))
+                return;
+
+            var oldPoints = config.blendPoints.Where(point => point != null && point.enabled)
+                .OrderBy(point => point.threshold).ToList();
+            var clearClip = oldPoints[0].clipPath;
+            var completeClip = oldPoints[1].clipPath;
+            config.blendPoints = DefaultResourceBlendPoints(ResourceGaugeKind.LightCorruption);
+            config.blendPoints[0].clipPath = clearClip;
+            config.blendPoints[config.blendPoints.Count - 1].clipPath = completeClip;
+        }
+
+        private void DrawLightCorruptionStageReference(float currentValue)
+        {
+            EditorGUILayout.HelpBox(
+                "Light Corruption stages (Sam.py/Desktop remain authoritative for gameplay):\n" +
+                "10% — Initial Contamination: corruption can spread through abilities; faint luminous changes; rational control remains.\n" +
+                "25% — Heightened Instincts: existing instincts and emotional responses intensify; spread becomes easier; impulsivity rises.\n" +
+                "50% — Instinctual Dominance: urges become persistent, restraint is exhausting, and emotional surges may trigger dangerous Light flares.\n" +
+                "80% — Primal Surrender: instincts increasingly dictate perception and action; uncontrolled corruptive waves and inhuman changes may emerge.\n" +
+                "100% — Complete Transformation: Sin Eater / Light Warden transformation; former identity may persist only in fragments and no longer reliably governs behavior.\n\n" +
+                "Preview stage: " + GetLightCorruptionStageName(currentValue) + ". Unity visualizes the percentage and authored FX only; transmission amounts, triggers, resistance, cleansing, and transformation rules are intentionally not hard-coded here.",
+                MessageType.Warning);
         }
 
         private ResourceGaugeProfile FindResourceGaugeProfile(ResourceGaugeKind kind)
@@ -4306,6 +4400,8 @@ namespace StoriesOfYggdrasil.OSC
                     animationProfile.resourceGauges.Add(config);
                 }
 
+                if (kind == ResourceGaugeKind.LightCorruption)
+                    UpgradeLegacyLightCorruptionPlaceholder(config);
                 if (config.blendPoints == null || config.blendPoints.Count == 0)
                     config.blendPoints = DefaultResourceBlendPoints(kind);
                 for (var i = 0; i < config.blendPoints.Count; i++)
@@ -4759,7 +4855,7 @@ namespace StoriesOfYggdrasil.OSC
             EnsureResourceGaugeProfileDefaults();
             BeginCard("Resource FX Framework");
             EditorGUILayout.LabelField(
-                "Health, MP, Mist, Curse of Diablos, and Arousal now share one managed Resource FX authoring path. Sam.py/Desktop remain authoritative for gameplay values; Unity only visualizes normalized 0.0–1.0 floats.",
+                "Health, MP, Mist, Curse of Diablos, Arousal, and Light Corruption share one managed Resource FX authoring path. Sam.py/Desktop remain authoritative for gameplay values; Unity only visualizes normalized 0.0–1.0 floats.",
                 wrappedLabel);
 
             var kinds = AllResourceGaugeKinds().ToArray();
@@ -4773,6 +4869,8 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow("OSC Driver", ResourceParameter(kind), "Normalized 0.0–1.0 value; Sam.py/Desktop authority");
             if (kind == ResourceGaugeKind.MP)
                 EditorGUILayout.HelpBox("Desktop should publish SoY_MPPercent = current MP / max MP. Sam.py already tracks both mp and max_mp; Unity must not recalculate or own MP gameplay state.", MessageType.Info);
+            if (kind == ResourceGaugeKind.LightCorruption)
+                DrawLightCorruptionStageReference(runtimeTestLightCorruptionPercent);
             EditorGUILayout.HelpBox("For smoother visible bars, the Desktop bridge may ease transmitted resource percentages over roughly 0.15–0.40 seconds. Sam.py values and combat logic remain instantaneous and authoritative; smoothing is presentation-only.", MessageType.None);
 
             var nextEnabled = EditorGUILayout.Toggle("Enabled", config.enabled);
@@ -7176,6 +7274,9 @@ namespace StoriesOfYggdrasil.OSC
             runtimeTestDiablosPercent = EditorGUILayout.Slider("Diablos Percent", runtimeTestDiablosPercent, 0f, 1f);
             runtimeTestArousalApplicable = EditorGUILayout.Toggle("Arousal Applicable", runtimeTestArousalApplicable);
             runtimeTestArousalPercent = EditorGUILayout.Slider("Arousal Percent", runtimeTestArousalPercent, 0f, 1f);
+            runtimeTestLightCorruptionApplicable = EditorGUILayout.Toggle("Light Corruption Applicable", runtimeTestLightCorruptionApplicable);
+            runtimeTestLightCorruptionPercent = EditorGUILayout.Slider("Light Corruption Percent", runtimeTestLightCorruptionPercent, 0f, 1f);
+            EditorGUILayout.LabelField("Light Corruption Stage", GetLightCorruptionStageName(runtimeTestLightCorruptionPercent), EditorStyles.miniLabel);
             runtimeTestArousalDischargeReady = EditorGUILayout.Toggle("Arousal Discharge Ready", runtimeTestArousalDischargeReady);
             if (GUILayout.Button("APPLY RESOURCE TEST")) ApplyRuntimeResourceTest();
             EditorGUILayout.BeginHorizontal();
@@ -7199,7 +7300,9 @@ namespace StoriesOfYggdrasil.OSC
                 "% | MP " + (runtimeTestMpPercent * 100f).ToString("0.0") +
                 "% | Mist " + (runtimeTestMistPercent * 100f).ToString("0.0") +
                 "% | Diablos " + (runtimeTestDiablosPercent * 100f).ToString("0.0") +
-                "% | Arousal " + (runtimeTestArousalPercent * 100f).ToString("0.0") + "%";
+                "% | Arousal " + (runtimeTestArousalPercent * 100f).ToString("0.0") +
+                "% | Light " + (runtimeTestLightCorruptionPercent * 100f).ToString("0.0") +
+                "% (" + GetLightCorruptionStageName(runtimeTestLightCorruptionPercent) + ")";
             if (!EditorApplication.isPlaying || animator == null)
             {
                 runtimeTestSummary += ". Enter Play Mode with an Animator on the avatar root to write the parameters.";
@@ -7210,10 +7313,12 @@ namespace StoriesOfYggdrasil.OSC
             animator.SetFloat("SoY_MistPercent", runtimeTestMistPercent);
             animator.SetFloat("SoY_DiablosPercent", runtimeTestDiablosPercent);
             animator.SetFloat("SoY_ArousalPercent", runtimeTestArousalPercent);
+            animator.SetFloat("SoY_LightCorruptionPercent", runtimeTestLightCorruptionPercent);
             animator.SetBool("SoY_KO", runtimeTestHpPercent <= 0f);
             animator.SetBool("SoY_CriticalHP", runtimeTestHpPercent > 0f && runtimeTestHpPercent < 0.15f);
             animator.SetBool("SoY_DiablosApplicable", runtimeTestDiablosApplicable);
             animator.SetBool("SoY_ArousalApplicable", runtimeTestArousalApplicable);
+            animator.SetBool("SoY_LightCorruptionApplicable", runtimeTestLightCorruptionApplicable);
             animator.SetBool("SoY_ArousalDischargeReady", runtimeTestArousalDischargeReady);
         }
 
@@ -12517,6 +12622,7 @@ namespace StoriesOfYggdrasil.OSC
                 case SpellSchool.ChaosMagick: return "Chaos Magick";
                 case SpellSchool.AbyssalCurses: return "Abyssal Curses";
                 case SpellSchool.LightMagick: return "Light Magick";
+                case SpellSchool.BloodMagick: return "Blood Magick";
                 default: return school.ToString();
             }
         }
@@ -12542,6 +12648,7 @@ namespace StoriesOfYggdrasil.OSC
                 case SpellSchool.ChaosMagick: return incomingChaosSpells;
                 case SpellSchool.AbyssalCurses: return incomingAbyssalSpells;
                 case SpellSchool.LightMagick: return incomingLightSpells;
+                case SpellSchool.BloodMagick: return incomingBloodSpells;
                 default: return false;
             }
         }
@@ -12576,6 +12683,7 @@ namespace StoriesOfYggdrasil.OSC
             incomingChaosSpells = value;
             incomingAbyssalSpells = value;
             incomingLightSpells = value;
+            incomingBloodSpells = value;
         }
 
 
@@ -14306,7 +14414,8 @@ namespace StoriesOfYggdrasil.OSC
                 {
                     SpellSchool.ChaosMagick,
                     SpellSchool.AbyssalCurses,
-                    SpellSchool.LightMagick
+                    SpellSchool.LightMagick,
+                    SpellSchool.BloodMagick
                 });
 
             Undo.RecordObject(schoolBrowseMenu, "Build Stories School Browser");
