@@ -6372,62 +6372,188 @@ namespace StoriesOfYggdrasil.OSC
             };
         }
 
+        // A linked chain of pages reserves slot eight for "More".
+        // Existing controls are never moved, replaced, or dropped.
+        private VRCExpressionsMenu FindOrCreateAvailableMenuPage(
+            VRCExpressionsMenu start, string context, bool create)
+        {
+            if (start == null) return null;
+            var seen = new HashSet<int>();
+            var page = start;
+            while (page != null && seen.Add(page.GetInstanceID()) && seen.Count <= 64)
+            {
+                var controls = page.controls ?? new List<VRCExpressionsMenu.Control>();
+                var next = controls.FirstOrDefault(c => c != null &&
+                    c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                    c.name == "More..." && c.subMenu != null);
+                if (next != null)
+                {
+                    page = next.subMenu;
+                    continue;
+                }
+                if (controls.Count < ManualMenuCapacity) return page;
+                if (!create) return null;
+                // When all eight slots are occupied, do not move user controls to
+                // make room. Stop safely and report that this page needs attention.
+                if (controls.Count >= ManualMenuCapacity) return null;
+            }
+            return null;
+        }
+
+        private bool TryCreateMenuOverflow(VRCExpressionsMenu page, string context,
+            out VRCExpressionsMenu continuation)
+        {
+            continuation = null;
+            if (page == null) return false;
+            var controls = page.controls ?? new List<VRCExpressionsMenu.Control>();
+            var existing = controls.FirstOrDefault(c => c != null &&
+                c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                c.name == "More..." && c.subMenu != null);
+            if (existing != null) { continuation = existing.subMenu; return true; }
+            if (controls.Count >= ManualMenuCapacity) return false;
+            var folder = CurrentAvatarGeneratedFolder("Menus/System");
+            EnsureAssetFolder(folder);
+            var pagePath = AssetDatabase.GetAssetPath(page);
+            var backupFolder = CurrentAvatarGeneratedFolder("Backups/Menus");
+            EnsureAssetFolder(backupFolder);
+            var backup = AssetDatabase.GenerateUniqueAssetPath(backupFolder + "/" +
+                MakeSafeAssetName(page.name) + "_" + AssetDatabase.AssetPathToGUID(pagePath) +
+                "_backup_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
+            if (!AssetDatabase.CopyAsset(pagePath, backup)) return false;
+            continuation = ScriptableObject.CreateInstance<VRCExpressionsMenu>();
+            continuation.controls = new List<VRCExpressionsMenu.Control>();
+            var path = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
+                MakeSafeAssetName(context) + "_More.asset");
+            AssetDatabase.CreateAsset(continuation, path);
+            Undo.RegisterCreatedObjectUndo(continuation, "Create SoY overflow menu");
+            Undo.RecordObject(page, "Link SoY overflow menu");
+            if (page.controls == null) page.controls = new List<VRCExpressionsMenu.Control>();
+            page.controls.Add(new VRCExpressionsMenu.Control
+            {
+                name = "More...",
+                type = VRCExpressionsMenu.Control.ControlType.SubMenu,
+                subMenu = continuation
+            });
+            EditorUtility.SetDirty(page);
+            AssetDatabase.SaveAssets();
+            return true;
+        }
+
+        private VRCExpressionsMenu FindActionPage(VRCExpressionsMenu root,
+            string parameter, int id)
+        {
+            var visited = new HashSet<int>();
+            var page = root;
+            while (page != null && visited.Add(page.GetInstanceID()))
+            {
+                if ((page.controls ?? new List<VRCExpressionsMenu.Control>()).Any(c => c != null &&
+                    c.parameter != null && c.parameter.name == parameter &&
+                    Mathf.Approximately(c.value, id))) return page;
+                page = (page.controls ?? new List<VRCExpressionsMenu.Control>())
+                    .Where(c => c != null && c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                        c.name == "More...").Select(c => c.subMenu).FirstOrDefault();
+            }
+            return null;
+        }
+
         private bool TryAddMenuAction(VRCExpressionsMenu destination, string label, string parameter, int id)
         {
             if (destination == null) return false;
-            if (destination.controls == null) destination.controls = new List<VRCExpressionsMenu.Control>();
-            if (destination.controls.Any(control => control != null && control.parameter != null &&
-                control.parameter.name == parameter && Mathf.Approximately(control.value, id)))
-                return true;
-            if (destination.controls.Count >= ManualMenuCapacity)
+            if (FindActionPage(destination, parameter, id) != null) return true;
+            var page = destination;
+            var seen = new HashSet<int>();
+            while (page != null && seen.Add(page.GetInstanceID()) && seen.Count <= 64)
             {
-                Debug.LogWarning("[SoY Menu] " + destination.name +
-                    " is full; action " + label + " was not installed into the menu.");
-                return false;
+                if (page.controls == null) page.controls = new List<VRCExpressionsMenu.Control>();
+                var next = page.controls.FirstOrDefault(c => c != null &&
+                    c.name == "More..." && c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                    c.subMenu != null);
+                if (next != null) { page = next.subMenu; continue; }
+                // Reserve one slot for a future More page, unless this is
+                // a legacy full page, which we refuse to rearrange.
+                if (page.controls.Count >= ManualMenuCapacity - 1)
+                {
+                    VRCExpressionsMenu overflow;
+                    if (!TryCreateMenuOverflow(page, destination.name, out overflow))
+                    {
+                        Debug.LogWarning("[SoY Menu] No free overflow slot in " + page.name);
+                        return false;
+                    }
+                    page = overflow;
+                    continue;
+                }
+                var path = AssetDatabase.GetAssetPath(page);
+                var backupFolder = CurrentAvatarGeneratedFolder("Backups/Menus");
+                EnsureAssetFolder(backupFolder);
+                var backup = AssetDatabase.GenerateUniqueAssetPath(backupFolder + "/" +
+                    MakeSafeAssetName(page.name) + "_" + AssetDatabase.AssetPathToGUID(path) +
+                    "_backup_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
+                if (!AssetDatabase.CopyAsset(path, backup)) return false;
+                Undo.RecordObject(page, "Install SoY Action Menu Control");
+                page.controls.Add(ActionMenuControl(label, parameter, id));
+                EditorUtility.SetDirty(page);
+                AssetDatabase.SaveAssets();
+                return true;
             }
-            var path = AssetDatabase.GetAssetPath(destination);
-            var folder = CurrentAvatarGeneratedFolder("Backups/Menus");
-            EnsureAssetFolder(folder);
-            var backup = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
-                MakeSafeAssetName(destination.name) + "_" + AssetDatabase.AssetPathToGUID(path) +
-                "_backup_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
-            if (!AssetDatabase.CopyAsset(path, backup)) return false;
-            Undo.RecordObject(destination, "Install SoY Action Menu Control");
-            destination.controls.Add(ActionMenuControl(label, parameter, id));
-            EditorUtility.SetDirty(destination);
-            AssetDatabase.SaveAssets();
-            return true;
+            return false;
         }
 
         private VRCExpressionsMenu EnsureManagedMagickSchoolPage(VRCExpressionsMenu magicks,
             string school)
         {
             if (magicks == null) return null;
-            var existing = (magicks.controls ?? new List<VRCExpressionsMenu.Control>())
-                .FirstOrDefault(c => c != null && c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
-                    string.Equals(c.name, school, StringComparison.OrdinalIgnoreCase));
-            if (existing != null) return existing.subMenu;
-            if (magicks.controls == null) magicks.controls = new List<VRCExpressionsMenu.Control>();
-            if (magicks.controls.Count >= ManualMenuCapacity) return null;
-            var folder = CurrentAvatarGeneratedFolder("Menus/System");
-            EnsureAssetFolder(folder);
-            var page = ScriptableObject.CreateInstance<VRCExpressionsMenu>();
-            page.controls = new List<VRCExpressionsMenu.Control>();
-            var path = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
-                AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(magicks)) +
-                "_" + MakeSafeAssetName(school) + ".asset");
-            AssetDatabase.CreateAsset(page, path);
-            Undo.RegisterCreatedObjectUndo(page, "Create SoY Magick School Menu");
-            Undo.RecordObject(magicks, "Add SoY Magick School");
-            magicks.controls.Add(new VRCExpressionsMenu.Control
+            var page = magicks;
+            var seen = new HashSet<int>();
+            while (page != null && seen.Add(page.GetInstanceID()) && seen.Count <= 64)
             {
-                name = school,
-                type = VRCExpressionsMenu.Control.ControlType.SubMenu,
-                subMenu = page
-            });
-            EditorUtility.SetDirty(magicks);
-            AssetDatabase.SaveAssets();
-            return page;
+                var controls = page.controls ?? new List<VRCExpressionsMenu.Control>();
+                var schoolControl = controls.FirstOrDefault(c => c != null &&
+                    c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                    string.Equals(c.name, school, StringComparison.OrdinalIgnoreCase));
+                if (schoolControl != null) return schoolControl.subMenu;
+                var next = controls.FirstOrDefault(c => c != null &&
+                    c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                    c.name == "More..." && c.subMenu != null);
+                if (next != null) { page = next.subMenu; continue; }
+                if (controls.Count >= ManualMenuCapacity - 1)
+                {
+                    VRCExpressionsMenu overflow;
+                    if (!TryCreateMenuOverflow(page, "MagickSchools", out overflow))
+                    {
+                        Debug.LogWarning("[SoY Menu] Magick school page is full; cannot route " + school);
+                        return null;
+                    }
+                    page = overflow;
+                    continue;
+                }
+                var folder = CurrentAvatarGeneratedFolder("Menus/System");
+                EnsureAssetFolder(folder);
+                var parentPath = AssetDatabase.GetAssetPath(page);
+                var backupFolder = CurrentAvatarGeneratedFolder("Backups/Menus");
+                EnsureAssetFolder(backupFolder);
+                var backup = AssetDatabase.GenerateUniqueAssetPath(backupFolder + "/" +
+                    MakeSafeAssetName(page.name) + "_" + AssetDatabase.AssetPathToGUID(parentPath) +
+                    "_backup_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
+                if (!AssetDatabase.CopyAsset(parentPath, backup)) return null;
+                var child = ScriptableObject.CreateInstance<VRCExpressionsMenu>();
+                child.controls = new List<VRCExpressionsMenu.Control>();
+                var childPath = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
+                    AssetDatabase.AssetPathToGUID(parentPath) + "_" + MakeSafeAssetName(school) + ".asset");
+                AssetDatabase.CreateAsset(child, childPath);
+                Undo.RegisterCreatedObjectUndo(child, "Create SoY Magick School Menu");
+                Undo.RecordObject(page, "Add SoY Magick School");
+                if (page.controls == null) page.controls = new List<VRCExpressionsMenu.Control>();
+                page.controls.Add(new VRCExpressionsMenu.Control
+                {
+                    name = school,
+                    type = VRCExpressionsMenu.Control.ControlType.SubMenu,
+                    subMenu = child
+                });
+                EditorUtility.SetDirty(page);
+                AssetDatabase.SaveAssets();
+                return child;
+            }
+            return null;
         }
 
         private void RouteNewInstalledAction(ActionAnimationKind kind, int id, string name,
