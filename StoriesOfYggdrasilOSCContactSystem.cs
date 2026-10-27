@@ -10018,6 +10018,28 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow("FX Layer", exists ? "Installed" : "Not installed", MovementLockLayer);
             DrawTagRow("Parameter", parameterValid ? "Ready" : "Missing / wrong type",
                 MovementLockParameter + " must be a Bool in Expressions Parameters");
+            var installedLayer = exists ? fxController.layers.FirstOrDefault(layer => layer.name == MovementLockLayer) : null;
+            var unlockedState = installedLayer != null && installedLayer.stateMachine != null
+                ? installedLayer.stateMachine.states.Select(child => child.state)
+                    .FirstOrDefault(state => state != null && state.name == "Unlocked - Restore Locomotion")
+                : null;
+            var lockedState = installedLayer != null && installedLayer.stateMachine != null
+                ? installedLayer.stateMachine.states.Select(child => child.state)
+                    .FirstOrDefault(state => state != null && state.name == "Locked - Disable Locomotion")
+                : null;
+            if (exists)
+            {
+                var validLayer = unlockedState != null && lockedState != null &&
+                    installedLayer.stateMachine.defaultState == unlockedState &&
+                    fxController.parameters.Any(parameter => parameter.name == MovementLockParameter &&
+                        parameter.type == AnimatorControllerParameterType.Bool);
+                DrawTagRow("Movement Lock audit", validLayer ? "Structure detected" : "Needs review",
+                    "Requires Unlocked default, Locked state, and Animator Bool");
+                if (!validLayer)
+                    EditorGUILayout.HelpBox(
+                        "Movement Lock is installed but one or more core elements are missing. The tool will not overwrite it automatically. Restore a backup or inspect the layer before using it.",
+                        MessageType.Warning);
+            }
             EditorGUILayout.HelpBox(
                 "Creates an isolated FX state machine: Unlocked by default, Locked while SoY_MovementLocked is true. " +
                 "This only controls VRChat locomotion (not walk speed). The Desktop must explicitly set and clear " +
