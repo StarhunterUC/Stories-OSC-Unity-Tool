@@ -1639,6 +1639,8 @@ namespace StoriesOfYggdrasil.OSC
         private void OnEnable()
         {
             Debug.Log("[Stories OSC Unity Tool] Loaded v" + Version + " — " + BuildLabel);
+            Undo.undoRedoPerformed -= RefreshManualMenuAfterUndo;
+            Undo.undoRedoPerformed += RefreshManualMenuAfterUndo;
             LoadEditorPreferences();
             LoadCachedUpdateState();
             LoadAvatarContextStore();
@@ -1658,6 +1660,7 @@ namespace StoriesOfYggdrasil.OSC
 
         private void OnDisable()
         {
+            Undo.undoRedoPerformed -= RefreshManualMenuAfterUndo;
             SaveCurrentAvatarContext();
             SaveAvatarContextStore();
             EditorApplication.delayCall -= DelayedRestoreAvatarContext;
@@ -6051,16 +6054,6 @@ namespace StoriesOfYggdrasil.OSC
 
         // Explicit menu asset selection and draft-based editing. No generated
         // menu builder is called by this workspace or by Install All Hooks.
-        private void OnEnable()
-        {
-            Undo.undoRedoPerformed += RefreshManualMenuAfterUndo;
-        }
-
-        private void OnDisable()
-        {
-            Undo.undoRedoPerformed -= RefreshManualMenuAfterUndo;
-        }
-
         private void RefreshManualMenuAfterUndo()
         {
             if (manualMenuTarget != null)
