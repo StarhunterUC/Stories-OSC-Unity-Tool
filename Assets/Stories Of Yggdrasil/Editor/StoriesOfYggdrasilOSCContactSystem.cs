@@ -354,7 +354,8 @@ namespace StoriesOfYggdrasil.OSC
             MP,
             Mist,
             Diablos,
-            Arousal
+            Arousal,
+            LightCorruption
         }
 
         private enum ResourceVisibilityMode
@@ -1103,6 +1104,8 @@ namespace StoriesOfYggdrasil.OSC
             new ParameterSpec("SoY_DiablosPercent", AnimatorControllerParameterType.Float, VRCExpressionParameters.ValueType.Float, 0f, false, false),
             new ParameterSpec("SoY_ArousalApplicable", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_ArousalPercent", AnimatorControllerParameterType.Float, VRCExpressionParameters.ValueType.Float, 0f, false, false),
+            new ParameterSpec("SoY_LightCorruptionApplicable", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec("SoY_LightCorruptionPercent", AnimatorControllerParameterType.Float, VRCExpressionParameters.ValueType.Float, 0f, false, false),
             new ParameterSpec("SoY_ArousalDischargeReady", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_OSCProbe", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HitWeak", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool),
@@ -4120,6 +4123,7 @@ namespace StoriesOfYggdrasil.OSC
                 case ResourceGaugeKind.Mist: return "mist";
                 case ResourceGaugeKind.Diablos: return "diablos";
                 case ResourceGaugeKind.Arousal: return "arousal";
+                case ResourceGaugeKind.LightCorruption: return "light_corruption";
                 default: return kind.ToString().ToLowerInvariant();
             }
         }
@@ -4133,6 +4137,7 @@ namespace StoriesOfYggdrasil.OSC
                 case ResourceGaugeKind.Mist: return "Mist";
                 case ResourceGaugeKind.Diablos: return "Curse of Diablos";
                 case ResourceGaugeKind.Arousal: return "Arousal";
+                case ResourceGaugeKind.LightCorruption: return "Light Corruption";
                 default: return kind.ToString();
             }
         }
@@ -4146,6 +4151,7 @@ namespace StoriesOfYggdrasil.OSC
                 case ResourceGaugeKind.Mist: return "SoY_MistPercent";
                 case ResourceGaugeKind.Diablos: return "SoY_DiablosPercent";
                 case ResourceGaugeKind.Arousal: return "SoY_ArousalPercent";
+                case ResourceGaugeKind.LightCorruption: return "SoY_LightCorruptionPercent";
                 default: return string.Empty;
             }
         }
@@ -4159,6 +4165,7 @@ namespace StoriesOfYggdrasil.OSC
                 case ResourceGaugeKind.Mist: return MistGaugeLayer;
                 case ResourceGaugeKind.Diablos: return DiablosLayer;
                 case ResourceGaugeKind.Arousal: return ArousalLayer;
+                case ResourceGaugeKind.LightCorruption: return "Stories Of Yggdrasil | Light Corruption";
                 default: return "Stories Of Yggdrasil | Resource " + kind;
             }
         }
@@ -4169,6 +4176,7 @@ namespace StoriesOfYggdrasil.OSC
             {
                 case ResourceGaugeKind.Diablos: return "SoY_DiablosApplicable";
                 case ResourceGaugeKind.Arousal: return "SoY_ArousalApplicable";
+                case ResourceGaugeKind.LightCorruption: return "SoY_LightCorruptionApplicable";
                 default: return string.Empty;
             }
         }
@@ -4200,7 +4208,8 @@ namespace StoriesOfYggdrasil.OSC
 
         private static ResourceVisibilityMode ResourceDefaultVisibility(ResourceGaugeKind kind)
         {
-            if (kind == ResourceGaugeKind.Diablos || kind == ResourceGaugeKind.Arousal)
+            if (kind == ResourceGaugeKind.Diablos || kind == ResourceGaugeKind.Arousal ||
+                kind == ResourceGaugeKind.LightCorruption)
                 return ResourceVisibilityMode.ApplicableOnly;
             return ResourceVisibilityMode.Always;
         }
