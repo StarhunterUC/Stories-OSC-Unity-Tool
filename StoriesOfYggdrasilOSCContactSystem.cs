@@ -312,7 +312,8 @@ namespace StoriesOfYggdrasil.OSC
             NatureMagick,
             ChaosMagick,
             AbyssalCurses,
-            LightMagick
+            LightMagick,
+            BloodMagick
         }
 
         private enum SpellCategory
@@ -354,7 +355,8 @@ namespace StoriesOfYggdrasil.OSC
             MP,
             Mist,
             Diablos,
-            Arousal
+            Arousal,
+            LightCorruption
         }
 
         private enum ResourceVisibilityMode
@@ -771,6 +773,38 @@ namespace StoriesOfYggdrasil.OSC
             new SpellDefinition(150, "Radiant Horizon", SpellSchool.LightMagick, SpellCategory.Offensive),
             new SpellDefinition(151, "Light Atomic", SpellSchool.LightMagick, SpellCategory.Offensive),
 
+            // Sanguifex — Blood Magick (registry v2 IDs 152-181; catalog-only in Unity)
+            new SpellDefinition(152, "Sanguine Thread", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(153, "Crimson Needle", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(154, "Hematic Sense", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(155, "Sanguine Blade", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(156, "Crimson Aegis", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(157, "Coagulate", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(158, "Vessel Bind", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(159, "Crimson Lance", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(160, "Pulse Mending", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(161, "Blood Marionette", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(162, "Scarlet Arsenal", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(163, "Sanguine Reversal", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(164, "Vascular Compression", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(165, "Crimson Tempest", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(166, "Sanguine Renewal", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(167, "Silent Puppetry", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(168, "Scarlet Bastion", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(169, "Blood Echo", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(170, "Circulatory Arrest", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(171, "Crimson Execution", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(172, "Blood Communion", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(173, "Scarlet Sanctuary", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(174, "Hematic Severance", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(175, "Sanguine Doppelganger", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(176, "Blood Sovereign’s Decree", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(177, "Thousand Scarlet Spears", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(178, "Hematic Restoration", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(179, "Crimson Dominion", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(180, "Rex Sanguinis", SpellSchool.BloodMagick, SpellCategory.Utility),
+            new SpellDefinition(181, "Perfect Circulation", SpellSchool.BloodMagick, SpellCategory.Utility),
+
             // Black Magick
             new SpellDefinition(101, "Fire", SpellSchool.BlackMagick, SpellCategory.Offensive),
             new SpellDefinition(102, "Fira", SpellSchool.BlackMagick, SpellCategory.Offensive),
@@ -1103,6 +1137,8 @@ namespace StoriesOfYggdrasil.OSC
             new ParameterSpec("SoY_DiablosPercent", AnimatorControllerParameterType.Float, VRCExpressionParameters.ValueType.Float, 0f, false, false),
             new ParameterSpec("SoY_ArousalApplicable", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_ArousalPercent", AnimatorControllerParameterType.Float, VRCExpressionParameters.ValueType.Float, 0f, false, false),
+            new ParameterSpec("SoY_LightCorruptionApplicable", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
+            new ParameterSpec("SoY_LightCorruptionPercent", AnimatorControllerParameterType.Float, VRCExpressionParameters.ValueType.Float, 0f, false, false),
             new ParameterSpec("SoY_ArousalDischargeReady", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_OSCProbe", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool, 0f, false, false),
             new ParameterSpec("SoY_HitWeak", AnimatorControllerParameterType.Bool, VRCExpressionParameters.ValueType.Bool),
@@ -1391,7 +1427,8 @@ namespace StoriesOfYggdrasil.OSC
         private string manualMenuBaseline = string.Empty;
         private bool manualMenuHasDraft;
         private int manualMenuControlKind;
-        private int manualMenuParameterIndex;
+        private string manualMenuParameterSearch = string.Empty;
+        private string manualMenuSelectedParameter = string.Empty;
         private int manualMenuActionIndex;
         private float manualMenuButtonValue = 1f;
         private string manualMenuLabel = string.Empty;
@@ -1433,8 +1470,10 @@ namespace StoriesOfYggdrasil.OSC
         private float runtimeTestMistPercent;
         private float runtimeTestDiablosPercent;
         private float runtimeTestArousalPercent;
+        private float runtimeTestLightCorruptionPercent;
         private bool runtimeTestDiablosApplicable;
         private bool runtimeTestArousalApplicable;
+        private bool runtimeTestLightCorruptionApplicable;
         private bool runtimeTestArousalDischargeReady;
         private string runtimeTestSummary = "Not tested.";
         private VRCAvatarDescriptor avatarDescriptor;
@@ -1599,6 +1638,7 @@ namespace StoriesOfYggdrasil.OSC
         private bool incomingChaosSpells;
         private bool incomingAbyssalSpells;
         private bool incomingLightSpells;
+        private bool incomingBloodSpells;
         private bool forceIncomingOnExistingHealth;
         private bool bridgeBlockToOsc = true;
 
@@ -1639,6 +1679,8 @@ namespace StoriesOfYggdrasil.OSC
         private void OnEnable()
         {
             Debug.Log("[Stories OSC Unity Tool] Loaded v" + Version + " — " + BuildLabel);
+            Undo.undoRedoPerformed -= RefreshManualMenuAfterUndo;
+            Undo.undoRedoPerformed += RefreshManualMenuAfterUndo;
             LoadEditorPreferences();
             LoadCachedUpdateState();
             LoadAvatarContextStore();
@@ -1658,6 +1700,7 @@ namespace StoriesOfYggdrasil.OSC
 
         private void OnDisable()
         {
+            Undo.undoRedoPerformed -= RefreshManualMenuAfterUndo;
             SaveCurrentAvatarContext();
             SaveAvatarContextStore();
             EditorApplication.delayCall -= DelayedRestoreAvatarContext;
@@ -1886,18 +1929,29 @@ namespace StoriesOfYggdrasil.OSC
             EditorGUI.DrawRect(headerRect, HeaderBackgroundColor);
             EditorGUI.DrawRect(new Rect(headerRect.x, headerRect.yMax - 3f, headerRect.width, 3f), AccentColor);
 
-            var titleRect = new Rect(headerRect.x + 18f, headerRect.y + 10f, headerRect.width - 160f, 28f);
-            var subRect = new Rect(headerRect.x + 18f, headerRect.y + 39f, headerRect.width - 160f, 20f);
+            // The old fixed 88px badge truncated even v0.5.10 + TB18.2.
+            // Size it to its contents, including accessibility font scaling.
+            var versionText = "v" + Version + " • " + BuildNumber;
+            var versionWidth = Mathf.Ceil(badgeStyle.CalcSize(new GUIContent(versionText)).x) + 12f;
+            versionWidth = Mathf.Max(120f, versionWidth);
+            const float headerRightInset = 18f;
+            var versionRect = new Rect(headerRect.xMax - headerRightInset - versionWidth,
+                headerRect.y + 12f, versionWidth, 26f);
+            var textRight = versionRect.x - 12f;
+            var titleWidth = Mathf.Max(0f, textRight - (headerRect.x + 18f));
+            var titleRect = new Rect(headerRect.x + 18f, headerRect.y + 10f, titleWidth, 28f);
+            var subRect = new Rect(headerRect.x + 18f, headerRect.y + 39f, titleWidth, 20f);
             GUI.Label(titleRect, "Stories Of Yggdrasil — OSC Contact System", titleStyle);
             GUI.Label(subRect, "Avatar setup • Contact authoring • FX animations • Safe repair", subtitleStyle);
 
-            var versionRect = new Rect(headerRect.xMax - 112f, headerRect.y + 12f, 88f, 24f);
             EditorGUI.DrawRect(versionRect, colorVisionMode == ColorVisionMode.HighContrast ? Color.black : new Color(0.18f, 0.10f, 0.28f));
-            GUI.Label(versionRect, "v" + Version + " • " + BuildNumber, badgeStyle);
+            GUI.Label(versionRect, versionText, badgeStyle);
 
             if (updateAvailable)
             {
-                var updateRect = new Rect(headerRect.xMax - 222f, headerRect.y + 12f, 102f, 24f);
+                // Put update notification below the badge rather than overlapping
+                // it or squeezing the title to fit two right-hand badges.
+                var updateRect = new Rect(versionRect.x, headerRect.y + 42f, versionWidth, 24f);
                 EditorGUI.DrawRect(updateRect, new Color(0.18f, 0.42f, 0.20f));
                 if (GUI.Button(updateRect, "Update Ready", badgeStyle))
                     PromptForUpdate();
@@ -2660,6 +2714,61 @@ namespace StoriesOfYggdrasil.OSC
             EndCard();
         }
 
+        private List<string> FindMissingManagedResourceFxLayers()
+        {
+            var missing = new List<string>();
+            if (fxController == null || !IsSafeFxCopy(fxController))
+                return missing;
+
+            EnsureResourceGaugeProfileDefaults();
+            foreach (var kind in AllResourceGaugeKinds())
+            {
+                var config = GetResourceGaugeProfile(kind);
+                if (config == null || !config.enabled ||
+                    config.visibility == ResourceVisibilityMode.Never ||
+                    config.blendPoints == null ||
+                    !config.blendPoints.Any(point => point != null && point.enabled))
+                    continue;
+
+                var layer = fxController.layers.FirstOrDefault(candidate =>
+                    candidate != null && candidate.name == ResourceLayerName(kind));
+                if (layer == null || layer.stateMachine == null)
+                {
+                    missing.Add(ResourceDisplayName(kind) + " (missing layer)");
+                    continue;
+                }
+
+                var expectedBlendState = layer.stateMachine.states
+                    .Select(child => child.state)
+                    .FirstOrDefault(state => state != null &&
+                        state.name == ResourceDisplayName(kind) + " Blend");
+                var tree = expectedBlendState != null ? expectedBlendState.motion as BlendTree : null;
+                if (tree == null || tree.blendParameter != ResourceParameter(kind))
+                    missing.Add(ResourceDisplayName(kind) + " (missing/outdated Blend Tree)");
+            }
+            return missing;
+        }
+
+        private void DrawManagedResourceFxMissingWarning()
+        {
+            if (fxController == null || !IsSafeFxCopy(fxController))
+                return;
+            var missing = FindMissingManagedResourceFxLayers();
+            if (missing.Count == 0) return;
+
+            EditorGUILayout.HelpBox(
+                "The safe FX controller is missing or has outdated managed Resource FX layers:\n• " +
+                string.Join("\n• ", missing.ToArray()) +
+                "\n\nExisting third-party FX layers will not be rebuilt automatically. " +
+                "Open Resource FX and review the configured animations before choosing REBUILD.",
+                MessageType.Warning);
+            if (GUILayout.Button("OPEN RESOURCE FX FOR REVIEW", GUILayout.Height(28f)))
+            {
+                tab = StudioTab.AnimatorSetup;
+                animationPage = AnimationPage.Resources;
+            }
+        }
+
         private void DrawPreflightCard()
         {
             BeginCard("Avatar Preflight");
@@ -2680,6 +2789,8 @@ namespace StoriesOfYggdrasil.OSC
             EditorGUI.ProgressBar(rect, readiness, "Readiness " + Mathf.RoundToInt(readiness * 100f) + "% — " + passed + "/" + checks.Count);
             foreach (var check in checks)
                 EditorGUILayout.LabelField((check.Value ? "✓ " : "✕ ") + check.Key, wrappedLabel);
+
+            DrawManagedResourceFxMissingWarning();
 
             if (expressionParameters != null)
             {
@@ -4116,6 +4227,7 @@ namespace StoriesOfYggdrasil.OSC
                 case ResourceGaugeKind.Mist: return "mist";
                 case ResourceGaugeKind.Diablos: return "diablos";
                 case ResourceGaugeKind.Arousal: return "arousal";
+                case ResourceGaugeKind.LightCorruption: return "light_corruption";
                 default: return kind.ToString().ToLowerInvariant();
             }
         }
@@ -4129,6 +4241,7 @@ namespace StoriesOfYggdrasil.OSC
                 case ResourceGaugeKind.Mist: return "Mist";
                 case ResourceGaugeKind.Diablos: return "Curse of Diablos";
                 case ResourceGaugeKind.Arousal: return "Arousal";
+                case ResourceGaugeKind.LightCorruption: return "Light Corruption";
                 default: return kind.ToString();
             }
         }
@@ -4142,6 +4255,7 @@ namespace StoriesOfYggdrasil.OSC
                 case ResourceGaugeKind.Mist: return "SoY_MistPercent";
                 case ResourceGaugeKind.Diablos: return "SoY_DiablosPercent";
                 case ResourceGaugeKind.Arousal: return "SoY_ArousalPercent";
+                case ResourceGaugeKind.LightCorruption: return "SoY_LightCorruptionPercent";
                 default: return string.Empty;
             }
         }
@@ -4155,6 +4269,7 @@ namespace StoriesOfYggdrasil.OSC
                 case ResourceGaugeKind.Mist: return MistGaugeLayer;
                 case ResourceGaugeKind.Diablos: return DiablosLayer;
                 case ResourceGaugeKind.Arousal: return ArousalLayer;
+                case ResourceGaugeKind.LightCorruption: return "Stories Of Yggdrasil | Light Corruption";
                 default: return "Stories Of Yggdrasil | Resource " + kind;
             }
         }
@@ -4165,6 +4280,7 @@ namespace StoriesOfYggdrasil.OSC
             {
                 case ResourceGaugeKind.Diablos: return "SoY_DiablosApplicable";
                 case ResourceGaugeKind.Arousal: return "SoY_ArousalApplicable";
+                case ResourceGaugeKind.LightCorruption: return "SoY_LightCorruptionApplicable";
                 default: return string.Empty;
             }
         }
@@ -4196,7 +4312,8 @@ namespace StoriesOfYggdrasil.OSC
 
         private static ResourceVisibilityMode ResourceDefaultVisibility(ResourceGaugeKind kind)
         {
-            if (kind == ResourceGaugeKind.Diablos || kind == ResourceGaugeKind.Arousal)
+            if (kind == ResourceGaugeKind.Diablos || kind == ResourceGaugeKind.Arousal ||
+                kind == ResourceGaugeKind.LightCorruption)
                 return ResourceVisibilityMode.ApplicableOnly;
             return ResourceVisibilityMode.Always;
         }
@@ -4219,12 +4336,70 @@ namespace StoriesOfYggdrasil.OSC
                     points.Add(new ResourceBlendPoint { enabled = true, label = "Warning 98%", threshold = 0.98f });
                     points.Add(new ResourceBlendPoint { enabled = true, label = "Maximum", threshold = 1.00f });
                     break;
+                case ResourceGaugeKind.LightCorruption:
+                    points.Add(new ResourceBlendPoint { enabled = true, label = "Clear", threshold = 0f });
+                    points.Add(new ResourceBlendPoint { enabled = true, label = "Initial Contamination", threshold = 0.10f });
+                    points.Add(new ResourceBlendPoint { enabled = true, label = "Heightened Instincts", threshold = 0.25f });
+                    points.Add(new ResourceBlendPoint { enabled = true, label = "Instinctual Dominance", threshold = 0.50f });
+                    points.Add(new ResourceBlendPoint { enabled = true, label = "Primal Surrender", threshold = 0.80f });
+                    points.Add(new ResourceBlendPoint { enabled = true, label = "Complete Transformation", threshold = 1.00f });
+                    break;
                 default:
                     points.Add(new ResourceBlendPoint { enabled = true, label = "Empty", threshold = 0f });
                     points.Add(new ResourceBlendPoint { enabled = true, label = "Full", threshold = 1f });
                     break;
             }
             return points;
+        }
+
+        private static string GetLightCorruptionStageName(float normalizedValue)
+        {
+            var value = Mathf.Clamp01(normalizedValue);
+            if (value >= 1.00f) return "Complete Transformation";
+            if (value >= 0.80f) return "Primal Surrender";
+            if (value >= 0.50f) return "Instinctual Dominance";
+            if (value >= 0.25f) return "Heightened Instincts";
+            if (value >= 0.10f) return "Initial Contamination";
+            return "Below Initial Contamination";
+        }
+
+        private static bool IsLegacyLightCorruptionPlaceholder(List<ResourceBlendPoint> points)
+        {
+            if (points == null) return false;
+            var enabled = points.Where(point => point != null && point.enabled)
+                .OrderBy(point => point.threshold).ToList();
+            if (enabled.Count != 2) return false;
+            return Mathf.Abs(enabled[0].threshold) < 0.0001f &&
+                   Mathf.Abs(enabled[1].threshold - 1f) < 0.0001f &&
+                   string.Equals(enabled[0].label, "Empty", StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(enabled[1].label, "Full", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void UpgradeLegacyLightCorruptionPlaceholder(ResourceGaugeProfile config)
+        {
+            if (config == null || !IsLegacyLightCorruptionPlaceholder(config.blendPoints))
+                return;
+
+            var oldPoints = config.blendPoints.Where(point => point != null && point.enabled)
+                .OrderBy(point => point.threshold).ToList();
+            var clearClip = oldPoints[0].clipPath;
+            var completeClip = oldPoints[1].clipPath;
+            config.blendPoints = DefaultResourceBlendPoints(ResourceGaugeKind.LightCorruption);
+            config.blendPoints[0].clipPath = clearClip;
+            config.blendPoints[config.blendPoints.Count - 1].clipPath = completeClip;
+        }
+
+        private void DrawLightCorruptionStageReference(float currentValue)
+        {
+            EditorGUILayout.HelpBox(
+                "Light Corruption stages (Sam.py/Desktop remain authoritative for gameplay):\n" +
+                "10% — Initial Contamination: corruption can spread through abilities; faint luminous changes; rational control remains.\n" +
+                "25% — Heightened Instincts: existing instincts and emotional responses intensify; spread becomes easier; impulsivity rises.\n" +
+                "50% — Instinctual Dominance: urges become persistent, restraint is exhausting, and emotional surges may trigger dangerous Light flares.\n" +
+                "80% — Primal Surrender: instincts increasingly dictate perception and action; uncontrolled corruptive waves and inhuman changes may emerge.\n" +
+                "100% — Complete Transformation: Sin Eater / Light Warden transformation; former identity may persist only in fragments and no longer reliably governs behavior.\n\n" +
+                "Preview stage: " + GetLightCorruptionStageName(currentValue) + ". Unity visualizes the percentage and authored FX only; transmission amounts, triggers, resistance, cleansing, and transformation rules are intentionally not hard-coded here.",
+                MessageType.Warning);
         }
 
         private ResourceGaugeProfile FindResourceGaugeProfile(ResourceGaugeKind kind)
@@ -4293,6 +4468,8 @@ namespace StoriesOfYggdrasil.OSC
                     animationProfile.resourceGauges.Add(config);
                 }
 
+                if (kind == ResourceGaugeKind.LightCorruption)
+                    UpgradeLegacyLightCorruptionPlaceholder(config);
                 if (config.blendPoints == null || config.blendPoints.Count == 0)
                     config.blendPoints = DefaultResourceBlendPoints(kind);
                 for (var i = 0; i < config.blendPoints.Count; i++)
@@ -4746,7 +4923,7 @@ namespace StoriesOfYggdrasil.OSC
             EnsureResourceGaugeProfileDefaults();
             BeginCard("Resource FX Framework");
             EditorGUILayout.LabelField(
-                "Health, MP, Mist, Curse of Diablos, and Arousal now share one managed Resource FX authoring path. Sam.py/Desktop remain authoritative for gameplay values; Unity only visualizes normalized 0.0–1.0 floats.",
+                "Health, MP, Mist, Curse of Diablos, Arousal, and Light Corruption share one managed Resource FX authoring path. Sam.py/Desktop remain authoritative for gameplay values; Unity only visualizes normalized 0.0–1.0 floats.",
                 wrappedLabel);
 
             var kinds = AllResourceGaugeKinds().ToArray();
@@ -4756,10 +4933,13 @@ namespace StoriesOfYggdrasil.OSC
             var config = GetResourceGaugeProfile(kind);
             var changed = false;
 
+            DrawManagedResourceFxMissingWarning();
             EditorGUILayout.Space(4f);
             DrawTagRow("OSC Driver", ResourceParameter(kind), "Normalized 0.0–1.0 value; Sam.py/Desktop authority");
             if (kind == ResourceGaugeKind.MP)
                 EditorGUILayout.HelpBox("Desktop should publish SoY_MPPercent = current MP / max MP. Sam.py already tracks both mp and max_mp; Unity must not recalculate or own MP gameplay state.", MessageType.Info);
+            if (kind == ResourceGaugeKind.LightCorruption)
+                DrawLightCorruptionStageReference(runtimeTestLightCorruptionPercent);
             EditorGUILayout.HelpBox("For smoother visible bars, the Desktop bridge may ease transmitted resource percentages over roughly 0.15–0.40 seconds. Sam.py values and combat logic remain instantaneous and authoritative; smoothing is presentation-only.", MessageType.None);
 
             var nextEnabled = EditorGUILayout.Toggle("Enabled", config.enabled);
@@ -5415,8 +5595,9 @@ namespace StoriesOfYggdrasil.OSC
                     ? layer.stateMachine.states.Select(child => child.state != null ? child.state.motion as BlendTree : null).Where(tree => tree != null).Distinct().ToList()
                     : new List<BlendTree>();
                 controller.RemoveLayer(index);
-                foreach (var tree in trees)
-                    if (tree != null && AssetDatabase.IsSubAsset(tree)) UnityEngine.Object.DestroyImmediate(tree, true);
+                // Retain old embedded BlendTrees as recoverable subassets.
+                // Removing them here makes Unity Undo unable to restore their
+                // animation data reliably and can break external references.
             }
         }
 
@@ -5428,7 +5609,35 @@ namespace StoriesOfYggdrasil.OSC
         private void RebuildAllResourceFxLayers()
         {
             if (fxController == null || !EnsureSafeFxCopy(true)) return;
+            if (!IsSafeFxCopy(fxController))
+            {
+                EditorUtility.DisplayDialog("Resource FX rebuild refused",
+                    "A verified safe FX copy is required. The original controller was not changed.", "OK");
+                return;
+            }
             EnsureResourceGaugeProfileDefaults();
+            var replacementNames = new HashSet<string>(
+                AllResourceGaugeKinds().Select(ResourceLayerName), StringComparer.Ordinal);
+            var replaced = fxController.layers
+                .Where(layer => layer != null && replacementNames.Contains(layer.name))
+                .Select(layer => layer.name).ToArray();
+            var affected = replaced.Length == 0 ? "No existing managed Resource FX layers." :
+                string.Join(", ", replaced);
+            if (!EditorUtility.DisplayDialog("Rebuild managed Resource FX?",
+                "This recreates Stories-managed Resource FX layers and may discard manual edits to those layers. " +
+                "Unrelated FX layers are not intentionally changed.\n\nAffected: " + affected +
+                "\n\nA complete controller backup is required before changes.", "Backup & Rebuild", "Cancel"))
+                return;
+            try
+            {
+                lastAnimatorIntegrityBackupPath = CreateAnimatorIntegrityBackup("resource_fx_rebuild");
+            }
+            catch (Exception exception)
+            {
+                EditorUtility.DisplayDialog("Resource FX backup failed",
+                    "Rebuild was canceled without modifying the controller.\n\n" + exception.Message, "OK");
+                return;
+            }
             Undo.RecordObject(fxController, "Rebuild Stories Resource FX");
             var built = 0;
             foreach (var kind in AllResourceGaugeKinds())
@@ -5448,11 +5657,14 @@ namespace StoriesOfYggdrasil.OSC
                 AddMissingExpressionParameters(expressionParameters);
                 EditorUtility.SetDirty(expressionParameters);
             }
-            CleanupOrphanedManagedResourceBlendTrees(fxController);
+            // Do not destroy unreferenced BlendTree subassets automatically:
+            // some may be intentionally used by external tools or retained as
+            // authoring sources. The complete pre-rebuild FX asset is backed up.
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
             RefreshHealthAudit();
-            Log("Rebuilt Resource FX framework with " + built + " enabled gauge layer(s).");
+            Log("Rebuilt Resource FX framework with " + built + " enabled gauge layer(s). Backup: " +
+                lastAnimatorIntegrityBackupPath);
         }
 
         private void RebuildHealthAnimationLayer()
@@ -6051,6 +6263,13 @@ namespace StoriesOfYggdrasil.OSC
 
         // Explicit menu asset selection and draft-based editing. No generated
         // menu builder is called by this workspace or by Install All Hooks.
+        private void RefreshManualMenuAfterUndo()
+        {
+            if (manualMenuTarget != null)
+                LoadManualMenuDraft();
+            Repaint();
+        }
+
         private void DrawMenuBuilder()
         {
             BeginCard("Manual VRChat Expressions Menu Editor");
@@ -6062,7 +6281,11 @@ namespace StoriesOfYggdrasil.OSC
             if (GUILayout.Button("USE AVATAR ROOT MENU AS DESTINATION"))
                 SelectManualMenuTarget(expressionsMenu);
             DrawInstalledMenuBrowser();
-
+            using (new EditorGUI.DisabledScope(manualMenuTarget == null))
+            {
+                if (GUILayout.Button("INSTALL SYSTEM MENU HERE", GUILayout.Height(36f)))
+                    InstallSystemMenuAtCurrentDestination();
+            }
 
             var target = (VRCExpressionsMenu)EditorGUILayout.ObjectField(
                 "Destination Menu Asset", manualMenuTarget, typeof(VRCExpressionsMenu), false);
@@ -6152,15 +6375,44 @@ namespace StoriesOfYggdrasil.OSC
             VRCExpressionParameters.Parameter chosenParameter = null;
             if (manualMenuControlKind == 0 || manualMenuControlKind == 1)
             {
-                if (parameters.Length == 0)
-                    EditorGUILayout.HelpBox("Expression Parameters asset has no selectable parameters.", MessageType.Warning);
+                var eligible = parameters.Where(p =>
+                    manualMenuControlKind != 0 ||
+                    p.valueType == VRCExpressionParameters.ValueType.Bool).ToArray();
+                manualMenuParameterSearch = EditorGUILayout.TextField(
+                    "Search Parameter", manualMenuParameterSearch);
+                var query = (manualMenuParameterSearch ?? string.Empty).Trim();
+                var matches = eligible.Where(p =>
+                    query.Length == 0 || p.name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .OrderBy(p => p.name.StartsWith(query, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                    .ThenBy(p => p.name, StringComparer.OrdinalIgnoreCase)
+                    .Take(25).ToArray();
+                if (matches.Length == 0)
+                    EditorGUILayout.HelpBox("No matching installed parameters. Check the spelling or parameter type.",
+                        MessageType.Warning);
                 else
                 {
-                    manualMenuParameterIndex = Mathf.Clamp(manualMenuParameterIndex, 0, parameters.Length - 1);
-                    manualMenuParameterIndex = EditorGUILayout.Popup("Parameter", manualMenuParameterIndex,
-                        parameters.Select(p => p.name + " (" + p.valueType + ")").ToArray());
-                    chosenParameter = parameters[Mathf.Clamp(manualMenuParameterIndex, 0, parameters.Length - 1)];
+                    EditorGUILayout.LabelField("Matches (select one)", EditorStyles.miniLabel);
+                    foreach (var match in matches)
+                    {
+                        var isSelected = string.Equals(manualMenuSelectedParameter, match.name,
+                            StringComparison.Ordinal);
+                        if (GUILayout.Toggle(isSelected,
+                            match.name + " (" + match.valueType + ")", "Button",
+                            GUILayout.Height(24f)) && !isSelected)
+                            manualMenuSelectedParameter = match.name;
+                    }
+                    if (eligible.Length > matches.Length)
+                        EditorGUILayout.LabelField("Showing up to 25 matches. Type more to narrow the list.",
+                            EditorStyles.miniLabel);
                 }
+                chosenParameter = eligible.FirstOrDefault(p =>
+                    string.Equals(p.name, manualMenuSelectedParameter, StringComparison.Ordinal));
+                if (chosenParameter != null)
+                    EditorGUILayout.LabelField("Selected", chosenParameter.name +
+                        " (" + chosenParameter.valueType + ")");
+                else
+                    EditorGUILayout.HelpBox("Select a matching parameter before adding a control.",
+                        MessageType.None);
                 if (manualMenuControlKind == 1)
                     manualMenuButtonValue = EditorGUILayout.FloatField("Button Value", manualMenuButtonValue);
                 if (manualMenuControlKind == 0 && chosenParameter != null &&
@@ -6207,6 +6459,403 @@ namespace StoriesOfYggdrasil.OSC
                 "A newly created submenu asset may need manual cleanup after Undo.",
                 MessageType.Info);
             EndCard();
+        }
+
+        // Installs the core SoY structure as child assets linked to the exact selected
+        // menu. Existing foreign controls and menu assets are never replaced.
+        private void InstallSystemMenuAtCurrentDestination()
+        {
+            var parent = manualMenuTarget;
+            var assetPath = parent == null ? string.Empty : AssetDatabase.GetAssetPath(parent);
+            if (string.IsNullOrEmpty(assetPath) ||
+                !assetPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+            {
+                EditorUtility.DisplayDialog("Select a saved menu",
+                    "Choose an editable menu asset under Assets/ before installing.", "OK");
+                return;
+            }
+            var parentControls = parent.controls ?? new List<VRCExpressionsMenu.Control>();
+            var definitions = new [] { "Combat", "Magicks", "Technicks", "Items" };
+            // A named SubMenu with a null reference may be left behind by the
+            // old asset-creation Undo transaction. Treat it as a repairable slot.
+            var existing = new HashSet<string>(parentControls.Where(c => c != null &&
+                c.type == VRCExpressionsMenu.Control.ControlType.SubMenu && c.subMenu != null)
+                .Select(c => c.name), StringComparer.OrdinalIgnoreCase);
+            var needed = definitions.Where(x => !existing.Contains(x)).ToList();
+            var repairs = needed.Where(name => parentControls.Any(c => c != null &&
+                c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                c.subMenu == null && string.Equals(c.name, name, StringComparison.OrdinalIgnoreCase))).ToList();
+            var additionalSlots = needed.Count - repairs.Count;
+            if (needed.Count == 0)
+            {
+                EditorUtility.DisplayDialog("Already installed",
+                    "The selected page already has the four main menu entries. No changes made.", "OK");
+                return;
+            }
+            if (parentControls.Count + additionalSlots > ManualMenuCapacity)
+            {
+                EditorUtility.DisplayDialog("Not enough menu slots",
+                    "This page needs " + additionalSlots + " free slots for Combat, Magicks, Technicks and Items. " +
+                    "Choose another destination or free enough slots first.", "OK");
+                return;
+            }
+            if (!EditorUtility.DisplayDialog("Install Stories System Menu?",
+                "Create or repair Combat, Magicks, Technicks and Items submenus under:\n" +
+                assetPath + "\nExisting controls are preserved. An asset backup is created first.",
+                "Install", "Cancel"))
+                return;
+            var folder = CurrentAvatarGeneratedFolder("Menus/System");
+            var backupFolder = CurrentAvatarGeneratedFolder("Backups/Menus");
+            EnsureAssetFolder(backupFolder);
+            EnsureAssetFolder(folder);
+            var guid = AssetDatabase.AssetPathToGUID(assetPath);
+            var backup = AssetDatabase.GenerateUniqueAssetPath(backupFolder + "/" +
+                MakeSafeAssetName(parent.name) + "_" + guid + "_backup_" +
+                DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
+            if (!AssetDatabase.CopyAsset(assetPath, backup))
+            {
+                EditorUtility.DisplayDialog("Backup failed", "The menu was not changed.", "OK");
+                return;
+            }
+            lastManualMenuBackupPath = backup;
+            Undo.IncrementCurrentGroup();
+            var group = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName("Install SoY System Menu");
+            Undo.RecordObject(parent, "Install SoY System Menu");
+            if (parent.controls == null) parent.controls = new List<VRCExpressionsMenu.Control>();
+            try
+            {
+                foreach (var name in needed)
+                {
+                    var menu = ScriptableObject.CreateInstance<VRCExpressionsMenu>();
+                    menu.controls = new List<VRCExpressionsMenu.Control>();
+                    var childPath = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
+                        MakeSafeAssetName(parent.name) + "_" + guid + "_" + name + ".asset");
+                    AssetDatabase.CreateAsset(menu, childPath);
+                    // Preserve new asset files across Ctrl+Z. Undo owns the
+                    // *parent's links only*, so Redo never points to deleted files.
+                    // Orphaned child assets are recoverable via backups/manual cleanup.
+                    var broken = parent.controls.FirstOrDefault(c => c != null &&
+                        c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                        c.subMenu == null &&
+                        string.Equals(c.name, name, StringComparison.OrdinalIgnoreCase));
+                    if (broken != null) broken.subMenu = menu;
+                    else parent.controls.Add(new VRCExpressionsMenu.Control
+                    {
+                        name = name,
+                        type = VRCExpressionsMenu.Control.ControlType.SubMenu,
+                        subMenu = menu
+                    });
+                    if (name == "Combat")
+                    {
+                        foreach (var config in new [] {
+                            new { Param = "SoY_CombatEnabled", Label = "<color=#50D890>Combat Toggle</color>" },
+                            new { Param = "SoY_IsEnemy", Label = "<color=#EF7373>Enemy Mode</color>" }
+                        })
+                        {
+                            var valid = expressionParameters != null &&
+                                expressionParameters.parameters != null &&
+                                expressionParameters.parameters.Any(p => p != null &&
+                                    p.name == config.Param &&
+                                    p.valueType == VRCExpressionParameters.ValueType.Bool);
+                            if (!valid) continue;
+                            menu.controls.Add(new VRCExpressionsMenu.Control
+                            {
+                                name = config.Label,
+                                type = VRCExpressionsMenu.Control.ControlType.Toggle,
+                                parameter = new VRCExpressionsMenu.Control.Parameter { name = config.Param },
+                                value = 1f
+                            });
+                        }
+                        EditorUtility.SetDirty(menu);
+                    }
+                }
+                EditorUtility.SetDirty(parent);
+                AssetDatabase.SaveAssets();
+                Undo.CollapseUndoOperations(group);
+                LoadManualMenuDraft();
+                Repaint();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[SoY System Menu] Installation failed: " + ex);
+                EditorUtility.DisplayDialog("Installation interrupted",
+                    "Review the Unity Undo history and the parent backup:\n" + backup,
+                    "OK");
+            }
+        }
+
+        // Installed menu routes are resolved from the avatar's linked asset
+        // references (GUID-backed by Unity), not inferred from the active tab.
+        // Only submenus created by this installer are considered routing targets.
+        private VRCExpressionsMenu FindManagedSystemPage(string category)
+        {
+            var root = expressionsMenu;
+            if (root == null) return null;
+            var visited = new HashSet<int>();
+            var queue = new Queue<VRCExpressionsMenu>();
+            queue.Enqueue(root);
+            while (queue.Count > 0 && visited.Count < 128)
+            {
+                var current = queue.Dequeue();
+                if (current == null || !visited.Add(current.GetInstanceID())) continue;
+                foreach (var control in current.controls ?? new List<VRCExpressionsMenu.Control>())
+                {
+                    if (control == null || control.type != VRCExpressionsMenu.Control.ControlType.SubMenu ||
+                        control.subMenu == null) continue;
+                    var path = AssetDatabase.GetAssetPath(control.subMenu);
+                    if (path.IndexOf("/Menus/System/", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                        string.Equals(control.name, category, StringComparison.OrdinalIgnoreCase))
+                        return control.subMenu;
+                    queue.Enqueue(control.subMenu);
+                }
+            }
+            return null;
+        }
+
+        private static VRCExpressionsMenu.Control ActionMenuControl(
+            string label, string parameter, int id)
+        {
+            return new VRCExpressionsMenu.Control
+            {
+                name = label,
+                type = VRCExpressionsMenu.Control.ControlType.Button,
+                parameter = new VRCExpressionsMenu.Control.Parameter { name = parameter },
+                value = id
+            };
+        }
+
+        // A linked chain of pages reserves slot eight for "More".
+        // Existing controls are never moved, replaced, or dropped.
+        private VRCExpressionsMenu FindOrCreateAvailableMenuPage(
+            VRCExpressionsMenu start, string context, bool create)
+        {
+            if (start == null) return null;
+            var seen = new HashSet<int>();
+            var page = start;
+            while (page != null && seen.Add(page.GetInstanceID()) && seen.Count <= 64)
+            {
+                var controls = page.controls ?? new List<VRCExpressionsMenu.Control>();
+                var next = controls.FirstOrDefault(c => c != null &&
+                    c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                    c.name == "More..." && c.subMenu != null);
+                if (next != null)
+                {
+                    page = next.subMenu;
+                    continue;
+                }
+                if (controls.Count < ManualMenuCapacity) return page;
+                if (!create) return null;
+                // When all eight slots are occupied, do not move user controls to
+                // make room. Stop safely and report that this page needs attention.
+                if (controls.Count >= ManualMenuCapacity) return null;
+            }
+            return null;
+        }
+
+        private bool TryCreateMenuOverflow(VRCExpressionsMenu page, string context,
+            out VRCExpressionsMenu continuation)
+        {
+            continuation = null;
+            if (page == null) return false;
+            var controls = page.controls ?? new List<VRCExpressionsMenu.Control>();
+            var existing = controls.FirstOrDefault(c => c != null &&
+                c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                c.name == "More..." && c.subMenu != null);
+            if (existing != null) { continuation = existing.subMenu; return true; }
+            if (controls.Count >= ManualMenuCapacity) return false;
+            if (controls.Any(c => c != null && c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                c.name == "More..." && c.subMenu == null))
+            {
+                Debug.LogWarning("[SoY Menu] 'More...' submenu reference is missing. Repair it manually or restore its backup before adding actions.");
+                return false;
+            }
+            var folder = CurrentAvatarGeneratedFolder("Menus/System");
+            EnsureAssetFolder(folder);
+            var pagePath = AssetDatabase.GetAssetPath(page);
+            var backupFolder = CurrentAvatarGeneratedFolder("Backups/Menus");
+            EnsureAssetFolder(backupFolder);
+            var backup = AssetDatabase.GenerateUniqueAssetPath(backupFolder + "/" +
+                MakeSafeAssetName(page.name) + "_" + AssetDatabase.AssetPathToGUID(pagePath) +
+                "_backup_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
+            if (!AssetDatabase.CopyAsset(pagePath, backup)) return false;
+            continuation = ScriptableObject.CreateInstance<VRCExpressionsMenu>();
+            continuation.controls = new List<VRCExpressionsMenu.Control>();
+            var path = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
+                MakeSafeAssetName(context) + "_More.asset");
+            AssetDatabase.CreateAsset(continuation, path);
+            // The menu asset is deliberately retained after Undo so that Redo
+            // cannot resurrect a reference to a deleted .asset file.
+            Undo.RecordObject(page, "Link SoY overflow menu");
+            if (page.controls == null) page.controls = new List<VRCExpressionsMenu.Control>();
+            page.controls.Add(new VRCExpressionsMenu.Control
+            {
+                name = "More...",
+                type = VRCExpressionsMenu.Control.ControlType.SubMenu,
+                subMenu = continuation
+            });
+            EditorUtility.SetDirty(page);
+            AssetDatabase.SaveAssets();
+            return true;
+        }
+
+        private VRCExpressionsMenu FindActionPage(VRCExpressionsMenu root,
+            string parameter, int id)
+        {
+            var visited = new HashSet<int>();
+            var page = root;
+            while (page != null && visited.Add(page.GetInstanceID()))
+            {
+                if ((page.controls ?? new List<VRCExpressionsMenu.Control>()).Any(c => c != null &&
+                    c.parameter != null && c.parameter.name == parameter &&
+                    Mathf.Approximately(c.value, id))) return page;
+                page = (page.controls ?? new List<VRCExpressionsMenu.Control>())
+                    .Where(c => c != null && c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                        c.name == "More...").Select(c => c.subMenu).FirstOrDefault();
+            }
+            return null;
+        }
+
+        private bool TryAddMenuAction(VRCExpressionsMenu destination, string label, string parameter, int id)
+        {
+            if (destination == null) return false;
+            if (id < 1 || id > 255)
+            {
+                Debug.LogWarning("[SoY Menu] Refused action outside the supported 1-255 OSC ID range: " + id);
+                return false;
+            }
+            if (FindActionPage(destination, parameter, id) != null) return true;
+            if (expressionParameters == null || expressionParameters.parameters == null ||
+                !expressionParameters.parameters.Any(p => p != null && p.name == parameter &&
+                    p.valueType == VRCExpressionParameters.ValueType.Int))
+            {
+                Debug.LogWarning("[SoY Menu] Missing Int Expression Parameter: " + parameter +
+                    ". Action " + label + " was not placed.");
+                return false;
+            }
+            var page = destination;
+            var seen = new HashSet<int>();
+            while (page != null && seen.Add(page.GetInstanceID()) && seen.Count <= 64)
+            {
+                if (page.controls == null) page.controls = new List<VRCExpressionsMenu.Control>();
+                var next = page.controls.FirstOrDefault(c => c != null &&
+                    c.name == "More..." && c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                    c.subMenu != null);
+                if (next != null) { page = next.subMenu; continue; }
+                // Reserve one slot for a future More page, unless this is
+                // a legacy full page, which we refuse to rearrange.
+                if (page.controls.Count >= ManualMenuCapacity - 1)
+                {
+                    VRCExpressionsMenu overflow;
+                    if (!TryCreateMenuOverflow(page, destination.name, out overflow))
+                    {
+                        Debug.LogWarning("[SoY Menu] No free overflow slot in " + page.name);
+                        return false;
+                    }
+                    page = overflow;
+                    continue;
+                }
+                var path = AssetDatabase.GetAssetPath(page);
+                var backupFolder = CurrentAvatarGeneratedFolder("Backups/Menus");
+                EnsureAssetFolder(backupFolder);
+                var backup = AssetDatabase.GenerateUniqueAssetPath(backupFolder + "/" +
+                    MakeSafeAssetName(page.name) + "_" + AssetDatabase.AssetPathToGUID(path) +
+                    "_backup_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
+                if (!AssetDatabase.CopyAsset(path, backup)) return false;
+                Undo.RecordObject(page, "Install SoY Action Menu Control");
+                page.controls.Add(ActionMenuControl(BuildActionMenuLabel(label), parameter, id));
+                EditorUtility.SetDirty(page);
+                AssetDatabase.SaveAssets();
+                return true;
+            }
+            return false;
+        }
+
+        private VRCExpressionsMenu EnsureManagedMagickSchoolPage(VRCExpressionsMenu magicks,
+            string school)
+        {
+            if (magicks == null) return null;
+            var page = magicks;
+            var seen = new HashSet<int>();
+            while (page != null && seen.Add(page.GetInstanceID()) && seen.Count <= 64)
+            {
+                var controls = page.controls ?? new List<VRCExpressionsMenu.Control>();
+                var schoolControl = controls.FirstOrDefault(c => c != null &&
+                    c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                    string.Equals(c.name, school, StringComparison.OrdinalIgnoreCase));
+                if (schoolControl != null && schoolControl.subMenu != null)
+                    return schoolControl.subMenu;
+                // Undo or interrupted older installations may leave a named,
+                // but unlinked, school entry. Repair that slot instead of
+                // creating a duplicate with the same school name.
+                var brokenSchool = schoolControl != null && schoolControl.subMenu == null
+                    ? schoolControl : null;
+                var next = controls.FirstOrDefault(c => c != null &&
+                    c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                    c.name == "More..." && c.subMenu != null);
+                if (next != null) { page = next.subMenu; continue; }
+                if (brokenSchool == null && controls.Count >= ManualMenuCapacity - 1)
+                {
+                    VRCExpressionsMenu overflow;
+                    if (!TryCreateMenuOverflow(page, "MagickSchools", out overflow))
+                    {
+                        Debug.LogWarning("[SoY Menu] Magick school page is full; cannot route " + school);
+                        return null;
+                    }
+                    page = overflow;
+                    continue;
+                }
+                var folder = CurrentAvatarGeneratedFolder("Menus/System");
+                EnsureAssetFolder(folder);
+                var parentPath = AssetDatabase.GetAssetPath(page);
+                var backupFolder = CurrentAvatarGeneratedFolder("Backups/Menus");
+                EnsureAssetFolder(backupFolder);
+                var backup = AssetDatabase.GenerateUniqueAssetPath(backupFolder + "/" +
+                    MakeSafeAssetName(page.name) + "_" + AssetDatabase.AssetPathToGUID(parentPath) +
+                    "_backup_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
+                if (!AssetDatabase.CopyAsset(parentPath, backup)) return null;
+                var child = ScriptableObject.CreateInstance<VRCExpressionsMenu>();
+                child.controls = new List<VRCExpressionsMenu.Control>();
+                var childPath = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
+                    AssetDatabase.AssetPathToGUID(parentPath) + "_" + MakeSafeAssetName(school) + ".asset");
+                AssetDatabase.CreateAsset(child, childPath);
+                // Keep the generated asset intact across Undo/Redo, matching
+                // the four-main-menu installer. Undo restores the parent's
+                // references; it must never restore a link to a deleted asset.
+                Undo.RecordObject(page, "Add SoY Magick School");
+                if (page.controls == null) page.controls = new List<VRCExpressionsMenu.Control>();
+                if (brokenSchool != null)
+                    brokenSchool.subMenu = child;
+                else
+                    page.controls.Add(new VRCExpressionsMenu.Control
+                    {
+                        name = school,
+                        type = VRCExpressionsMenu.Control.ControlType.SubMenu,
+                        subMenu = child
+                    });
+                EditorUtility.SetDirty(page);
+                AssetDatabase.SaveAssets();
+                return child;
+            }
+            return null;
+        }
+
+        private void RouteNewInstalledAction(ActionAnimationKind kind, int id, string name,
+            string school = null)
+        {
+            var category = kind == ActionAnimationKind.Spell ? "Magicks" :
+                kind == ActionAnimationKind.Technick ? "Technicks" : "Items";
+            var page = FindManagedSystemPage(category);
+            if (page == null) return;
+            if (kind == ActionAnimationKind.Spell)
+            {
+                if (string.IsNullOrWhiteSpace(school)) return;
+                page = EnsureManagedMagickSchoolPage(page, school);
+                if (page == null) return;
+            }
+            var param = kind == ActionAnimationKind.Spell ? "SoY_SpellType" :
+                kind == ActionAnimationKind.Technick ? "SoY_TechnickType" : "SoY_ItemType";
+            TryAddMenuAction(page, name, param, id);
         }
 
         // Visual Expressions Menu-style navigation. Browsing itself is read-only.
@@ -6613,7 +7262,7 @@ namespace StoriesOfYggdrasil.OSC
             if (GetInstalledSpellDefinitions().Length > 0) labels.Add("Spells");
             if (GetInstalledTechnickDefinitions().Length > 0 || GetInstalledItemDefinitions().Length > 0) labels.Add("Actions");
             if (HasInstalledManagedRaycast()) labels.Add("Targeting");
-            if (HasExpressionParameter("SoY_MPPercent") || HasExpressionParameter("SoY_MistPercent") || HasExpressionParameter("SoY_DiablosPercent") || HasExpressionParameter("SoY_ArousalPercent")) labels.Add("Status");
+            if (HasExpressionParameter("SoY_MPPercent") || HasExpressionParameter("SoY_MistPercent") || HasExpressionParameter("SoY_DiablosPercent") || HasExpressionParameter("SoY_ArousalPercent") || HasExpressionParameter("SoY_LightCorruptionPercent")) labels.Add("Status");
             var installedFavorites = animationProfile.favorites.Count(favorite =>
                 (favorite.kind == "spell" && GetInstalledSpellDefinitions().Any(entry => entry.Id == favorite.id)) ||
                 (favorite.kind == "technick" && GetInstalledTechnickDefinitions().Any(entry => entry.Id == favorite.id)) ||
@@ -6702,7 +7351,7 @@ namespace StoriesOfYggdrasil.OSC
         {
             if (name == "SoY_CombatEnabled" || name == "SoY_IsEnemy") return "Saved Toggle";
             if (name.EndsWith("Type", StringComparison.Ordinal) || name == "SoY_HPPercent" || name == "SoY_MPPercent" || name == "SoY_CriticalHP" || name == "SoY_KO") return "Networked Animation";
-            if (name == "SoY_MistPercent" || name == "SoY_DiablosPercent" || name == "SoY_ArousalPercent" || name == "SoY_DiablosApplicable" || name == "SoY_ArousalApplicable" || name == "SoY_ArousalDischargeReady") return "Resource FX";
+            if (name == "SoY_MistPercent" || name == "SoY_DiablosPercent" || name == "SoY_ArousalPercent" || name == "SoY_LightCorruptionPercent" || name == "SoY_LightCorruptionApplicable" || name == "SoY_DiablosApplicable" || name == "SoY_ArousalApplicable" || name == "SoY_ArousalDischargeReady") return "Resource FX";
             if (name.Contains("Bit") || name.EndsWith("Active", StringComparison.Ordinal)) return "Incoming Contact Bus";
             if (name.StartsWith("SoY_Hit") || name.StartsWith("SoY_Debuff")) return "Local OSC Input";
             return "Runtime Output";
@@ -6744,6 +7393,17 @@ namespace StoriesOfYggdrasil.OSC
             runtimeTestDiablosPercent = EditorGUILayout.Slider("Diablos Percent", runtimeTestDiablosPercent, 0f, 1f);
             runtimeTestArousalApplicable = EditorGUILayout.Toggle("Arousal Applicable", runtimeTestArousalApplicable);
             runtimeTestArousalPercent = EditorGUILayout.Slider("Arousal Percent", runtimeTestArousalPercent, 0f, 1f);
+            runtimeTestLightCorruptionApplicable = EditorGUILayout.Toggle("Light Corruption Applicable", runtimeTestLightCorruptionApplicable);
+            runtimeTestLightCorruptionPercent = EditorGUILayout.Slider("Light Corruption Percent", runtimeTestLightCorruptionPercent, 0f, 1f);
+            EditorGUILayout.LabelField("Light Corruption Stage", GetLightCorruptionStageName(runtimeTestLightCorruptionPercent), EditorStyles.miniLabel);
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("0%")) SelectLightCorruptionPreview(0f);
+            if (GUILayout.Button("10%")) SelectLightCorruptionPreview(0.10f);
+            if (GUILayout.Button("25%")) SelectLightCorruptionPreview(0.25f);
+            if (GUILayout.Button("50%")) SelectLightCorruptionPreview(0.50f);
+            if (GUILayout.Button("80%")) SelectLightCorruptionPreview(0.80f);
+            if (GUILayout.Button("100%")) SelectLightCorruptionPreview(1f);
+            EditorGUILayout.EndHorizontal();
             runtimeTestArousalDischargeReady = EditorGUILayout.Toggle("Arousal Discharge Ready", runtimeTestArousalDischargeReady);
             if (GUILayout.Button("APPLY RESOURCE TEST")) ApplyRuntimeResourceTest();
             EditorGUILayout.BeginHorizontal();
@@ -6753,6 +7413,13 @@ namespace StoriesOfYggdrasil.OSC
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.LabelField(runtimeTestSummary, wrappedLabel);
             EndCard();
+        }
+
+        private void SelectLightCorruptionPreview(float normalizedValue)
+        {
+            runtimeTestLightCorruptionPercent = Mathf.Clamp01(normalizedValue);
+            runtimeTestLightCorruptionApplicable = runtimeTestLightCorruptionPercent > 0f;
+            ApplyRuntimeResourceTest();
         }
 
         private Animator RuntimeAnimator()
@@ -6767,7 +7434,9 @@ namespace StoriesOfYggdrasil.OSC
                 "% | MP " + (runtimeTestMpPercent * 100f).ToString("0.0") +
                 "% | Mist " + (runtimeTestMistPercent * 100f).ToString("0.0") +
                 "% | Diablos " + (runtimeTestDiablosPercent * 100f).ToString("0.0") +
-                "% | Arousal " + (runtimeTestArousalPercent * 100f).ToString("0.0") + "%";
+                "% | Arousal " + (runtimeTestArousalPercent * 100f).ToString("0.0") +
+                "% | Light " + (runtimeTestLightCorruptionPercent * 100f).ToString("0.0") +
+                "% (" + GetLightCorruptionStageName(runtimeTestLightCorruptionPercent) + ")";
             if (!EditorApplication.isPlaying || animator == null)
             {
                 runtimeTestSummary += ". Enter Play Mode with an Animator on the avatar root to write the parameters.";
@@ -6778,10 +7447,12 @@ namespace StoriesOfYggdrasil.OSC
             animator.SetFloat("SoY_MistPercent", runtimeTestMistPercent);
             animator.SetFloat("SoY_DiablosPercent", runtimeTestDiablosPercent);
             animator.SetFloat("SoY_ArousalPercent", runtimeTestArousalPercent);
+            animator.SetFloat("SoY_LightCorruptionPercent", runtimeTestLightCorruptionPercent);
             animator.SetBool("SoY_KO", runtimeTestHpPercent <= 0f);
             animator.SetBool("SoY_CriticalHP", runtimeTestHpPercent > 0f && runtimeTestHpPercent < 0.15f);
             animator.SetBool("SoY_DiablosApplicable", runtimeTestDiablosApplicable);
             animator.SetBool("SoY_ArousalApplicable", runtimeTestArousalApplicable);
+            animator.SetBool("SoY_LightCorruptionApplicable", runtimeTestLightCorruptionApplicable);
             animator.SetBool("SoY_ArousalDischargeReady", runtimeTestArousalDischargeReady);
         }
 
@@ -6812,6 +7483,8 @@ namespace StoriesOfYggdrasil.OSC
                 animator.SetFloat("SoY_MistPercent", 0f);
                 animator.SetFloat("SoY_DiablosPercent", 0f);
                 animator.SetFloat("SoY_ArousalPercent", 0f);
+                animator.SetFloat("SoY_LightCorruptionPercent", 0f);
+                animator.SetBool("SoY_LightCorruptionApplicable", false);
                 animator.SetBool("SoY_DiablosApplicable", false);
                 animator.SetBool("SoY_ArousalApplicable", false);
                 animator.SetBool("SoY_ArousalDischargeReady", false);
@@ -6823,6 +7496,16 @@ namespace StoriesOfYggdrasil.OSC
                 animator.SetInteger("SoY_TechnickType", 0);
                 animator.SetInteger("SoY_ItemType", 0);
             }
+            runtimeTestHpPercent = 1f;
+            runtimeTestMpPercent = 1f;
+            runtimeTestMistPercent = 0f;
+            runtimeTestDiablosPercent = 0f;
+            runtimeTestArousalPercent = 0f;
+            runtimeTestLightCorruptionPercent = 0f;
+            runtimeTestDiablosApplicable = false;
+            runtimeTestArousalApplicable = false;
+            runtimeTestLightCorruptionApplicable = false;
+            runtimeTestArousalDischargeReady = false;
             runtimeTestSummary = "Runtime test parameters reset.";
         }
 
@@ -9003,6 +9686,13 @@ namespace StoriesOfYggdrasil.OSC
                 "ID " + selected.Id + " • " + GetSpellSchoolDisplayName(selected.School) + " • " + selected.Category,
                 EditorStyles.miniLabel);
 
+            EditorGUILayout.HelpBox(
+                "Registry: " + selected.Name + " (ID " + selected.Id + "). " +
+                "School: " + GetSpellSchoolDisplayName(selected.School) +
+                "; category: " + selected.Category + ". " +
+                "The selected delivery mode determines the avatar contact or raycast setup. " +
+                "Damage, healing, status effects, and eligibility are resolved by Sam.py.",
+                MessageType.Info);
             var isRaycast = DrawDeliverySelector(selected.Name);
             if (!isRaycast)
             {
@@ -9058,9 +9748,22 @@ namespace StoriesOfYggdrasil.OSC
                 technickStartsEnabled = EditorGUILayout.ToggleLeft("Debug: Start enabled (TB17 functional gate overrides during Play)", technickStartsEnabled);
             }
 
-            showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Details", true);
-            if (showActionDetails && !string.IsNullOrWhiteSpace(selected.Description))
-                EditorGUILayout.LabelField(selected.Description, wrappedLabel);
+            showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Action Details", true);
+            if (showActionDetails)
+            {
+                EditorGUILayout.HelpBox(
+                    "Registry ID: " + selected.Id + " | " +
+                    "Menu command parameter: " + "SoY_TechnickType" + " (Int) | " +
+                    "Sender: Contact or supported Raycast delivery. " +
+                    "The avatar emits an action ID; Sam.py determines eligibility, MP, cooldown, targets and final effects.",
+                    MessageType.Info);
+                if (!string.IsNullOrWhiteSpace(selected.Description))
+                    EditorGUILayout.LabelField("Registry description: " + selected.Description, wrappedLabel);
+                else
+                    EditorGUILayout.HelpBox(
+                        "No mechanical description is stored for this action in the Unity registry.",
+                        MessageType.Warning);
+            }
             EndCard();
         }
 
@@ -9097,9 +9800,22 @@ namespace StoriesOfYggdrasil.OSC
                 itemStartsEnabled = EditorGUILayout.ToggleLeft("Debug: Start enabled (TB17 functional gate overrides during Play)", itemStartsEnabled);
             }
 
-            showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Details", true);
-            if (showActionDetails && !string.IsNullOrWhiteSpace(selected.Description))
-                EditorGUILayout.LabelField(selected.Description, wrappedLabel);
+            showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Action Details", true);
+            if (showActionDetails)
+            {
+                EditorGUILayout.HelpBox(
+                    "Registry ID: " + selected.Id + " | " +
+                    "Menu command parameter: " + "SoY_ItemType" + " (Int) | " +
+                    "Sender: Contact or supported Raycast delivery. " +
+                    "The avatar emits an action ID; Sam.py determines eligibility, MP, cooldown, targets and final effects.",
+                    MessageType.Info);
+                if (!string.IsNullOrWhiteSpace(selected.Description))
+                    EditorGUILayout.LabelField("Registry description: " + selected.Description, wrappedLabel);
+                else
+                    EditorGUILayout.HelpBox(
+                        "No mechanical description is stored for this action in the Unity registry.",
+                        MessageType.Warning);
+            }
             EndCard();
         }
 
@@ -9360,6 +10076,28 @@ namespace StoriesOfYggdrasil.OSC
             DrawTagRow("FX Layer", exists ? "Installed" : "Not installed", MovementLockLayer);
             DrawTagRow("Parameter", parameterValid ? "Ready" : "Missing / wrong type",
                 MovementLockParameter + " must be a Bool in Expressions Parameters");
+            var installedLayer = exists ? fxController.layers.FirstOrDefault(layer => layer.name == MovementLockLayer) : null;
+            var unlockedState = installedLayer != null && installedLayer.stateMachine != null
+                ? installedLayer.stateMachine.states.Select(child => child.state)
+                    .FirstOrDefault(state => state != null && state.name == "Unlocked - Restore Locomotion")
+                : null;
+            var lockedState = installedLayer != null && installedLayer.stateMachine != null
+                ? installedLayer.stateMachine.states.Select(child => child.state)
+                    .FirstOrDefault(state => state != null && state.name == "Locked - Disable Locomotion")
+                : null;
+            if (exists)
+            {
+                var validLayer = unlockedState != null && lockedState != null &&
+                    installedLayer.stateMachine.defaultState == unlockedState &&
+                    fxController.parameters.Any(parameter => parameter.name == MovementLockParameter &&
+                        parameter.type == AnimatorControllerParameterType.Bool);
+                DrawTagRow("Movement Lock audit", validLayer ? "Structure detected" : "Needs review",
+                    "Requires Unlocked default, Locked state, and Animator Bool");
+                if (!validLayer)
+                    EditorGUILayout.HelpBox(
+                        "Movement Lock is installed but one or more core elements are missing. The tool will not overwrite it automatically. Restore a backup or inspect the layer before using it.",
+                        MessageType.Warning);
+            }
             EditorGUILayout.HelpBox(
                 "Creates an isolated FX state machine: Unlocked by default, Locked while SoY_MovementLocked is true. " +
                 "This only controls VRChat locomotion (not walk speed). The Desktop must explicitly set and clear " +
@@ -10296,6 +11034,10 @@ namespace StoriesOfYggdrasil.OSC
                         break;
                     case ContactDraftKind.Incoming:
                         CreateIncomingReceivers();
+                        // The Helpful Item head bus is separate from incoming
+                        // combat receivers and is safe to repair idempotently.
+                        if (avatarRoot != null)
+                            EnsureHelpfulItemHeadReceiverBus();
                         break;
                 }
             }
@@ -10841,6 +11583,8 @@ namespace StoriesOfYggdrasil.OSC
             SyncInstalledActionAnimationProfile(ActionAnimationKind.Spell);
             RebuildSpellCastAnimationLayer();
             RebuildSpellAlignmentLayer();
+            RouteNewInstalledAction(ActionAnimationKind.Spell, spell.Id, spell.Name,
+                GetSpellSchoolDisplayName(spell.School));
         }
 
         private void ConfigureSpellSender(GameObject host, SpellDefinition spell, string alignmentTag)
@@ -10885,6 +11629,7 @@ namespace StoriesOfYggdrasil.OSC
             SyncInstalledActionAnimationProfile(ActionAnimationKind.Technick);
             RebuildActionAnimationLayer(ActionAnimationKind.Technick, "SoY_TechnickType", TechnickCastLayer, animationProfile.technickAnimations);
             RebuildSpellAlignmentLayer();
+            RouteNewInstalledAction(ActionAnimationKind.Technick, technick.Id, technick.Name);
         }
 
         private void ConfigureHelpfulItemReceiver(
@@ -10915,7 +11660,7 @@ namespace StoriesOfYggdrasil.OSC
             SetBoolMember(receiver, allowOthers, "allowOthers", "AllowOthers");
             SetBoolMember(receiver, true, "localOnly", "LocalOnly");
             SetStringMember(receiver, parameter, "parameter", "Parameter");
-            SetEnumMember(receiver, "OnEnter", "receiverType", "ReceiverType");
+            SetEnumMember(receiver, "Constant", "receiverType", "ReceiverType");
             SetFloatMember(receiver, 1f, "value", "Value");
             SetFloatMember(receiver, 0f, "minVelocity", "MinVelocity");
             FinishContact(receiver);
@@ -10966,7 +11711,10 @@ namespace StoriesOfYggdrasil.OSC
                 return false;
             }
 
-            var host = CreateContactChild(head.gameObject, HelpfulItemHeadReceiverHost, true);
+            var host = head.Find(HelpfulItemHeadReceiverHost);
+            var headHost = host != null ? host.gameObject :
+                CreateContactChild(head.gameObject, HelpfulItemHeadReceiverHost, true);
+            if (headHost == null) return false;
             var mappings = new List<ReceiverMapping>
             {
                 new ReceiverMapping(HelpfulItemActiveTag, HelpfulItemActiveParameter)
@@ -10984,7 +11732,7 @@ namespace StoriesOfYggdrasil.OSC
                 {
                     var tags = mapping.CollisionTags.Distinct(StringComparer.Ordinal).Take(16).ToArray();
                     var receiver = EnsureReceiverForTagsAndParameter(
-                        host,
+                        headHost,
                         FindType(ReceiverTypeName),
                         tags,
                         mapping.Parameter);
@@ -10999,7 +11747,7 @@ namespace StoriesOfYggdrasil.OSC
                         Vector3.zero,
                         Vector3.zero,
                         tags);
-                    SetBoolMember(receiver, false, "allowSelf", "AllowSelf");
+                    SetBoolMember(receiver, true, "allowSelf", "AllowSelf");
                     SetBoolMember(receiver, true, "allowOthers", "AllowOthers");
                     SetBoolMember(receiver, true, "localOnly", "LocalOnly");
                     SetStringMember(receiver, mapping.Parameter, "parameter", "Parameter");
@@ -11084,15 +11832,6 @@ namespace StoriesOfYggdrasil.OSC
                     EditorUtility.DisplayDialog("Physical Helpful Item", "Assign an Item Object / Prop under the avatar first.", "OK");
                 return;
             }
-            if (binding.grabGesture == binding.useGesture)
-            {
-                if (showErrors)
-                    EditorUtility.DisplayDialog(
-                        "Physical Helpful Item",
-                        "Grab / Toggle Gesture and Use Gesture must be different so the toggle latch and use window cannot fight each other.",
-                        "OK");
-                return;
-            }
             if (!binding.helpfulAllowSelf && !binding.helpfulAllowOthers)
                 return;
             if (!EnsureHelpfulItemHeadReceiverBus())
@@ -11136,7 +11875,7 @@ namespace StoriesOfYggdrasil.OSC
             var folder = CurrentAvatarGeneratedFolder("Animations/Helpful Items/" + binding.id + "_" + MakeSafeAssetName(binding.name));
             EnsureAssetFolder(folder);
 
-            var controlled = new[] { prop, interactionRoot };
+            var controlled = new[] { prop, interactionRoot, senderHost };
             var hidden = AddHookState(layer.stateMachine, "Hidden", new Vector3(100f, 160f));
             var grabLatch = AddHookState(layer.stateMachine, "Grab Toggle On — Wait Release", new Vector3(400f, 80f));
             var held = AddHookState(layer.stateMachine, "Held / Ready", new Vector3(700f, 160f));
@@ -11145,73 +11884,108 @@ namespace StoriesOfYggdrasil.OSC
             var success = AddHookState(layer.stateMachine, "Server Result — Success", new Vector3(1000f, 260f));
             var failure = AddHookState(layer.stateMachine, "Server Result — Failure / Empty", new Vector3(1000f, 430f));
             var resultWait = AddHookState(layer.stateMachine, "Wait For Result Reset", new Vector3(700f, 520f));
+            var cooldown = AddHookState(layer.stateMachine, "Item used — 30s cooldown", new Vector3(360f, 520f));
 
             hidden.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Hidden.anim", controlled, Array.Empty<GameObject>(), 1f / 60f);
             grabLatch.motion = CreateOrReplaceSelectiveActiveClip(folder + "/GrabLatch.anim", controlled, new[] { prop }, 1f / 60f);
-            held.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Held.anim", controlled, new[] { prop }, 1f / 60f);
-            use.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Use.anim", controlled, new[] { prop, interactionRoot }, 1f / 60f);
+            // Detection receivers are armed while equipped. The encoded item
+            // bus sender only becomes active after a detected head touch.
+            var itemControlObjects = new[] { prop, interactionRoot, senderHost };
+            held.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Held.anim",
+                itemControlObjects, new[] { prop, interactionRoot }, 1f / 60f);
+            use.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Use.anim",
+                itemControlObjects, new[] { prop, interactionRoot, senderHost }, 1f / 60f);
             hideLatch.motion = CreateOrReplaceSelectiveActiveClip(folder + "/HideLatch.anim", controlled, new[] { prop }, 1f / 60f);
             success.motion = LoadClipFromPath(binding.helpfulSuccessClipPath) ??
                 CreateOrReplaceTimerClip(folder + "/Success.anim", 0.45f);
             failure.motion = LoadClipFromPath(binding.helpfulFailureClipPath) ??
                 CreateOrReplaceTimerClip(folder + "/Failure.anim", 0.65f);
             resultWait.motion = CreateOrReplaceSelectiveActiveClip(folder + "/ResultWait.anim", controlled, new[] { prop }, 1f / 60f);
+            cooldown.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Cooldown30s.anim",
+                controlled, Array.Empty<GameObject>(), 30f);
+            var unequipAfterUse = cooldown.AddStateMachineBehaviour<VRCAvatarParameterDriver>();
+            unequipAfterUse.localOnly = true;
+            unequipAfterUse.parameters = new List<VRC_AvatarParameterDriver.Parameter>
+            {
+                new VRC_AvatarParameterDriver.Parameter
+                {
+                    name = "SoY_ItemType",
+                    type = VRC_AvatarParameterDriver.ChangeType.Set,
+                    value = 0f
+                }
+            };
             layer.stateMachine.defaultState = hidden;
 
-            var gestureParameter = GestureParameterForHand(binding.helpfulHand);
-            var grab = (int)binding.grabGesture;
-            var useGesture = (int)binding.useGesture;
-
-            var equip = hidden.AddTransition(grabLatch);
+            // Selecting the item equips the prop; the button itself does not
+            // trigger a use or inventory deduction.
+            var equip = hidden.AddTransition(held);
             equip.hasExitTime = false;
             equip.duration = 0f;
             equip.AddCondition(AnimatorConditionMode.Equals, binding.id, "SoY_ItemType");
-            equip.AddCondition(AnimatorConditionMode.Equals, grab, gestureParameter);
             equip.AddCondition(AnimatorConditionMode.IfNot, 0f, "SoY_KO");
 
-            var grabReleased = grabLatch.AddTransition(held);
-            grabReleased.hasExitTime = false;
-            grabReleased.duration = 0f;
-            grabReleased.AddCondition(AnimatorConditionMode.NotEqual, grab, gestureParameter);
+            // Contacts, not hand gestures, request item use.
+            foreach (var detection in new[]
+            {
+                binding.helpfulAllowSelf ? HelpfulItemSelfTouchParameter : null,
+                binding.helpfulAllowOthers ? HelpfulItemOtherTouchParameter : null
+            }.Where(value => !string.IsNullOrEmpty(value)))
+            {
+                var trigger = held.AddTransition(use);
+                trigger.hasExitTime = false;
+                trigger.duration = 0f;
+                trigger.AddCondition(AnimatorConditionMode.If, 0f, detection);
+            }
 
-            var beginUse = held.AddTransition(use);
-            beginUse.hasExitTime = false;
-            beginUse.duration = 0f;
-            beginUse.AddCondition(AnimatorConditionMode.Equals, useGesture, gestureParameter);
+            // A single contact encounter must not repeatedly request an item:
+            // stay in the use state until all contact detection flags clear, or
+            // until Desktop publishes an authoritative use result.
+            var leaveUse = use.AddTransition(held);
+            leaveUse.hasExitTime = false;
+            leaveUse.duration = 0f;
+            if (binding.helpfulAllowSelf)
+                leaveUse.AddCondition(AnimatorConditionMode.IfNot, 0f, HelpfulItemSelfTouchParameter);
+            if (binding.helpfulAllowOthers)
+                leaveUse.AddCondition(AnimatorConditionMode.IfNot, 0f, HelpfulItemOtherTouchParameter);
 
-            var endUse = use.AddTransition(held);
-            endUse.hasExitTime = false;
-            endUse.duration = 0f;
-            endUse.AddCondition(AnimatorConditionMode.NotEqual, useGesture, gestureParameter);
+            // Only an acknowledged success consumes/hides the item and starts
+            // the 30-second local lockout. Failure retains the selected prop.
+            var successfulUse = use.AddTransition(cooldown);
+            successfulUse.hasExitTime = false;
+            successfulUse.duration = 0f;
+            successfulUse.AddCondition(AnimatorConditionMode.Equals, 1f, HelpfulItemUseResultParameter);
+            var successFromHeld = held.AddTransition(cooldown);
+            successFromHeld.hasExitTime = false;
+            successFromHeld.duration = 0f;
+            successFromHeld.AddCondition(AnimatorConditionMode.Equals, 1f, HelpfulItemUseResultParameter);
 
-            var beginHide = held.AddTransition(hideLatch);
-            beginHide.hasExitTime = false;
-            beginHide.duration = 0f;
-            beginHide.AddCondition(AnimatorConditionMode.Equals, grab, gestureParameter);
-
-            var hideReleased = hideLatch.AddTransition(hidden);
-            hideReleased.hasExitTime = false;
-            hideReleased.duration = 0f;
-            hideReleased.AddCondition(AnimatorConditionMode.NotEqual, grab, gestureParameter);
-
-            AddHelpfulResultTransitions(held, success, failure);
-            AddHelpfulResultTransitions(use, success, failure);
-
-            var successDone = success.AddTransition(resultWait);
-            successDone.hasExitTime = true;
-            successDone.exitTime = 1f;
-            successDone.duration = 0f;
+            for (var result = 2; result <= 6; result++)
+            {
+                var failedUse = use.AddTransition(failure);
+                failedUse.hasExitTime = false;
+                failedUse.duration = 0f;
+                failedUse.AddCondition(AnimatorConditionMode.Equals, result, HelpfulItemUseResultParameter);
+            }
             var failureDone = failure.AddTransition(resultWait);
             failureDone.hasExitTime = true;
             failureDone.exitTime = 1f;
             failureDone.duration = 0f;
-
             var resetDone = resultWait.AddTransition(held);
             resetDone.hasExitTime = false;
             resetDone.duration = 0f;
             resetDone.AddCondition(AnimatorConditionMode.Equals, 0f, HelpfulItemUseResultParameter);
+            // Require contact release before attempting a rejected use again.
+            if (binding.helpfulAllowSelf)
+                resetDone.AddCondition(AnimatorConditionMode.IfNot, 0f, HelpfulItemSelfTouchParameter);
+            if (binding.helpfulAllowOthers)
+                resetDone.AddCondition(AnimatorConditionMode.IfNot, 0f, HelpfulItemOtherTouchParameter);
 
-            foreach (var activeState in new[] { grabLatch, held, use, hideLatch, success, failure, resultWait })
+            var cooldownDone = cooldown.AddTransition(hidden);
+            cooldownDone.hasExitTime = true;
+            cooldownDone.exitTime = 1f;
+            cooldownDone.duration = 0f;
+
+            foreach (var activeState in new[] { held, use, failure, resultWait })
                 AddHelpfulExitTransitions(activeState, hidden, binding.id);
 
             fxController.AddLayer(layer);
@@ -11251,6 +12025,7 @@ namespace StoriesOfYggdrasil.OSC
             if (physicalBinding != null && physicalBinding.physicalHelpful)
                 RebuildHelpfulItemInteraction(physicalBinding);
             RebuildSpellAlignmentLayer();
+            RouteNewInstalledAction(ActionAnimationKind.Item, item.Id, item.Name);
         }
 
         private void ConfigureActionSender(
@@ -12046,6 +12821,7 @@ namespace StoriesOfYggdrasil.OSC
                 case SpellSchool.ChaosMagick: return "Chaos Magick";
                 case SpellSchool.AbyssalCurses: return "Abyssal Curses";
                 case SpellSchool.LightMagick: return "Light Magick";
+                case SpellSchool.BloodMagick: return "Blood Magick";
                 default: return school.ToString();
             }
         }
@@ -12071,6 +12847,7 @@ namespace StoriesOfYggdrasil.OSC
                 case SpellSchool.ChaosMagick: return incomingChaosSpells;
                 case SpellSchool.AbyssalCurses: return incomingAbyssalSpells;
                 case SpellSchool.LightMagick: return incomingLightSpells;
+                case SpellSchool.BloodMagick: return incomingBloodSpells;
                 default: return false;
             }
         }
@@ -12105,6 +12882,7 @@ namespace StoriesOfYggdrasil.OSC
             incomingChaosSpells = value;
             incomingAbyssalSpells = value;
             incomingLightSpells = value;
+            incomingBloodSpells = value;
         }
 
 
@@ -13799,6 +14577,7 @@ namespace StoriesOfYggdrasil.OSC
                 statusMenu.controls.Add(CreateRadialControl("Curse Of Diablos", "SoY_DiablosPercent"));
             if (HasExpressionParameter("SoY_ArousalPercent"))
                 statusMenu.controls.Add(CreateRadialControl("Arousal", "SoY_ArousalPercent"));
+            // Light Corruption is a resource gauge, not a user-operated radial.
             EditorUtility.SetDirty(statusMenu);
 
             BuildSchoolGroupMenu(
@@ -13834,7 +14613,8 @@ namespace StoriesOfYggdrasil.OSC
                 {
                     SpellSchool.ChaosMagick,
                     SpellSchool.AbyssalCurses,
-                    SpellSchool.LightMagick
+                    SpellSchool.LightMagick,
+                    SpellSchool.BloodMagick
                 });
 
             Undo.RecordObject(schoolBrowseMenu, "Build Stories School Browser");
