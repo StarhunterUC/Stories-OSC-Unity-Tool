@@ -76,7 +76,7 @@ jobs:
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$DIST"/* --clobber
-            gh release edit "$TAG" --target "${{ github.sha }}" --title "$TITLE" --notes-file "$NOTES" --prerelease
+            gh release edit "$TAG" --target "${{ github.sha }}" --title "$TITLE" --notes-file "$NOTES" $(if [ "${{ steps.meta.outputs.prerelease }}" = "true" ]; then echo --prerelease; fi)
           else
-            gh release create "$TAG" "$DIST"/* --target "${{ github.sha }}" --title "$TITLE" --notes-file "$NOTES" --prerelease
+            gh release create "$TAG" "$DIST"/* --target "${{ github.sha }}" --title "$TITLE" --notes-file "$NOTES" $(if [ "${{ steps.meta.outputs.prerelease }}" = "true" ]; then echo --prerelease; fi)
           fi

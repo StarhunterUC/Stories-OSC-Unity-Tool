@@ -64,12 +64,12 @@ def main() -> int:
 
     text = source.read_text(encoding='utf-8-sig')
     checks = {
-        'version': version.get('version') == '0.5.10',
+        'version': version.get('version') == '0.5.11',
         'build_number': version.get('build_number') == 'TB18.2',
-        'tag': tag == 'v0.5.10-TB18.2',
+        'tag': tag == 'v0.5.11',
         'protocol_metadata': version.get('osc_protocol_version') == 21,
         'desktop_metadata': version.get('minimum_desktop_version') == '0.8.22-prebuild.7',
-        'source_header_version': 'private const string Version = "0.5.10";' in text,
+        'source_header_version': 'private const string Version = "0.5.11";' in text,
         'source_header_build': 'private const string BuildNumber = "TB18.2";' in text,
         'source_header_label': 'Isolated Contact Provenance' in text,
         'source_protocol': 'private const int OscProtocolVersion = 21;' in text,
