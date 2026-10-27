@@ -6236,9 +6236,9 @@ namespace StoriesOfYggdrasil.OSC
                     "Choose an editable menu asset under Assets/ before installing.", "OK");
                 return;
             }
-            if (parent.controls == null) parent.controls = new List<VRCExpressionsMenu.Control>();
+            var parentControls = parent.controls ?? new List<VRCExpressionsMenu.Control>();
             var definitions = new [] { "Combat", "Magicks", "Technicks", "Items" };
-            var existing = new HashSet<string>(parent.controls.Where(c => c != null)
+            var existing = new HashSet<string>(parentControls.Where(c => c != null)
                 .Select(c => c.name), StringComparer.OrdinalIgnoreCase);
             var needed = definitions.Where(x => !existing.Contains(x)).ToList();
             if (needed.Count == 0)
@@ -6247,7 +6247,7 @@ namespace StoriesOfYggdrasil.OSC
                     "The selected page already has the four main menu entries. No changes made.", "OK");
                 return;
             }
-            if (parent.controls.Count + needed.Count > ManualMenuCapacity)
+            if (parentControls.Count + needed.Count > ManualMenuCapacity)
             {
                 EditorUtility.DisplayDialog("Not enough menu slots",
                     "This page needs " + needed.Count + " free slots for Combat, Magicks, Technicks and Items. " +
@@ -6277,6 +6277,7 @@ namespace StoriesOfYggdrasil.OSC
             var group = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName("Install SoY System Menu");
             Undo.RecordObject(parent, "Install SoY System Menu");
+            if (parent.controls == null) parent.controls = new List<VRCExpressionsMenu.Control>();
             try
             {
                 foreach (var name in needed)
@@ -6459,7 +6460,20 @@ namespace StoriesOfYggdrasil.OSC
         private bool TryAddMenuAction(VRCExpressionsMenu destination, string label, string parameter, int id)
         {
             if (destination == null) return false;
+            if (id < 1 || id > 255)
+            {
+                Debug.LogWarning("[SoY Menu] Refused action outside the supported 1-255 OSC ID range: " + id);
+                return false;
+            }
             if (FindActionPage(destination, parameter, id) != null) return true;
+            if (expressionParameters == null || expressionParameters.parameters == null ||
+                !expressionParameters.parameters.Any(p => p != null && p.name == parameter &&
+                    p.valueType == VRCExpressionParameters.ValueType.Int))
+            {
+                Debug.LogWarning("[SoY Menu] Missing Int Expression Parameter: " + parameter +
+                    ". Action " + label + " was not placed.");
+                return false;
+            }
             var page = destination;
             var seen = new HashSet<int>();
             while (page != null && seen.Add(page.GetInstanceID()) && seen.Count <= 64)
@@ -6490,7 +6504,7 @@ namespace StoriesOfYggdrasil.OSC
                     "_backup_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
                 if (!AssetDatabase.CopyAsset(path, backup)) return false;
                 Undo.RecordObject(page, "Install SoY Action Menu Control");
-                page.controls.Add(ActionMenuControl(label, parameter, id));
+                page.controls.Add(ActionMenuControl(BuildActionMenuLabel(label), parameter, id));
                 EditorUtility.SetDirty(page);
                 AssetDatabase.SaveAssets();
                 return true;
