@@ -9488,9 +9488,22 @@ namespace StoriesOfYggdrasil.OSC
                 technickStartsEnabled = EditorGUILayout.ToggleLeft("Debug: Start enabled (TB17 functional gate overrides during Play)", technickStartsEnabled);
             }
 
-            showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Details", true);
-            if (showActionDetails && !string.IsNullOrWhiteSpace(selected.Description))
-                EditorGUILayout.LabelField(selected.Description, wrappedLabel);
+            showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Action Details", true);
+            if (showActionDetails)
+            {
+                EditorGUILayout.HelpBox(
+                    "Registry ID: " + selected.Id + " | " +
+                    "Menu command parameter: " + SoY_TechnickType + " (Int) | " +
+                    "Sender: Contact or supported Raycast delivery. " +
+                    "The avatar emits an action ID; Sam.py determines eligibility, MP, cooldown, targets and final effects.",
+                    MessageType.Info);
+                if (!string.IsNullOrWhiteSpace(selected.Description))
+                    EditorGUILayout.LabelField("Registry description: " + selected.Description, wrappedLabel);
+                else
+                    EditorGUILayout.HelpBox(
+                        "No mechanical description is stored for this action in the Unity registry.",
+                        MessageType.Warning);
+            }
             EndCard();
         }
 
@@ -9527,9 +9540,22 @@ namespace StoriesOfYggdrasil.OSC
                 itemStartsEnabled = EditorGUILayout.ToggleLeft("Debug: Start enabled (TB17 functional gate overrides during Play)", itemStartsEnabled);
             }
 
-            showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Details", true);
-            if (showActionDetails && !string.IsNullOrWhiteSpace(selected.Description))
-                EditorGUILayout.LabelField(selected.Description, wrappedLabel);
+            showActionDetails = EditorGUILayout.Foldout(showActionDetails, "Action Details", true);
+            if (showActionDetails)
+            {
+                EditorGUILayout.HelpBox(
+                    "Registry ID: " + selected.Id + " | " +
+                    "Menu command parameter: " + SoY_ItemType + " (Int) | " +
+                    "Sender: Contact or supported Raycast delivery. " +
+                    "The avatar emits an action ID; Sam.py determines eligibility, MP, cooldown, targets and final effects.",
+                    MessageType.Info);
+                if (!string.IsNullOrWhiteSpace(selected.Description))
+                    EditorGUILayout.LabelField("Registry description: " + selected.Description, wrappedLabel);
+                else
+                    EditorGUILayout.HelpBox(
+                        "No mechanical description is stored for this action in the Unity registry.",
+                        MessageType.Warning);
+            }
             EndCard();
         }
 
