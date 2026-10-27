@@ -6574,6 +6574,12 @@ namespace StoriesOfYggdrasil.OSC
                 c.name == "More..." && c.subMenu != null);
             if (existing != null) { continuation = existing.subMenu; return true; }
             if (controls.Count >= ManualMenuCapacity) return false;
+            if (controls.Any(c => c != null && c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                c.name == "More..." && c.subMenu == null))
+            {
+                Debug.LogWarning("[SoY Menu] 'More...' submenu reference is missing. Repair it manually or restore its backup before adding actions.");
+                return false;
+            }
             var folder = CurrentAvatarGeneratedFolder("Menus/System");
             EnsureAssetFolder(folder);
             var pagePath = AssetDatabase.GetAssetPath(page);
@@ -6588,7 +6594,8 @@ namespace StoriesOfYggdrasil.OSC
             var path = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
                 MakeSafeAssetName(context) + "_More.asset");
             AssetDatabase.CreateAsset(continuation, path);
-            Undo.RegisterCreatedObjectUndo(continuation, "Create SoY overflow menu");
+            // The menu asset is deliberately retained after Undo so that Redo
+            // cannot resurrect a reference to a deleted .asset file.
             Undo.RecordObject(page, "Link SoY overflow menu");
             if (page.controls == null) page.controls = new List<VRCExpressionsMenu.Control>();
             page.controls.Add(new VRCExpressionsMenu.Control
@@ -6686,12 +6693,18 @@ namespace StoriesOfYggdrasil.OSC
                 var schoolControl = controls.FirstOrDefault(c => c != null &&
                     c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
                     string.Equals(c.name, school, StringComparison.OrdinalIgnoreCase));
-                if (schoolControl != null) return schoolControl.subMenu;
+                if (schoolControl != null && schoolControl.subMenu != null)
+                    return schoolControl.subMenu;
+                // Undo or interrupted older installations may leave a named,
+                // but unlinked, school entry. Repair that slot instead of
+                // creating a duplicate with the same school name.
+                var brokenSchool = schoolControl != null && schoolControl.subMenu == null
+                    ? schoolControl : null;
                 var next = controls.FirstOrDefault(c => c != null &&
                     c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
                     c.name == "More..." && c.subMenu != null);
                 if (next != null) { page = next.subMenu; continue; }
-                if (controls.Count >= ManualMenuCapacity - 1)
+                if (brokenSchool == null && controls.Count >= ManualMenuCapacity - 1)
                 {
                     VRCExpressionsMenu overflow;
                     if (!TryCreateMenuOverflow(page, "MagickSchools", out overflow))
@@ -6716,15 +6729,20 @@ namespace StoriesOfYggdrasil.OSC
                 var childPath = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
                     AssetDatabase.AssetPathToGUID(parentPath) + "_" + MakeSafeAssetName(school) + ".asset");
                 AssetDatabase.CreateAsset(child, childPath);
-                Undo.RegisterCreatedObjectUndo(child, "Create SoY Magick School Menu");
+                // Keep the generated asset intact across Undo/Redo, matching
+                // the four-main-menu installer. Undo restores the parent's
+                // references; it must never restore a link to a deleted asset.
                 Undo.RecordObject(page, "Add SoY Magick School");
                 if (page.controls == null) page.controls = new List<VRCExpressionsMenu.Control>();
-                page.controls.Add(new VRCExpressionsMenu.Control
-                {
-                    name = school,
-                    type = VRCExpressionsMenu.Control.ControlType.SubMenu,
-                    subMenu = child
-                });
+                if (brokenSchool != null)
+                    brokenSchool.subMenu = child;
+                else
+                    page.controls.Add(new VRCExpressionsMenu.Control
+                    {
+                        name = school,
+                        type = VRCExpressionsMenu.Control.ControlType.SubMenu,
+                        subMenu = child
+                    });
                 EditorUtility.SetDirty(page);
                 AssetDatabase.SaveAssets();
                 return child;
