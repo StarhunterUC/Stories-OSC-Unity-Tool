@@ -11034,6 +11034,10 @@ namespace StoriesOfYggdrasil.OSC
                         break;
                     case ContactDraftKind.Incoming:
                         CreateIncomingReceivers();
+                        // The Helpful Item head bus is separate from incoming
+                        // combat receivers and is safe to repair idempotently.
+                        if (avatarRoot != null)
+                            EnsureHelpfulItemHeadReceiverBus();
                         break;
                 }
             }
@@ -11707,7 +11711,10 @@ namespace StoriesOfYggdrasil.OSC
                 return false;
             }
 
-            var host = CreateContactChild(head.gameObject, HelpfulItemHeadReceiverHost, true);
+            var host = head.Find(HelpfulItemHeadReceiverHost);
+            var headHost = host != null ? host.gameObject :
+                CreateContactChild(head.gameObject, HelpfulItemHeadReceiverHost, true);
+            if (headHost == null) return false;
             var mappings = new List<ReceiverMapping>
             {
                 new ReceiverMapping(HelpfulItemActiveTag, HelpfulItemActiveParameter)
@@ -11725,7 +11732,7 @@ namespace StoriesOfYggdrasil.OSC
                 {
                     var tags = mapping.CollisionTags.Distinct(StringComparer.Ordinal).Take(16).ToArray();
                     var receiver = EnsureReceiverForTagsAndParameter(
-                        host,
+                        headHost,
                         FindType(ReceiverTypeName),
                         tags,
                         mapping.Parameter);
@@ -11825,15 +11832,6 @@ namespace StoriesOfYggdrasil.OSC
                     EditorUtility.DisplayDialog("Physical Helpful Item", "Assign an Item Object / Prop under the avatar first.", "OK");
                 return;
             }
-            if (binding.grabGesture == binding.useGesture)
-            {
-                if (showErrors)
-                    EditorUtility.DisplayDialog(
-                        "Physical Helpful Item",
-                        "Grab / Toggle Gesture and Use Gesture must be different so the toggle latch and use window cannot fight each other.",
-                        "OK");
-                return;
-            }
             if (!binding.helpfulAllowSelf && !binding.helpfulAllowOthers)
                 return;
             if (!EnsureHelpfulItemHeadReceiverBus())
@@ -11886,10 +11884,11 @@ namespace StoriesOfYggdrasil.OSC
             var success = AddHookState(layer.stateMachine, "Server Result — Success", new Vector3(1000f, 260f));
             var failure = AddHookState(layer.stateMachine, "Server Result — Failure / Empty", new Vector3(1000f, 430f));
             var resultWait = AddHookState(layer.stateMachine, "Wait For Result Reset", new Vector3(700f, 520f));
+            var cooldown = AddHookState(layer.stateMachine, "Item used — 30s cooldown", new Vector3(360f, 520f));
 
             hidden.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Hidden.anim", controlled, Array.Empty<GameObject>(), 1f / 60f);
             grabLatch.motion = CreateOrReplaceSelectiveActiveClip(folder + "/GrabLatch.anim", controlled, new[] { prop }, 1f / 60f);
-            held.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Held.anim", controlled, new[] { prop }, 1f / 60f);
+            held.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Held.anim", controlled, new[] { prop, interactionRoot }, 1f / 60f);
             use.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Use.anim", controlled, new[] { prop, interactionRoot }, 1f / 60f);
             hideLatch.motion = CreateOrReplaceSelectiveActiveClip(folder + "/HideLatch.anim", controlled, new[] { prop }, 1f / 60f);
             success.motion = LoadClipFromPath(binding.helpfulSuccessClipPath) ??
@@ -11897,62 +11896,85 @@ namespace StoriesOfYggdrasil.OSC
             failure.motion = LoadClipFromPath(binding.helpfulFailureClipPath) ??
                 CreateOrReplaceTimerClip(folder + "/Failure.anim", 0.65f);
             resultWait.motion = CreateOrReplaceSelectiveActiveClip(folder + "/ResultWait.anim", controlled, new[] { prop }, 1f / 60f);
+            cooldown.motion = CreateOrReplaceTimerClip(folder + "/Cooldown30s.anim", 30f);
+            var unequipAfterUse = cooldown.AddStateMachineBehaviour<VRCAvatarParameterDriver>();
+            unequipAfterUse.localOnly = true;
+            unequipAfterUse.parameters = new List<VRC_AvatarParameterDriver.Parameter>
+            {
+                new VRC_AvatarParameterDriver.Parameter
+                {
+                    name = "SoY_ItemType",
+                    type = VRC_AvatarParameterDriver.ChangeType.Set,
+                    value = 0f
+                }
+            };
             layer.stateMachine.defaultState = hidden;
 
-            var gestureParameter = GestureParameterForHand(binding.helpfulHand);
-            var grab = (int)binding.grabGesture;
-            var useGesture = (int)binding.useGesture;
-
-            var equip = hidden.AddTransition(grabLatch);
+            // Selecting the item equips the prop; the button itself does not
+            // trigger a use or inventory deduction.
+            var equip = hidden.AddTransition(held);
             equip.hasExitTime = false;
             equip.duration = 0f;
             equip.AddCondition(AnimatorConditionMode.Equals, binding.id, "SoY_ItemType");
-            equip.AddCondition(AnimatorConditionMode.Equals, grab, gestureParameter);
             equip.AddCondition(AnimatorConditionMode.IfNot, 0f, "SoY_KO");
 
-            var grabReleased = grabLatch.AddTransition(held);
-            grabReleased.hasExitTime = false;
-            grabReleased.duration = 0f;
-            grabReleased.AddCondition(AnimatorConditionMode.NotEqual, grab, gestureParameter);
+            // Contacts, not hand gestures, request item use.
+            foreach (var detection in new[]
+            {
+                binding.helpfulAllowSelf ? HelpfulItemSelfTouchParameter : null,
+                binding.helpfulAllowOthers ? HelpfulItemOtherTouchParameter : null
+            }.Where(value => !string.IsNullOrEmpty(value)))
+            {
+                var trigger = held.AddTransition(use);
+                trigger.hasExitTime = false;
+                trigger.duration = 0f;
+                trigger.AddCondition(AnimatorConditionMode.If, 0f, detection);
+            }
 
-            var beginUse = held.AddTransition(use);
-            beginUse.hasExitTime = false;
-            beginUse.duration = 0f;
-            beginUse.AddCondition(AnimatorConditionMode.Equals, useGesture, gestureParameter);
+            // A single contact encounter must not repeatedly request an item:
+            // stay in the use state until all contact detection flags clear, or
+            // until Desktop publishes an authoritative use result.
+            var leaveUse = use.AddTransition(held);
+            leaveUse.hasExitTime = false;
+            leaveUse.duration = 0f;
+            if (binding.helpfulAllowSelf)
+                leaveUse.AddCondition(AnimatorConditionMode.IfNot, 0f, HelpfulItemSelfTouchParameter);
+            if (binding.helpfulAllowOthers)
+                leaveUse.AddCondition(AnimatorConditionMode.IfNot, 0f, HelpfulItemOtherTouchParameter);
 
-            var endUse = use.AddTransition(held);
-            endUse.hasExitTime = false;
-            endUse.duration = 0f;
-            endUse.AddCondition(AnimatorConditionMode.NotEqual, useGesture, gestureParameter);
+            // Only an acknowledged success consumes/hides the item and starts
+            // the 30-second local lockout. Failure retains the selected prop.
+            var successfulUse = use.AddTransition(cooldown);
+            successfulUse.hasExitTime = false;
+            successfulUse.duration = 0f;
+            successfulUse.AddCondition(AnimatorConditionMode.Equals, 1f, HelpfulItemUseResultParameter);
+            var successFromHeld = held.AddTransition(cooldown);
+            successFromHeld.hasExitTime = false;
+            successFromHeld.duration = 0f;
+            successFromHeld.AddCondition(AnimatorConditionMode.Equals, 1f, HelpfulItemUseResultParameter);
 
-            var beginHide = held.AddTransition(hideLatch);
-            beginHide.hasExitTime = false;
-            beginHide.duration = 0f;
-            beginHide.AddCondition(AnimatorConditionMode.Equals, grab, gestureParameter);
-
-            var hideReleased = hideLatch.AddTransition(hidden);
-            hideReleased.hasExitTime = false;
-            hideReleased.duration = 0f;
-            hideReleased.AddCondition(AnimatorConditionMode.NotEqual, grab, gestureParameter);
-
-            AddHelpfulResultTransitions(held, success, failure);
-            AddHelpfulResultTransitions(use, success, failure);
-
-            var successDone = success.AddTransition(resultWait);
-            successDone.hasExitTime = true;
-            successDone.exitTime = 1f;
-            successDone.duration = 0f;
+            for (var result = 2; result <= 6; result++)
+            {
+                var failedUse = use.AddTransition(failure);
+                failedUse.hasExitTime = false;
+                failedUse.duration = 0f;
+                failedUse.AddCondition(AnimatorConditionMode.Equals, result, HelpfulItemUseResultParameter);
+            }
             var failureDone = failure.AddTransition(resultWait);
             failureDone.hasExitTime = true;
             failureDone.exitTime = 1f;
             failureDone.duration = 0f;
-
             var resetDone = resultWait.AddTransition(held);
             resetDone.hasExitTime = false;
             resetDone.duration = 0f;
             resetDone.AddCondition(AnimatorConditionMode.Equals, 0f, HelpfulItemUseResultParameter);
 
-            foreach (var activeState in new[] { grabLatch, held, use, hideLatch, success, failure, resultWait })
+            var cooldownDone = cooldown.AddTransition(hidden);
+            cooldownDone.hasExitTime = true;
+            cooldownDone.exitTime = 1f;
+            cooldownDone.duration = 0f;
+
+            foreach (var activeState in new[] { held, use, failure, resultWait })
                 AddHelpfulExitTransitions(activeState, hidden, binding.id);
 
             fxController.AddLayer(layer);
