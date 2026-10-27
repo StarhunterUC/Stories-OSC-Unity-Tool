@@ -2714,6 +2714,61 @@ namespace StoriesOfYggdrasil.OSC
             EndCard();
         }
 
+        private List<string> FindMissingManagedResourceFxLayers()
+        {
+            var missing = new List<string>();
+            if (fxController == null || !IsSafeFxCopy(fxController))
+                return missing;
+
+            EnsureResourceGaugeProfileDefaults();
+            foreach (var kind in AllResourceGaugeKinds())
+            {
+                var config = GetResourceGaugeProfile(kind);
+                if (config == null || !config.enabled ||
+                    config.visibility == ResourceVisibilityMode.Never ||
+                    config.blendPoints == null ||
+                    !config.blendPoints.Any(point => point != null && point.enabled))
+                    continue;
+
+                var layer = fxController.layers.FirstOrDefault(candidate =>
+                    candidate != null && candidate.name == ResourceLayerName(kind));
+                if (layer == null || layer.stateMachine == null)
+                {
+                    missing.Add(ResourceDisplayName(kind) + " (missing layer)");
+                    continue;
+                }
+
+                var expectedBlendState = layer.stateMachine.states
+                    .Select(child => child.state)
+                    .FirstOrDefault(state => state != null &&
+                        state.name == ResourceDisplayName(kind) + " Blend");
+                var tree = expectedBlendState != null ? expectedBlendState.motion as BlendTree : null;
+                if (tree == null || tree.blendParameter != ResourceParameter(kind))
+                    missing.Add(ResourceDisplayName(kind) + " (missing/outdated Blend Tree)");
+            }
+            return missing;
+        }
+
+        private void DrawManagedResourceFxMissingWarning()
+        {
+            if (fxController == null || !IsSafeFxCopy(fxController))
+                return;
+            var missing = FindMissingManagedResourceFxLayers();
+            if (missing.Count == 0) return;
+
+            EditorGUILayout.HelpBox(
+                "The safe FX controller is missing or has outdated managed Resource FX layers:\n• " +
+                string.Join("\n• ", missing.ToArray()) +
+                "\n\nExisting third-party FX layers will not be rebuilt automatically. " +
+                "Open Resource FX and review the configured animations before choosing REBUILD.",
+                MessageType.Warning);
+            if (GUILayout.Button("OPEN RESOURCE FX FOR REVIEW", GUILayout.Height(28f)))
+            {
+                tab = StudioTab.AnimatorSetup;
+                animationPage = AnimationPage.Resources;
+            }
+        }
+
         private void DrawPreflightCard()
         {
             BeginCard("Avatar Preflight");
@@ -2734,6 +2789,8 @@ namespace StoriesOfYggdrasil.OSC
             EditorGUI.ProgressBar(rect, readiness, "Readiness " + Mathf.RoundToInt(readiness * 100f) + "% — " + passed + "/" + checks.Count);
             foreach (var check in checks)
                 EditorGUILayout.LabelField((check.Value ? "✓ " : "✕ ") + check.Key, wrappedLabel);
+
+            DrawManagedResourceFxMissingWarning();
 
             if (expressionParameters != null)
             {
@@ -4876,6 +4933,7 @@ namespace StoriesOfYggdrasil.OSC
             var config = GetResourceGaugeProfile(kind);
             var changed = false;
 
+            DrawManagedResourceFxMissingWarning();
             EditorGUILayout.Space(4f);
             DrawTagRow("OSC Driver", ResourceParameter(kind), "Normalized 0.0–1.0 value; Sam.py/Desktop authority");
             if (kind == ResourceGaugeKind.MP)
