@@ -6238,24 +6238,31 @@ namespace StoriesOfYggdrasil.OSC
             }
             var parentControls = parent.controls ?? new List<VRCExpressionsMenu.Control>();
             var definitions = new [] { "Combat", "Magicks", "Technicks", "Items" };
-            var existing = new HashSet<string>(parentControls.Where(c => c != null)
+            // A named SubMenu with a null reference may be left behind by the
+            // old asset-creation Undo transaction. Treat it as a repairable slot.
+            var existing = new HashSet<string>(parentControls.Where(c => c != null &&
+                c.type == VRCExpressionsMenu.Control.ControlType.SubMenu && c.subMenu != null)
                 .Select(c => c.name), StringComparer.OrdinalIgnoreCase);
             var needed = definitions.Where(x => !existing.Contains(x)).ToList();
+            var repairs = needed.Where(name => parentControls.Any(c => c != null &&
+                c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                c.subMenu == null && string.Equals(c.name, name, StringComparison.OrdinalIgnoreCase))).ToList();
+            var additionalSlots = needed.Count - repairs.Count;
             if (needed.Count == 0)
             {
                 EditorUtility.DisplayDialog("Already installed",
                     "The selected page already has the four main menu entries. No changes made.", "OK");
                 return;
             }
-            if (parentControls.Count + needed.Count > ManualMenuCapacity)
+            if (parentControls.Count + additionalSlots > ManualMenuCapacity)
             {
                 EditorUtility.DisplayDialog("Not enough menu slots",
-                    "This page needs " + needed.Count + " free slots for Combat, Magicks, Technicks and Items. " +
+                    "This page needs " + additionalSlots + " free slots for Combat, Magicks, Technicks and Items. " +
                     "Choose another destination or free enough slots first.", "OK");
                 return;
             }
             if (!EditorUtility.DisplayDialog("Install Stories System Menu?",
-                "Create missing Combat, Magicks, Technicks and Items submenus under:\n" +
+                "Create or repair Combat, Magicks, Technicks and Items submenus under:\n" +
                 assetPath + "\nExisting controls are preserved. An asset backup is created first.",
                 "Install", "Cancel"))
                 return;
@@ -6287,8 +6294,15 @@ namespace StoriesOfYggdrasil.OSC
                     var childPath = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
                         MakeSafeAssetName(parent.name) + "_" + guid + "_" + name + ".asset");
                     AssetDatabase.CreateAsset(menu, childPath);
-                    Undo.RegisterCreatedObjectUndo(menu, "Create SoY " + name + " menu");
-                    parent.controls.Add(new VRCExpressionsMenu.Control
+                    // Preserve new asset files across Ctrl+Z. Undo owns the
+                    // *parent's links only*, so Redo never points to deleted files.
+                    // Orphaned child assets are recoverable via backups/manual cleanup.
+                    var broken = parent.controls.FirstOrDefault(c => c != null &&
+                        c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                        c.subMenu == null &&
+                        string.Equals(c.name, name, StringComparison.OrdinalIgnoreCase));
+                    if (broken != null) broken.subMenu = menu;
+                    else parent.controls.Add(new VRCExpressionsMenu.Control
                     {
                         name = name,
                         type = VRCExpressionsMenu.Control.ControlType.SubMenu,
