@@ -6051,6 +6051,23 @@ namespace StoriesOfYggdrasil.OSC
 
         // Explicit menu asset selection and draft-based editing. No generated
         // menu builder is called by this workspace or by Install All Hooks.
+        private void OnEnable()
+        {
+            Undo.undoRedoPerformed += RefreshManualMenuAfterUndo;
+        }
+
+        private void OnDisable()
+        {
+            Undo.undoRedoPerformed -= RefreshManualMenuAfterUndo;
+        }
+
+        private void RefreshManualMenuAfterUndo()
+        {
+            if (manualMenuTarget != null)
+                LoadManualMenuDraft();
+            Repaint();
+        }
+
         private void DrawMenuBuilder()
         {
             BeginCard("Manual VRChat Expressions Menu Editor");
@@ -6062,7 +6079,11 @@ namespace StoriesOfYggdrasil.OSC
             if (GUILayout.Button("USE AVATAR ROOT MENU AS DESTINATION"))
                 SelectManualMenuTarget(expressionsMenu);
             DrawInstalledMenuBrowser();
-
+            using (new EditorGUI.DisabledScope(manualMenuTarget == null))
+            {
+                if (GUILayout.Button("INSTALL SYSTEM MENU HERE", GUILayout.Height(36f)))
+                    InstallSystemMenuAtCurrentDestination();
+            }
 
             var target = (VRCExpressionsMenu)EditorGUILayout.ObjectField(
                 "Destination Menu Asset", manualMenuTarget, typeof(VRCExpressionsMenu), false);
@@ -6207,6 +6228,115 @@ namespace StoriesOfYggdrasil.OSC
                 "A newly created submenu asset may need manual cleanup after Undo.",
                 MessageType.Info);
             EndCard();
+        }
+
+        // Installs the core SoY structure as child assets linked to the exact selected
+        // menu. Existing foreign controls and menu assets are never replaced.
+        private void InstallSystemMenuAtCurrentDestination()
+        {
+            var parent = manualMenuTarget;
+            var assetPath = parent == null ? string.Empty : AssetDatabase.GetAssetPath(parent);
+            if (string.IsNullOrEmpty(assetPath) ||
+                !assetPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+            {
+                EditorUtility.DisplayDialog("Select a saved menu",
+                    "Choose an editable menu asset under Assets/ before installing.", "OK");
+                return;
+            }
+            if (parent.controls == null) parent.controls = new List<VRCExpressionsMenu.Control>();
+            var definitions = new [] { "Combat", "Magicks", "Technicks", "Items" };
+            var existing = new HashSet<string>(parent.controls.Where(c => c != null)
+                .Select(c => c.name), StringComparer.OrdinalIgnoreCase);
+            var needed = definitions.Where(x => !existing.Contains(x)).ToList();
+            if (needed.Count == 0)
+            {
+                EditorUtility.DisplayDialog("Already installed",
+                    "The selected page already has the four main menu entries. No changes made.", "OK");
+                return;
+            }
+            if (parent.controls.Count + needed.Count > ManualMenuCapacity)
+            {
+                EditorUtility.DisplayDialog("Not enough menu slots",
+                    "This page needs " + needed.Count + " free slots for Combat, Magicks, Technicks and Items. " +
+                    "Choose another destination or free enough slots first.", "OK");
+                return;
+            }
+            if (!EditorUtility.DisplayDialog("Install Stories System Menu?",
+                "Create missing Combat, Magicks, Technicks and Items submenus under:\n" +
+                assetPath + "\nExisting controls are preserved. An asset backup is created first.",
+                "Install", "Cancel"))
+                return;
+            var folder = CurrentAvatarGeneratedFolder("Menus/System");
+            var backupFolder = CurrentAvatarGeneratedFolder("Backups/Menus");
+            EnsureAssetFolder(backupFolder);
+            EnsureAssetFolder(folder);
+            var guid = AssetDatabase.AssetPathToGUID(assetPath);
+            var backup = AssetDatabase.GenerateUniqueAssetPath(backupFolder + "/" +
+                MakeSafeAssetName(parent.name) + "_" + guid + "_backup_" +
+                DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
+            if (!AssetDatabase.CopyAsset(assetPath, backup))
+            {
+                EditorUtility.DisplayDialog("Backup failed", "The menu was not changed.", "OK");
+                return;
+            }
+            lastManualMenuBackupPath = backup;
+            Undo.IncrementCurrentGroup();
+            var group = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName("Install SoY System Menu");
+            Undo.RecordObject(parent, "Install SoY System Menu");
+            try
+            {
+                foreach (var name in needed)
+                {
+                    var menu = ScriptableObject.CreateInstance<VRCExpressionsMenu>();
+                    menu.controls = new List<VRCExpressionsMenu.Control>();
+                    var childPath = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
+                        MakeSafeAssetName(parent.name) + "_" + guid + "_" + name + ".asset");
+                    AssetDatabase.CreateAsset(menu, childPath);
+                    Undo.RegisterCreatedObjectUndo(menu, "Create SoY " + name + " menu");
+                    parent.controls.Add(new VRCExpressionsMenu.Control
+                    {
+                        name = name,
+                        type = VRCExpressionsMenu.Control.ControlType.SubMenu,
+                        subMenu = menu
+                    });
+                    if (name == "Combat")
+                    {
+                        foreach (var config in new [] {
+                            new { Param = "SoY_CombatEnabled", Label = "<color=#50D890>Combat Toggle</color>" },
+                            new { Param = "SoY_IsEnemy", Label = "<color=#EF7373>Enemy Mode</color>" }
+                        })
+                        {
+                            var valid = expressionParameters != null &&
+                                expressionParameters.parameters != null &&
+                                expressionParameters.parameters.Any(p => p != null &&
+                                    p.name == config.Param &&
+                                    p.valueType == VRCExpressionParameters.ValueType.Bool);
+                            if (!valid) continue;
+                            menu.controls.Add(new VRCExpressionsMenu.Control
+                            {
+                                name = config.Label,
+                                type = VRCExpressionsMenu.Control.ControlType.Toggle,
+                                parameter = new VRCExpressionsMenu.Control.Parameter { name = config.Param },
+                                value = 1f
+                            });
+                        }
+                        EditorUtility.SetDirty(menu);
+                    }
+                }
+                EditorUtility.SetDirty(parent);
+                AssetDatabase.SaveAssets();
+                Undo.CollapseUndoOperations(group);
+                LoadManualMenuDraft();
+                Repaint();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[SoY System Menu] Installation failed: " + ex);
+                EditorUtility.DisplayDialog("Installation interrupted",
+                    "Review the Unity Undo history and the parent backup:\n" + backup,
+                    "OK");
+            }
         }
 
         // Visual Expressions Menu-style navigation. Browsing itself is read-only.
