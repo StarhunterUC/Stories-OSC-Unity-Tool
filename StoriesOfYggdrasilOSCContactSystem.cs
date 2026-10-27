@@ -7045,7 +7045,7 @@ namespace StoriesOfYggdrasil.OSC
             if (GetInstalledSpellDefinitions().Length > 0) labels.Add("Spells");
             if (GetInstalledTechnickDefinitions().Length > 0 || GetInstalledItemDefinitions().Length > 0) labels.Add("Actions");
             if (HasInstalledManagedRaycast()) labels.Add("Targeting");
-            if (HasExpressionParameter("SoY_MPPercent") || HasExpressionParameter("SoY_MistPercent") || HasExpressionParameter("SoY_DiablosPercent") || HasExpressionParameter("SoY_ArousalPercent")) labels.Add("Status");
+            if (HasExpressionParameter("SoY_MPPercent") || HasExpressionParameter("SoY_MistPercent") || HasExpressionParameter("SoY_DiablosPercent") || HasExpressionParameter("SoY_ArousalPercent") || HasExpressionParameter("SoY_LightCorruptionPercent")) labels.Add("Status");
             var installedFavorites = animationProfile.favorites.Count(favorite =>
                 (favorite.kind == "spell" && GetInstalledSpellDefinitions().Any(entry => entry.Id == favorite.id)) ||
                 (favorite.kind == "technick" && GetInstalledTechnickDefinitions().Any(entry => entry.Id == favorite.id)) ||
@@ -7134,7 +7134,7 @@ namespace StoriesOfYggdrasil.OSC
         {
             if (name == "SoY_CombatEnabled" || name == "SoY_IsEnemy") return "Saved Toggle";
             if (name.EndsWith("Type", StringComparison.Ordinal) || name == "SoY_HPPercent" || name == "SoY_MPPercent" || name == "SoY_CriticalHP" || name == "SoY_KO") return "Networked Animation";
-            if (name == "SoY_MistPercent" || name == "SoY_DiablosPercent" || name == "SoY_ArousalPercent" || name == "SoY_DiablosApplicable" || name == "SoY_ArousalApplicable" || name == "SoY_ArousalDischargeReady") return "Resource FX";
+            if (name == "SoY_MistPercent" || name == "SoY_DiablosPercent" || name == "SoY_ArousalPercent" || name == "SoY_LightCorruptionPercent" || name == "SoY_LightCorruptionApplicable" || name == "SoY_DiablosApplicable" || name == "SoY_ArousalApplicable" || name == "SoY_ArousalDischargeReady") return "Resource FX";
             if (name.Contains("Bit") || name.EndsWith("Active", StringComparison.Ordinal)) return "Incoming Contact Bus";
             if (name.StartsWith("SoY_Hit") || name.StartsWith("SoY_Debuff")) return "Local OSC Input";
             return "Runtime Output";
@@ -7244,6 +7244,8 @@ namespace StoriesOfYggdrasil.OSC
                 animator.SetFloat("SoY_MistPercent", 0f);
                 animator.SetFloat("SoY_DiablosPercent", 0f);
                 animator.SetFloat("SoY_ArousalPercent", 0f);
+                animator.SetFloat("SoY_LightCorruptionPercent", 0f);
+                animator.SetBool("SoY_LightCorruptionApplicable", false);
                 animator.SetBool("SoY_DiablosApplicable", false);
                 animator.SetBool("SoY_ArousalApplicable", false);
                 animator.SetBool("SoY_ArousalDischargeReady", false);
@@ -14268,6 +14270,7 @@ namespace StoriesOfYggdrasil.OSC
                 statusMenu.controls.Add(CreateRadialControl("Curse Of Diablos", "SoY_DiablosPercent"));
             if (HasExpressionParameter("SoY_ArousalPercent"))
                 statusMenu.controls.Add(CreateRadialControl("Arousal", "SoY_ArousalPercent"));
+            // Light Corruption is a resource gauge, not a user-operated radial.
             EditorUtility.SetDirty(statusMenu);
 
             BuildSchoolGroupMenu(
