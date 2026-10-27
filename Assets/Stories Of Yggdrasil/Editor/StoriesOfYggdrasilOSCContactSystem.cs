@@ -6332,6 +6332,122 @@ namespace StoriesOfYggdrasil.OSC
             }
         }
 
+        // Installed menu routes are resolved from the avatar's linked asset
+        // references (GUID-backed by Unity), not inferred from the active tab.
+        // Only submenus created by this installer are considered routing targets.
+        private VRCExpressionsMenu FindManagedSystemPage(string category)
+        {
+            var root = expressionsMenu;
+            if (root == null) return null;
+            var visited = new HashSet<int>();
+            var queue = new Queue<VRCExpressionsMenu>();
+            queue.Enqueue(root);
+            while (queue.Count > 0 && visited.Count < 128)
+            {
+                var current = queue.Dequeue();
+                if (current == null || !visited.Add(current.GetInstanceID())) continue;
+                foreach (var control in current.controls ?? new List<VRCExpressionsMenu.Control>())
+                {
+                    if (control == null || control.type != VRCExpressionsMenu.Control.ControlType.SubMenu ||
+                        control.subMenu == null) continue;
+                    var path = AssetDatabase.GetAssetPath(control.subMenu);
+                    if (path.IndexOf("/Menus/System/", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                        string.Equals(control.name, category, StringComparison.OrdinalIgnoreCase))
+                        return control.subMenu;
+                    queue.Enqueue(control.subMenu);
+                }
+            }
+            return null;
+        }
+
+        private static VRCExpressionsMenu.Control ActionMenuControl(
+            string label, string parameter, int id)
+        {
+            return new VRCExpressionsMenu.Control
+            {
+                name = label,
+                type = VRCExpressionsMenu.Control.ControlType.Button,
+                parameter = new VRCExpressionsMenu.Control.Parameter { name = parameter },
+                value = id
+            };
+        }
+
+        private bool TryAddMenuAction(VRCExpressionsMenu destination, string label, string parameter, int id)
+        {
+            if (destination == null) return false;
+            if (destination.controls == null) destination.controls = new List<VRCExpressionsMenu.Control>();
+            if (destination.controls.Any(control => control != null && control.parameter != null &&
+                control.parameter.name == parameter && Mathf.Approximately(control.value, id)))
+                return true;
+            if (destination.controls.Count >= ManualMenuCapacity)
+            {
+                Debug.LogWarning("[SoY Menu] " + destination.name +
+                    " is full; action " + label + " was not installed into the menu.");
+                return false;
+            }
+            var path = AssetDatabase.GetAssetPath(destination);
+            var folder = CurrentAvatarGeneratedFolder("Backups/Menus");
+            EnsureAssetFolder(folder);
+            var backup = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
+                MakeSafeAssetName(destination.name) + "_" + AssetDatabase.AssetPathToGUID(path) +
+                "_backup_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".asset");
+            if (!AssetDatabase.CopyAsset(path, backup)) return false;
+            Undo.RecordObject(destination, "Install SoY Action Menu Control");
+            destination.controls.Add(ActionMenuControl(label, parameter, id));
+            EditorUtility.SetDirty(destination);
+            AssetDatabase.SaveAssets();
+            return true;
+        }
+
+        private VRCExpressionsMenu EnsureManagedMagickSchoolPage(VRCExpressionsMenu magicks,
+            string school)
+        {
+            if (magicks == null) return null;
+            var existing = (magicks.controls ?? new List<VRCExpressionsMenu.Control>())
+                .FirstOrDefault(c => c != null && c.type == VRCExpressionsMenu.Control.ControlType.SubMenu &&
+                    string.Equals(c.name, school, StringComparison.OrdinalIgnoreCase));
+            if (existing != null) return existing.subMenu;
+            if (magicks.controls == null) magicks.controls = new List<VRCExpressionsMenu.Control>();
+            if (magicks.controls.Count >= ManualMenuCapacity) return null;
+            var folder = CurrentAvatarGeneratedFolder("Menus/System");
+            EnsureAssetFolder(folder);
+            var page = ScriptableObject.CreateInstance<VRCExpressionsMenu>();
+            page.controls = new List<VRCExpressionsMenu.Control>();
+            var path = AssetDatabase.GenerateUniqueAssetPath(folder + "/" +
+                AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(magicks)) +
+                "_" + MakeSafeAssetName(school) + ".asset");
+            AssetDatabase.CreateAsset(page, path);
+            Undo.RegisterCreatedObjectUndo(page, "Create SoY Magick School Menu");
+            Undo.RecordObject(magicks, "Add SoY Magick School");
+            magicks.controls.Add(new VRCExpressionsMenu.Control
+            {
+                name = school,
+                type = VRCExpressionsMenu.Control.ControlType.SubMenu,
+                subMenu = page
+            });
+            EditorUtility.SetDirty(magicks);
+            AssetDatabase.SaveAssets();
+            return page;
+        }
+
+        private void RouteNewInstalledAction(ActionAnimationKind kind, int id, string name,
+            string school = null)
+        {
+            var category = kind == ActionAnimationKind.Spell ? "Magicks" :
+                kind == ActionAnimationKind.Technick ? "Technicks" : "Items";
+            var page = FindManagedSystemPage(category);
+            if (page == null) return;
+            if (kind == ActionAnimationKind.Spell)
+            {
+                if (string.IsNullOrWhiteSpace(school)) return;
+                page = EnsureManagedMagickSchoolPage(page, school);
+                if (page == null) return;
+            }
+            var param = kind == ActionAnimationKind.Spell ? "SoY_SpellType" :
+                kind == ActionAnimationKind.Technick ? "SoY_TechnickType" : "SoY_ItemType";
+            TryAddMenuAction(page, name, param, id);
+        }
+
         // Visual Expressions Menu-style navigation. Browsing itself is read-only.
         private void DrawInstalledMenuBrowser()
         {
@@ -10964,6 +11080,8 @@ namespace StoriesOfYggdrasil.OSC
             SyncInstalledActionAnimationProfile(ActionAnimationKind.Spell);
             RebuildSpellCastAnimationLayer();
             RebuildSpellAlignmentLayer();
+            RouteNewInstalledAction(ActionAnimationKind.Spell, spell.Id, spell.Name,
+                GetSpellSchoolDisplayName(spell.School));
         }
 
         private void ConfigureSpellSender(GameObject host, SpellDefinition spell, string alignmentTag)
@@ -11008,6 +11126,7 @@ namespace StoriesOfYggdrasil.OSC
             SyncInstalledActionAnimationProfile(ActionAnimationKind.Technick);
             RebuildActionAnimationLayer(ActionAnimationKind.Technick, "SoY_TechnickType", TechnickCastLayer, animationProfile.technickAnimations);
             RebuildSpellAlignmentLayer();
+            RouteNewInstalledAction(ActionAnimationKind.Technick, technick.Id, technick.Name);
         }
 
         private void ConfigureHelpfulItemReceiver(
@@ -11374,6 +11493,7 @@ namespace StoriesOfYggdrasil.OSC
             if (physicalBinding != null && physicalBinding.physicalHelpful)
                 RebuildHelpfulItemInteraction(physicalBinding);
             RebuildSpellAlignmentLayer();
+            RouteNewInstalledAction(ActionAnimationKind.Item, item.Id, item.Name);
         }
 
         private void ConfigureActionSender(
