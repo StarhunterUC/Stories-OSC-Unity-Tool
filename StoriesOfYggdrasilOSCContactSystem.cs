@@ -9368,6 +9368,13 @@ namespace StoriesOfYggdrasil.OSC
                 "ID " + selected.Id + " • " + GetSpellSchoolDisplayName(selected.School) + " • " + selected.Category,
                 EditorStyles.miniLabel);
 
+            EditorGUILayout.HelpBox(
+                "Registry: " + selected.Name + " (ID " + selected.Id + "). " +
+                "School: " + GetSpellSchoolDisplayName(selected.School) +
+                "; category: " + selected.Category + ". " +
+                "The selected delivery mode determines the avatar contact or raycast setup. " +
+                "Damage, healing, status effects, and eligibility are resolved by Sam.py.",
+                MessageType.Info);
             var isRaycast = DrawDeliverySelector(selected.Name);
             if (!isRaycast)
             {
