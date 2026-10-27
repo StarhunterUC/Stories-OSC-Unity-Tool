@@ -1391,7 +1391,8 @@ namespace StoriesOfYggdrasil.OSC
         private string manualMenuBaseline = string.Empty;
         private bool manualMenuHasDraft;
         private int manualMenuControlKind;
-        private int manualMenuParameterIndex;
+        private string manualMenuParameterSearch = string.Empty;
+        private string manualMenuSelectedParameter = string.Empty;
         private int manualMenuActionIndex;
         private float manualMenuButtonValue = 1f;
         private string manualMenuLabel = string.Empty;
@@ -6166,15 +6167,44 @@ namespace StoriesOfYggdrasil.OSC
             VRCExpressionParameters.Parameter chosenParameter = null;
             if (manualMenuControlKind == 0 || manualMenuControlKind == 1)
             {
-                if (parameters.Length == 0)
-                    EditorGUILayout.HelpBox("Expression Parameters asset has no selectable parameters.", MessageType.Warning);
+                var eligible = parameters.Where(p =>
+                    manualMenuControlKind != 0 ||
+                    p.valueType == VRCExpressionParameters.ValueType.Bool).ToArray();
+                manualMenuParameterSearch = EditorGUILayout.TextField(
+                    "Search Parameter", manualMenuParameterSearch);
+                var query = (manualMenuParameterSearch ?? string.Empty).Trim();
+                var matches = eligible.Where(p =>
+                    query.Length == 0 || p.name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .OrderBy(p => p.name.StartsWith(query, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                    .ThenBy(p => p.name, StringComparer.OrdinalIgnoreCase)
+                    .Take(25).ToArray();
+                if (matches.Length == 0)
+                    EditorGUILayout.HelpBox("No matching installed parameters. Check the spelling or parameter type.",
+                        MessageType.Warning);
                 else
                 {
-                    manualMenuParameterIndex = Mathf.Clamp(manualMenuParameterIndex, 0, parameters.Length - 1);
-                    manualMenuParameterIndex = EditorGUILayout.Popup("Parameter", manualMenuParameterIndex,
-                        parameters.Select(p => p.name + " (" + p.valueType + ")").ToArray());
-                    chosenParameter = parameters[Mathf.Clamp(manualMenuParameterIndex, 0, parameters.Length - 1)];
+                    EditorGUILayout.LabelField("Matches (select one)", EditorStyles.miniLabel);
+                    foreach (var match in matches)
+                    {
+                        var isSelected = string.Equals(manualMenuSelectedParameter, match.name,
+                            StringComparison.Ordinal);
+                        if (GUILayout.Toggle(isSelected,
+                            match.name + " (" + match.valueType + ")", "Button",
+                            GUILayout.Height(24f)) && !isSelected)
+                            manualMenuSelectedParameter = match.name;
+                    }
+                    if (eligible.Length > matches.Length)
+                        EditorGUILayout.LabelField("Showing up to 25 matches. Type more to narrow the list.",
+                            EditorStyles.miniLabel);
                 }
+                chosenParameter = eligible.FirstOrDefault(p =>
+                    string.Equals(p.name, manualMenuSelectedParameter, StringComparison.Ordinal));
+                if (chosenParameter != null)
+                    EditorGUILayout.LabelField("Selected", chosenParameter.name +
+                        " (" + chosenParameter.valueType + ")");
+                else
+                    EditorGUILayout.HelpBox("Select a matching parameter before adding a control.",
+                        MessageType.None);
                 if (manualMenuControlKind == 1)
                     manualMenuButtonValue = EditorGUILayout.FloatField("Button Value", manualMenuButtonValue);
                 if (manualMenuControlKind == 0 && chosenParameter != null &&
