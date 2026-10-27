@@ -5537,8 +5537,9 @@ namespace StoriesOfYggdrasil.OSC
                     ? layer.stateMachine.states.Select(child => child.state != null ? child.state.motion as BlendTree : null).Where(tree => tree != null).Distinct().ToList()
                     : new List<BlendTree>();
                 controller.RemoveLayer(index);
-                foreach (var tree in trees)
-                    if (tree != null && AssetDatabase.IsSubAsset(tree)) UnityEngine.Object.DestroyImmediate(tree, true);
+                // Retain old embedded BlendTrees as recoverable subassets.
+                // Removing them here makes Unity Undo unable to restore their
+                // animation data reliably and can break external references.
             }
         }
 
@@ -5550,7 +5551,35 @@ namespace StoriesOfYggdrasil.OSC
         private void RebuildAllResourceFxLayers()
         {
             if (fxController == null || !EnsureSafeFxCopy(true)) return;
+            if (!IsSafeFxCopy(fxController))
+            {
+                EditorUtility.DisplayDialog("Resource FX rebuild refused",
+                    "A verified safe FX copy is required. The original controller was not changed.", "OK");
+                return;
+            }
             EnsureResourceGaugeProfileDefaults();
+            var replacementNames = new HashSet<string>(
+                AllResourceGaugeKinds().Select(ResourceLayerName), StringComparer.Ordinal);
+            var replaced = fxController.layers
+                .Where(layer => layer != null && replacementNames.Contains(layer.name))
+                .Select(layer => layer.name).ToArray();
+            var affected = replaced.Length == 0 ? "No existing managed Resource FX layers." :
+                string.Join(", ", replaced);
+            if (!EditorUtility.DisplayDialog("Rebuild managed Resource FX?",
+                "This recreates Stories-managed Resource FX layers and may discard manual edits to those layers. " +
+                "Unrelated FX layers are not intentionally changed.\n\nAffected: " + affected +
+                "\n\nA complete controller backup is required before changes.", "Backup & Rebuild", "Cancel"))
+                return;
+            try
+            {
+                lastAnimatorIntegrityBackupPath = CreateAnimatorIntegrityBackup("resource_fx_rebuild");
+            }
+            catch (Exception exception)
+            {
+                EditorUtility.DisplayDialog("Resource FX backup failed",
+                    "Rebuild was canceled without modifying the controller.\n\n" + exception.Message, "OK");
+                return;
+            }
             Undo.RecordObject(fxController, "Rebuild Stories Resource FX");
             var built = 0;
             foreach (var kind in AllResourceGaugeKinds())
@@ -5570,11 +5599,14 @@ namespace StoriesOfYggdrasil.OSC
                 AddMissingExpressionParameters(expressionParameters);
                 EditorUtility.SetDirty(expressionParameters);
             }
-            CleanupOrphanedManagedResourceBlendTrees(fxController);
+            // Do not destroy unreferenced BlendTree subassets automatically:
+            // some may be intentionally used by external tools or retained as
+            // authoring sources. The complete pre-rebuild FX asset is backed up.
             EditorUtility.SetDirty(fxController);
             AssetDatabase.SaveAssets();
             RefreshHealthAudit();
-            Log("Rebuilt Resource FX framework with " + built + " enabled gauge layer(s).");
+            Log("Rebuilt Resource FX framework with " + built + " enabled gauge layer(s). Backup: " +
+                lastAnimatorIntegrityBackupPath);
         }
 
         private void RebuildHealthAnimationLayer()
