@@ -1929,18 +1929,29 @@ namespace StoriesOfYggdrasil.OSC
             EditorGUI.DrawRect(headerRect, HeaderBackgroundColor);
             EditorGUI.DrawRect(new Rect(headerRect.x, headerRect.yMax - 3f, headerRect.width, 3f), AccentColor);
 
-            var titleRect = new Rect(headerRect.x + 18f, headerRect.y + 10f, headerRect.width - 160f, 28f);
-            var subRect = new Rect(headerRect.x + 18f, headerRect.y + 39f, headerRect.width - 160f, 20f);
+            // The old fixed 88px badge truncated even v0.5.10 + TB18.2.
+            // Size it to its contents, including accessibility font scaling.
+            var versionText = "v" + Version + " • " + BuildNumber;
+            var versionWidth = Mathf.Ceil(badgeStyle.CalcSize(new GUIContent(versionText)).x) + 12f;
+            versionWidth = Mathf.Max(120f, versionWidth);
+            const float headerRightInset = 18f;
+            var versionRect = new Rect(headerRect.xMax - headerRightInset - versionWidth,
+                headerRect.y + 12f, versionWidth, 26f);
+            var textRight = versionRect.x - 12f;
+            var titleWidth = Mathf.Max(0f, textRight - (headerRect.x + 18f));
+            var titleRect = new Rect(headerRect.x + 18f, headerRect.y + 10f, titleWidth, 28f);
+            var subRect = new Rect(headerRect.x + 18f, headerRect.y + 39f, titleWidth, 20f);
             GUI.Label(titleRect, "Stories Of Yggdrasil — OSC Contact System", titleStyle);
             GUI.Label(subRect, "Avatar setup • Contact authoring • FX animations • Safe repair", subtitleStyle);
 
-            var versionRect = new Rect(headerRect.xMax - 112f, headerRect.y + 12f, 88f, 24f);
             EditorGUI.DrawRect(versionRect, colorVisionMode == ColorVisionMode.HighContrast ? Color.black : new Color(0.18f, 0.10f, 0.28f));
-            GUI.Label(versionRect, "v" + Version + " • " + BuildNumber, badgeStyle);
+            GUI.Label(versionRect, versionText, badgeStyle);
 
             if (updateAvailable)
             {
-                var updateRect = new Rect(headerRect.xMax - 222f, headerRect.y + 12f, 102f, 24f);
+                // Put update notification below the badge rather than overlapping
+                // it or squeezing the title to fit two right-hand badges.
+                var updateRect = new Rect(versionRect.x, headerRect.y + 42f, versionWidth, 24f);
                 EditorGUI.DrawRect(updateRect, new Color(0.18f, 0.42f, 0.20f));
                 if (GUI.Button(updateRect, "Update Ready", badgeStyle))
                     PromptForUpdate();
