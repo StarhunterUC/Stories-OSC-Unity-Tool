@@ -11875,7 +11875,7 @@ namespace StoriesOfYggdrasil.OSC
             var folder = CurrentAvatarGeneratedFolder("Animations/Helpful Items/" + binding.id + "_" + MakeSafeAssetName(binding.name));
             EnsureAssetFolder(folder);
 
-            var controlled = new[] { prop, interactionRoot };
+            var controlled = new[] { prop, interactionRoot, senderHost };
             var hidden = AddHookState(layer.stateMachine, "Hidden", new Vector3(100f, 160f));
             var grabLatch = AddHookState(layer.stateMachine, "Grab Toggle On — Wait Release", new Vector3(400f, 80f));
             var held = AddHookState(layer.stateMachine, "Held / Ready", new Vector3(700f, 160f));
@@ -11888,15 +11888,21 @@ namespace StoriesOfYggdrasil.OSC
 
             hidden.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Hidden.anim", controlled, Array.Empty<GameObject>(), 1f / 60f);
             grabLatch.motion = CreateOrReplaceSelectiveActiveClip(folder + "/GrabLatch.anim", controlled, new[] { prop }, 1f / 60f);
-            held.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Held.anim", controlled, new[] { prop, interactionRoot }, 1f / 60f);
-            use.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Use.anim", controlled, new[] { prop, interactionRoot }, 1f / 60f);
+            // Detection receivers are armed while equipped. The encoded item
+            // bus sender only becomes active after a detected head touch.
+            var itemControlObjects = new[] { prop, interactionRoot, senderHost };
+            held.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Held.anim",
+                itemControlObjects, new[] { prop, interactionRoot }, 1f / 60f);
+            use.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Use.anim",
+                itemControlObjects, new[] { prop, interactionRoot, senderHost }, 1f / 60f);
             hideLatch.motion = CreateOrReplaceSelectiveActiveClip(folder + "/HideLatch.anim", controlled, new[] { prop }, 1f / 60f);
             success.motion = LoadClipFromPath(binding.helpfulSuccessClipPath) ??
                 CreateOrReplaceTimerClip(folder + "/Success.anim", 0.45f);
             failure.motion = LoadClipFromPath(binding.helpfulFailureClipPath) ??
                 CreateOrReplaceTimerClip(folder + "/Failure.anim", 0.65f);
             resultWait.motion = CreateOrReplaceSelectiveActiveClip(folder + "/ResultWait.anim", controlled, new[] { prop }, 1f / 60f);
-            cooldown.motion = CreateOrReplaceTimerClip(folder + "/Cooldown30s.anim", 30f);
+            cooldown.motion = CreateOrReplaceSelectiveActiveClip(folder + "/Cooldown30s.anim",
+                controlled, Array.Empty<GameObject>(), 30f);
             var unequipAfterUse = cooldown.AddStateMachineBehaviour<VRCAvatarParameterDriver>();
             unequipAfterUse.localOnly = true;
             unequipAfterUse.parameters = new List<VRC_AvatarParameterDriver.Parameter>
