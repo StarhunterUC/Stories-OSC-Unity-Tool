@@ -11660,7 +11660,7 @@ namespace StoriesOfYggdrasil.OSC
             SetBoolMember(receiver, allowOthers, "allowOthers", "AllowOthers");
             SetBoolMember(receiver, true, "localOnly", "LocalOnly");
             SetStringMember(receiver, parameter, "parameter", "Parameter");
-            SetEnumMember(receiver, "OnEnter", "receiverType", "ReceiverType");
+            SetEnumMember(receiver, "Constant", "receiverType", "ReceiverType");
             SetFloatMember(receiver, 1f, "value", "Value");
             SetFloatMember(receiver, 0f, "minVelocity", "MinVelocity");
             FinishContact(receiver);
@@ -11747,7 +11747,7 @@ namespace StoriesOfYggdrasil.OSC
                         Vector3.zero,
                         Vector3.zero,
                         tags);
-                    SetBoolMember(receiver, false, "allowSelf", "AllowSelf");
+                    SetBoolMember(receiver, true, "allowSelf", "AllowSelf");
                     SetBoolMember(receiver, true, "allowOthers", "AllowOthers");
                     SetBoolMember(receiver, true, "localOnly", "LocalOnly");
                     SetStringMember(receiver, mapping.Parameter, "parameter", "Parameter");
@@ -11974,6 +11974,11 @@ namespace StoriesOfYggdrasil.OSC
             resetDone.hasExitTime = false;
             resetDone.duration = 0f;
             resetDone.AddCondition(AnimatorConditionMode.Equals, 0f, HelpfulItemUseResultParameter);
+            // Require contact release before attempting a rejected use again.
+            if (binding.helpfulAllowSelf)
+                resetDone.AddCondition(AnimatorConditionMode.IfNot, 0f, HelpfulItemSelfTouchParameter);
+            if (binding.helpfulAllowOthers)
+                resetDone.AddCondition(AnimatorConditionMode.IfNot, 0f, HelpfulItemOtherTouchParameter);
 
             var cooldownDone = cooldown.AddTransition(hidden);
             cooldownDone.hasExitTime = true;
