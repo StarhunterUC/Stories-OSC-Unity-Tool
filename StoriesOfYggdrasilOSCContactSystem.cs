@@ -9493,7 +9493,7 @@ namespace StoriesOfYggdrasil.OSC
             {
                 EditorGUILayout.HelpBox(
                     "Registry ID: " + selected.Id + " | " +
-                    "Menu command parameter: " + SoY_TechnickType + " (Int) | " +
+                    "Menu command parameter: " + "SoY_TechnickType" + " (Int) | " +
                     "Sender: Contact or supported Raycast delivery. " +
                     "The avatar emits an action ID; Sam.py determines eligibility, MP, cooldown, targets and final effects.",
                     MessageType.Info);
@@ -9545,7 +9545,7 @@ namespace StoriesOfYggdrasil.OSC
             {
                 EditorGUILayout.HelpBox(
                     "Registry ID: " + selected.Id + " | " +
-                    "Menu command parameter: " + SoY_ItemType + " (Int) | " +
+                    "Menu command parameter: " + "SoY_ItemType" + " (Int) | " +
                     "Sender: Contact or supported Raycast delivery. " +
                     "The avatar emits an action ID; Sam.py determines eligibility, MP, cooldown, targets and final effects.",
                     MessageType.Info);
