@@ -31,8 +31,8 @@ namespace StoriesOfYggdrasil.OSC
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
         private const string Version = "0.5.11";
-        private const string BuildNumber = "TB19.1";
-        private const string BuildLabel = "Test Build 19.1 — Raycast Targeting Recovery";
+        private const string BuildNumber = "TB19.2";
+        private const string BuildLabel = "Test Build 19.2 — Manual Targeting Menu";
         // Opt-in only; deliberately NOT part of InstallAllBridgeHooks().
         private const string MovementLockLayer = "Stories Of Yggdrasil | Movement Lock";
         private const string MovementLockParameter = "SoY_MovementLocked";
@@ -6536,7 +6536,7 @@ namespace StoriesOfYggdrasil.OSC
                 return;
             }
             var parentControls = parent.controls ?? new List<VRCExpressionsMenu.Control>();
-            var definitions = new [] { "Combat", "Magicks", "Technicks", "Items" };
+            var definitions = new [] { "Combat", "Magicks", "Technicks", "Items", "Targeting" };
             // A named SubMenu with a null reference may be left behind by the
             // old asset-creation Undo transaction. Treat it as a repairable slot.
             var existing = new HashSet<string>(parentControls.Where(c => c != null &&
@@ -6550,18 +6550,18 @@ namespace StoriesOfYggdrasil.OSC
             if (needed.Count == 0)
             {
                 EditorUtility.DisplayDialog("Already installed",
-                    "The selected page already has the four main menu entries. No changes made.", "OK");
+                    "The selected page already has all five main menu entries. No changes made.", "OK");
                 return;
             }
             if (parentControls.Count + additionalSlots > ManualMenuCapacity)
             {
                 EditorUtility.DisplayDialog("Not enough menu slots",
-                    "This page needs " + additionalSlots + " free slots for Combat, Magicks, Technicks and Items. " +
+                    "This page needs " + additionalSlots + " free slots for the missing SoY system pages. " +
                     "Choose another destination or free enough slots first.", "OK");
                 return;
             }
             if (!EditorUtility.DisplayDialog("Install Stories System Menu?",
-                "Create or repair Combat, Magicks, Technicks and Items submenus under:\n" +
+                "Create or repair Combat, Magicks, Technicks, Items and Targeting submenus under:\n" +
                 assetPath + "\nExisting controls are preserved. An asset backup is created first.",
                 "Install", "Cancel"))
                 return;
@@ -6607,6 +6607,39 @@ namespace StoriesOfYggdrasil.OSC
                         type = VRCExpressionsMenu.Control.ControlType.SubMenu,
                         subMenu = menu
                     });
+                    if (name == "Targeting")
+                    {
+                        // Menu-only: these controls expose existing functionality.
+                        // The actual VRCRaycast origin, result, and managed FX
+                        // targeting layers must be repaired per action in Raycast Studio.
+                        foreach (var config in new[] {
+                            new { Param = RaycastTargetingParameter, Label = "Targeting Crosshair",
+                                ControlType = VRCExpressionsMenu.Control.ControlType.Toggle },
+                            new { Param = RaycastFireParameter, Label = "Projectile Fire",
+                                ControlType = VRCExpressionsMenu.Control.ControlType.Button }
+                        })
+                        {
+                            var valid = expressionParameters != null &&
+                                expressionParameters.parameters != null &&
+                                expressionParameters.parameters.Any(p => p != null &&
+                                    p.name == config.Param &&
+                                    p.valueType == VRCExpressionParameters.ValueType.Bool);
+                            if (!valid)
+                            {
+                                Debug.LogWarning("[SoY Targeting Menu] Missing Bool Expression Parameter: " +
+                                    config.Param + ". Install/repair bridge parameters first.");
+                                continue;
+                            }
+                            menu.controls.Add(new VRCExpressionsMenu.Control
+                            {
+                                name = config.Label,
+                                type = config.ControlType,
+                                parameter = new VRCExpressionsMenu.Control.Parameter { name = config.Param },
+                                value = 1f
+                            });
+                        }
+                        EditorUtility.SetDirty(menu);
+                    }
                     if (name == "Combat")
                     {
                         foreach (var config in new [] {
@@ -6635,6 +6668,14 @@ namespace StoriesOfYggdrasil.OSC
                 AssetDatabase.SaveAssets();
                 Undo.CollapseUndoOperations(group);
                 LoadManualMenuDraft();
+                if (needed.Contains("Targeting"))
+                    EditorUtility.DisplayDialog("Targeting menu installed",
+                        "The Targeting page has been linked to this menu. " +
+                        "Crosshair and Projectile Fire controls are included only when their Bool " +
+                        "Expression Parameters exist. Menu installation does not generate the " +
+                        "VRCRaycast rig or restore missing FX Gate/Target layers. " +
+                        "Use Setup & Preflight > Rebuild Current Action Raycast for each affected action.",
+                        "OK");
                 Repaint();
             }
             catch (Exception ex)
