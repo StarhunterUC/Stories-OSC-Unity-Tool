@@ -31,8 +31,8 @@ namespace StoriesOfYggdrasil.OSC
     public sealed class StoriesOfYggdrasilOSCContactSystem : EditorWindow
     {
         private const string Version = "0.5.11";
-        private const string BuildNumber = "TB18.2";
-        private const string BuildLabel = "Test Build 18.2 — Isolated Contact Provenance";
+        private const string BuildNumber = "TB19.1";
+        private const string BuildLabel = "Test Build 19.1 — Raycast Targeting Recovery";
         // Opt-in only; deliberately NOT part of InstallAllBridgeHooks().
         private const string MovementLockLayer = "Stories Of Yggdrasil | Movement Lock";
         private const string MovementLockParameter = "SoY_MovementLocked";
@@ -2760,8 +2760,9 @@ namespace StoriesOfYggdrasil.OSC
         {
             if (avatarRoot == null || fxController == null || !IsSafeFxCopy(fxController))
                 return;
-            if (!RaycastTypeAvailable() || CountRaycastComponents() == 0)
+            if (!RaycastTypeAvailable())
                 return;
+            var raycastCount = CountRaycastComponents();
 
             var hasGate = fxController.layers.Any(layer => layer != null &&
                 layer.name.StartsWith(RaycastLayerPrefix, StringComparison.Ordinal));
@@ -2769,6 +2770,14 @@ namespace StoriesOfYggdrasil.OSC
                 layer.name.StartsWith(RaycastTargetLayerPrefix, StringComparison.Ordinal));
             if (hasGate && hasTarget)
                 return;
+            if (raycastCount == 0)
+            {
+                EditorGUILayout.HelpBox("No VRCRaycast components were detected on this avatar. " +
+                    "If a raycast action was previously installed, inspect the avatar hierarchy and " +
+                    "its original raycast origin before rebuilding. Manual menus are not altered.",
+                    MessageType.Warning);
+                return;
+            }
 
             EditorGUILayout.HelpBox(
                 "SoY raycast components exist on this avatar, but the active safe FX controller " +
