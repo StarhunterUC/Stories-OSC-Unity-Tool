@@ -2752,6 +2752,50 @@ namespace StoriesOfYggdrasil.OSC
             return missing;
         }
 
+        // TB19 Test Builds: inspect the actual managed FX controller rather than
+        // assuming the presence of expression parameters means a raycast is functional.
+        // Repair remains explicit and uses the existing per-action builder. No menus
+        // are generated or modified by this check.
+        private void DrawRaycastTargetingIntegrityWarning()
+        {
+            if (avatarRoot == null || fxController == null || !IsSafeFxCopy(fxController))
+                return;
+            if (!RaycastTypeAvailable() || CountRaycastComponents() == 0)
+                return;
+
+            var hasGate = fxController.layers.Any(layer => layer != null &&
+                layer.name.StartsWith(RaycastLayerPrefix, StringComparison.Ordinal));
+            var hasTarget = fxController.layers.Any(layer => layer != null &&
+                layer.name.StartsWith(RaycastTargetLayerPrefix, StringComparison.Ordinal));
+            if (hasGate && hasTarget)
+                return;
+
+            EditorGUILayout.HelpBox(
+                "SoY raycast components exist on this avatar, but the active safe FX controller " +
+                "is missing " + (!hasGate && !hasTarget ? "Raycast Gate and Raycast Target layers" :
+                !hasGate ? "Raycast Gate layers" : "Raycast Target layers") +
+                ". Raycast parameters alone do not make targeting functional. " +
+                "The manual menu layout is independent of these functional layers. " +
+                "Repair one action at a time using its intended origin and action selection.",
+                MessageType.Error);
+
+            using (new EditorGUI.DisabledScope(!HasUsableTargets()))
+            {
+                if (GUILayout.Button("REBUILD CURRENT ACTION RAYCAST (REVIEW ORIGIN FIRST)",
+                    GUILayout.Height(largeControls ? 44f : 34f)) &&
+                    EditorUtility.DisplayDialog("Rebuild current SoY raycast?",
+                        "This runs the existing Create / Repair Raycast operation for the CURRENT " +
+                        "action and currently selected Contact Target/origin. It may rebuild that " +
+                        "action's managed raycast components and FX layers. It will NOT rebuild " +
+                        "other actions or edit the manual Expressions Menu. " +
+                        "Back up your Unity project/FX controller before continuing.",
+                        "Rebuild Current Action", "Cancel"))
+                {
+                    CreateRaycastDeliveryForCurrentAction();
+                }
+            }
+        }
+
         private void DrawManagedResourceFxMissingWarning()
         {
             if (fxController == null || !IsSafeFxCopy(fxController))
@@ -2794,6 +2838,7 @@ namespace StoriesOfYggdrasil.OSC
                 EditorGUILayout.LabelField((check.Value ? "✓ " : "✕ ") + check.Key, wrappedLabel);
 
             DrawManagedResourceFxMissingWarning();
+            DrawRaycastTargetingIntegrityWarning();
 
             if (expressionParameters != null)
             {
